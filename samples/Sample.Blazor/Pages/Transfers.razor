@@ -1,0 +1,127 @@
+@page "/transfers"
+@inherits BridgePage
+
+<h1>Transfers</h1>
+<p class="muted">Background uploads and downloads that keep going when the app is suspended. Completion and failure also reach background.js.</p>
+
+<h2>Download <span class="muted">(into cache)</span></h2>
+<div class="form">
+    <input @bind="downloadUrl" placeholder="https://…" />
+    <input @bind="downloadPath" placeholder="downloads/file.bin" />
+</div>
+<div class="actions">
+    <button @onclick="Download">Download</button>
+</div>
+
+<h2>Upload <span class="muted">(from data)</span></h2>
+<div class="form">
+    <input @bind="uploadUrl" placeholder="https://…" />
+    <input @bind="uploadPath" placeholder="uploads/hello.txt" />
+</div>
+<div class="actions">
+    <button @onclick="Upload">Write a file and upload it</button>
+</div>
+
+<h2>Queue</h2>
+<div class="actions">
+    <button @onclick="Refresh">List</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("transfers")))'>Cancel all</button>
+</div>
+
+<ul class="list">
+    @foreach (var transfer in live.Values.OrderBy(x => x.Id))
+    {
+        <li>
+            <strong>@transfer.Type</strong> @transfer.Path — @transfer.Status @Percent(transfer)
+            <button @onclick='@(() => Run(() => Bridge.DeleteAsync($"transfers/{transfer.Id}")))'>Cancel</button>
+        </li>
+    }
+</ul>
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    // httpbin echoes what it is sent, and serves bytes of any size: enough to watch progress move.
+    string downloadUrl = "https://httpbin.org/bytes/5242880";
+    string downloadPath = "downloads/random.bin";
+    string uploadUrl = "https://httpbin.org/post";
+    string uploadPath = "uploads/hello.txt";
+    string log = String.Empty;
+
+    readonly Dictionary<string, Row> live = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen("transfer.progress", e => Track(e));
+
+        foreach (var name in new[] { "transfer.completed", "transfer.failed", "transfer.cancelled" })
+        {
+            await Listen(name, e =>
+            {
+                log = Prepend(log, $"{DateTime.Now:T}  {name}  {e.GetRawText()}");
+
+                if (Text(e, "id") is { } id)
+                    live.Remove(id);
+            });
+        }
+    }
+
+    Task Download() => Run(async () => Track(await Bridge.PostAsync("transfers", new JsonObject
+    {
+        ["type"] = "Download",
+        ["url"] = downloadUrl,
+        ["root"] = "cache",
+        ["path"] = downloadPath
+    })));
+
+    Task Upload() => Run(async () =>
+    {
+        await Bridge.SendAsync(HttpMethod.Put, $"files/data/content?path={Uri.EscapeDataString(uploadPath)}", new StringContent($"Uploaded from Blazor at {DateTime.Now:O}"));
+
+        return Track(await Bridge.PostAsync("transfers", new JsonObject
+        {
+            ["type"] = "UploadMultipart",
+            ["url"] = uploadUrl,
+            ["root"] = "data",
+            ["path"] = uploadPath,
+            ["formDataName"] = "file",
+            ["body"] = new JsonObject { ["content"] = """{ "from": "sample" }""", ["contentType"] = "application/json", ["formDataName"] = "meta" }
+        }));
+    });
+
+    Task Refresh() => Run(async () =>
+    {
+        var result = await Bridge.GetAsync("transfers");
+
+        if (result is { } list && list.TryGetProperty("transfers", out var transfers))
+        {
+            live.Clear();
+
+            foreach (var transfer in transfers.EnumerateArray())
+                Track(transfer);
+        }
+
+        return result;
+    });
+
+    JsonElement? Track(JsonElement? element)
+    {
+        if (element is { ValueKind: JsonValueKind.Object } e && Text(e, "id") is { } id)
+        {
+            live[id] = new Row(
+                id,
+                Text(e, "type") ?? "?",
+                Text(e, "path") ?? String.Empty,
+                Text(e, "status") ?? "?",
+                e.TryGetProperty("percentComplete", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : null
+            );
+        }
+
+        return element;
+    }
+
+    static string Percent(Row row) => row.PercentComplete is { } p ? $"{p:P0}" : String.Empty;
+
+    sealed record Row(string Id, string Type, string Path, string Status, double? PercentComplete);
+}

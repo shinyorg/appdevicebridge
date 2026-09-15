@@ -14,7 +14,7 @@
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.WebAppHost.Bridge.Locations</RootNamespace>
-    <Description>GPS and geofencing endpoints for a Shiny.WebAppHost web app, backed by Shiny.Locations — permissions, current and last position, a listener streamed to the page as events, and geofence regions. One call each: builder.AddGpsBridge(), builder.AddGeofenceBridge().</Description>
+    <Description>GPS and geofencing endpoints for a Shiny.WebAppHost web app, backed by Shiny.Locations — permissions, current and last position, a listener streamed to the page as events, geofence regions, and motion activity. One call each: builder.AddGpsBridge(), builder.AddGeofenceBridge(), builder.AddMotionActivityBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>

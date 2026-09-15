@@ -1,9 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application android:allowBackup="true" android:supportsRtl="true" />
+    <application android:allowBackup="true" android:supportsRtl="true">
+        <!-- Health bridge: Android 14+ grants no health permissions without this. It targets MainActivity's explicit Name. -->
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:targetActivity="org.shinylib.webapphost.sample.MainActivity"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+    </application>
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- WebView camera and microphone (AllowWebPermissions). The Speech bridge uses the microphone too. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- AppSupport bridge: vibration, and battery status (Essentials checks the manifest entry) -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.BATTERY_STATS" />
 
     <!-- Locations bridge -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -12,6 +35,10 @@
 
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- Motion activity bridge -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="com.google.android.gms.permission.ACTIVITY_RECOGNITION" />
 
     <!-- Wi-Fi bridge -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
@@ -24,9 +51,42 @@
     <!-- Push bridge -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Notifications bridge: on-time schedules, and schedules that survive a reboot -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- HTTP transfers bridge: Shiny's transfer loop runs in a dataSync foreground service -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- Health bridge: one permission per Health Connect record the page reads or writes -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+
+    <!-- Contacts and Calendar bridges -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.WRITE_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+
     <!-- Bluetooth LE bridge -->
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
+
+    <queries>
+        <!-- MediaPicker, behind <input capture>, looks for a camera app -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.VIDEO_CAPTURE" />
+        </intent>
+        <!-- Speech bridge: text-to-speech engines are hidden from Android 11 without this -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+        <!-- Health bridge: Health Connect -->
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
 </manifest>

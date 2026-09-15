@@ -13,5 +13,13 @@
 	<true/>
 	<key>com.apple.security.personal-information.location</key>
 	<true/>
+	<!-- WebView camera and microphone, and the Speech bridge -->
+	<key>com.apple.security.device.camera</key>
+	<true/>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<!-- Calendar bridge: without it the sandbox denies access and never prompts -->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
 </dict>
 </plist>

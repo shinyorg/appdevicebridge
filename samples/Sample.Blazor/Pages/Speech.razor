@@ -1,0 +1,61 @@
+@page "/speech"
+@inherits BridgePage
+
+<h1>Speech</h1>
+<p class="muted">On-device recognition and text-to-speech. Linux has no OS speech engine, so every call there answers 501.</p>
+
+<h2>Text-to-speech</h2>
+<div class="form">
+    <input @bind="text" placeholder="Something to say" />
+    <button @onclick="Speak">Speak</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("speech/speak")))'>Stop</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("speech/voices")))'>Voices</button>
+</div>
+
+<h2>Recognition</h2>
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("speech/status")))'>Status</button>
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("speech/access")))'>Request access</button>
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("speech/recognize", new JsonObject { ["silenceTimeoutMs"] = 2000 })))' disabled="@Busy">Recognize once</button>
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("speech/listener")))'>Start dictation</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("speech/listener")))'>Stop dictation</button>
+</div>
+
+@if (partial is not null)
+{
+    <p class="muted">@partial…</p>
+}
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    string text = "Hello from the web app.";
+    string? partial;
+    string log = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen("speech.partial", e => partial = Text(e, "text"));
+
+        await Listen("speech.result", e =>
+        {
+            partial = null;
+            log = Prepend(log, $"{DateTime.Now:T}  heard  {Text(e, "text")}");
+        });
+
+        foreach (var name in new[] { "speech.keyword", "speech.ended", "speech.spoken", "speech.error" })
+        {
+            await Listen(name, e =>
+            {
+                if (name == "speech.ended")
+                    partial = null;
+
+                log = Prepend(log, $"{DateTime.Now:T}  {name}  {e.GetRawText()}");
+            });
+        }
+    }
+
+    // Returns as soon as speech starts; speech.spoken says when it finished.
+    Task Speak() => Run(() => Bridge.PostAsync("speech/speak", new JsonObject { ["text"] = text, ["wait"] = false }));
+}

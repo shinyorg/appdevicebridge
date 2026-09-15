@@ -7,7 +7,8 @@ namespace Shiny.WebAppHost.Bridge.AppSupport;
 
 /// <summary>
 /// <c>/_bridge/app</c> — device and app information, orientation, the browser, maps, settings and the
-/// app store, over Shiny.Extensions.MauiHosting.
+/// app store, over Shiny.Extensions.MauiHosting — plus sharing, haptics, connectivity, battery, the screen and
+/// the clipboard over .NET MAUI Essentials (see AppSupportBridge.Device.cs).
 /// <code>
 /// GET    /_bridge/app/info
 /// POST   /_bridge/app/orientation     { "orientation": "Portrait" }
@@ -22,16 +23,19 @@ namespace Shiny.WebAppHost.Bridge.AppSupport;
 /// events: app.orientation, app.culture, app.timezone
 /// </code>
 /// </summary>
-public sealed class AppSupportBridge : IWebAppBridge, IDisposable
+public sealed partial class AppSupportBridge : IWebAppBridge, IDisposable
 {
     readonly IAppSupport? app;
     readonly IAppStore? store;
+    readonly WebAppHostOptions? options;
     readonly WebAppEventHub events;
+    bool disposed;
 
     public AppSupportBridge(IServiceProvider services, WebAppEventHub events)
     {
         this.app = services.GetOptionalService<IAppSupport>();
         this.store = services.GetOptionalService<IAppStore>();
+        this.options = services.GetOptionalService<WebAppHostOptions>();
         this.events = events;
 
         if (this.app is not null)
@@ -40,22 +44,29 @@ public sealed class AppSupportBridge : IWebAppBridge, IDisposable
             this.app.CultureChanged += this.OnCultureChanged;
             this.app.TimeZoneChanged += this.OnTimeZoneChanged;
         }
+
+        events.SubscribersChanged += this.UpdateWatchers;
     }
 
     public string Name => "app";
 
     public bool IsSupported => this.app is not null;
 
-    public void Map(WebAppBridgeRoutes routes) => routes
-        .MapGet("/info", this.InfoAsync)
-        .MapPost("/orientation", this.SetOrientationAsync)
-        .MapDelete("/orientation", this.ResetOrientationAsync)
-        .MapPost("/browser", this.OpenBrowserAsync)
-        .MapPost("/map", this.OpenMapAsync)
-        .MapPost("/settings", this.OpenSettingsAsync)
-        .MapGet("/store", this.StoreAsync)
-        .MapPost("/store/open", this.OpenStoreAsync)
-        .MapPost("/store/review", this.RequestReviewAsync);
+    public void Map(WebAppBridgeRoutes routes)
+    {
+        routes
+            .MapGet("/info", this.InfoAsync)
+            .MapPost("/orientation", this.SetOrientationAsync)
+            .MapDelete("/orientation", this.ResetOrientationAsync)
+            .MapPost("/browser", this.OpenBrowserAsync)
+            .MapPost("/map", this.OpenMapAsync)
+            .MapPost("/settings", this.OpenSettingsAsync)
+            .MapGet("/store", this.StoreAsync)
+            .MapPost("/store/open", this.OpenStoreAsync)
+            .MapPost("/store/review", this.RequestReviewAsync);
+
+        this.MapDevice(routes);
+    }
 
     ValueTask InfoAsync(HttpContext context)
     {
@@ -236,6 +247,12 @@ public sealed class AppSupportBridge : IWebAppBridge, IDisposable
 
     public void Dispose()
     {
+        lock (this.watchGate)
+            this.disposed = true;
+
+        this.events.SubscribersChanged -= this.UpdateWatchers;
+        this.UpdateWatchers();
+
         if (this.app is null)
             return;
 

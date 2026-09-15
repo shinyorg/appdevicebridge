@@ -1,0 +1,97 @@
+@page "/obd"
+@inherits BridgePage
+
+<h1>OBD-II</h1>
+<p class="muted">Needs an ELM327 or OBDLink adapter plugged into a vehicle: Bluetooth LE, or Wi-Fi with this device joined to the adapter's network. The Shiny.Obd emulator stands in for a car.</p>
+
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("obd/status")))'>Status</button>
+    <button @onclick='@(() => Scan("ble"))'>Scan Bluetooth</button>
+    <button @onclick='@(() => Scan("wifi"))'>Find Wi-Fi adapter</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("obd/connection")))'>Disconnect</button>
+</div>
+
+<div class="actions">
+    <input @bind="host" placeholder="192.168.0.10" />
+    <input @bind="port" placeholder="35000" type="number" />
+    <button @onclick="ConnectWifi">Connect Wi-Fi</button>
+</div>
+
+<ul class="list">
+    @foreach (var adapter in adapters)
+    {
+        <li>
+            <strong>@adapter.Name</strong> <span class="muted">@adapter.Transport · @adapter.Id</span>
+            <button @onclick="() => Connect(adapter)">Connect</button>
+        </li>
+    }
+</ul>
+
+<div class="actions">
+    <button @onclick='@(() => Read("engineRpm"))'>RPM</button>
+    <button @onclick='@(() => Read("vehicleSpeed"))'>Speed</button>
+    <button @onclick='@(() => Read("coolantTemperature"))'>Coolant</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("obd/vin")))'>VIN</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("obd/dtc")))'>Trouble codes</button>
+    <button @onclick="StartMonitor">Start monitor</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("obd/monitor")))'>Stop monitor</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    readonly List<Adapter> adapters = [];
+    string host = "192.168.0.10";
+    int port = 35000;
+    string log = String.Empty;
+
+    record Adapter(string Id, string Name, string Transport, string? Host, int? Port);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen("obd.reading", e => log = Prepend(log, $"{DateTime.Now:T}  {Text(e, "command")}  {Reading(e)}"));
+        await Listen("obd.disconnected", e => log = Prepend(log, $"{DateTime.Now:T}  disconnected  {Text(e, "reason")}"));
+    }
+
+    static string Reading(JsonElement e)
+    {
+        if (Text(e, "error") is { } error)
+            return error;
+
+        return e.TryGetProperty("value", out var value) && value.ValueKind == JsonValueKind.Number
+            ? $"{value.GetDouble():0.##} {Text(e, "unit")}"
+            : Text(e, "text") ?? "(none)";
+    }
+
+    Task Scan(string transport) => Run(async () =>
+    {
+        adapters.Clear();
+        var result = await Bridge.PostAsync("obd/scan", new JsonObject { ["transport"] = transport, ["scanMs"] = 5000 });
+
+        if (result is { ValueKind: JsonValueKind.Array } list)
+        {
+            foreach (var a in list.EnumerateArray())
+            {
+                int? adapterPort = a.TryGetProperty("port", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetInt32() : null;
+                adapters.Add(new Adapter(a.GetProperty("id").GetString()!, Text(a, "name") ?? "(unnamed)", transport, Text(a, "host"), adapterPort));
+            }
+        }
+
+        return result;
+    });
+
+    Task Connect(Adapter adapter) => Run(() => Bridge.PostAsync("obd/connection", adapter.Transport == "ble"
+        ? new JsonObject { ["transport"] = "ble", ["peripheralUuid"] = adapter.Id }
+        : new JsonObject { ["transport"] = "wifi", ["host"] = adapter.Host, ["port"] = adapter.Port }));
+
+    Task ConnectWifi() => Run(() => Bridge.PostAsync("obd/connection", new JsonObject { ["transport"] = "wifi", ["host"] = host, ["port"] = port }));
+
+    Task Read(string command) => Run(() => Bridge.PostAsync("obd/command", new JsonObject { ["command"] = command }));
+
+    Task StartMonitor() => Run(() => Bridge.PostAsync("obd/monitor", new JsonObject
+    {
+        ["commands"] = new JsonArray("engineRpm", "vehicleSpeed", "coolantTemperature"),
+        ["intervalMs"] = 1000
+    }));
+}

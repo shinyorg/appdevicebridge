@@ -1,0 +1,49 @@
+@page "/links"
+@inherits BridgePage
+@inject NavigationManager Navigation
+
+<h1>Links</h1>
+<p class="muted">
+    Open a link from outside the app. It arrives here as <code>app.link</code> while this page is open, and waits at
+    <code>links/pending</code> otherwise. Consuming it takes it off the host, so it is acted on once.
+</p>
+
+<pre>@commands</pre>
+
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("links/pending")))'>Pending</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("links/pending")))'>Consume</button>
+    <button @onclick="ConsumeAndOpen">Consume and open</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    const string commands = """
+        iOS simulator      xcrun simctl openurl booted "sample://device"
+        Android emulator   adb shell am start -a android.intent.action.VIEW -d "sample://links?from=adb"
+        macOS              open "sample://links?from=terminal"
+        Linux              xdg-open "sample://links?from=terminal"
+        """;
+
+    string log = String.Empty;
+
+    protected override Task OnInitializedAsync()
+        => Listen("app.link", e => log = Prepend(log, $"{DateTime.Now:T}  {Text(e, "url")}  →  {Text(e, "route")}"));
+
+    async Task ConsumeAndOpen()
+    {
+        await Run(() => Bridge.DeleteAsync("links/pending"));
+
+        // The host only ever hands out local paths, so the route is safe to navigate to as it is.
+        if (Output is not null && Error is null && TryRoute(Output) is { } route)
+            Navigation.NavigateTo(route);
+    }
+
+    static string? TryRoute(string json)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        return Text(document.RootElement, "route");
+    }
+}

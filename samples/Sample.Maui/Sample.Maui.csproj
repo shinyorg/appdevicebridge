@@ -14,13 +14,15 @@
     <ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
 
-    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">23.0</SupportedOSPlatformVersion>
+    <!-- 26: the Health bridge's Health Connect client requires it. -->
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">26.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
     <TargetPlatformMinVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</TargetPlatformMinVersion>
     <WindowsPackageType>None</WindowsPackageType>
 
+    <CodesignEntitlements Condition="$(TargetFramework.Contains('-ios'))">Platforms/iOS/Entitlements.plist</CodesignEntitlements>
     <CodesignEntitlements Condition="$(TargetFramework.Contains('-maccatalyst'))">Platforms/MacCatalyst/Entitlements.plist</CodesignEntitlements>
   </PropertyGroup>
 

@@ -16,12 +16,20 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Shiny.WebAppHost.Maui/Shiny.WebAppHost.Maui.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.AppLinks/Shiny.WebAppHost.Bridge.AppLinks.csproj" />
     <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.AppSupport/Shiny.WebAppHost.Bridge.AppSupport.csproj" />
     <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.BluetoothLE/Shiny.WebAppHost.Bridge.BluetoothLE.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Calendar/Shiny.WebAppHost.Bridge.Calendar.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Contacts/Shiny.WebAppHost.Bridge.Contacts.csproj" />
     <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Discovery/Shiny.WebAppHost.Bridge.Discovery.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Health/Shiny.WebAppHost.Bridge.Health.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.HttpTransfers/Shiny.WebAppHost.Bridge.HttpTransfers.csproj" />
     <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Jobs/Shiny.WebAppHost.Bridge.Jobs.csproj" />
     <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Locations/Shiny.WebAppHost.Bridge.Locations.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Notifications/Shiny.WebAppHost.Bridge.Notifications.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Obd/Shiny.WebAppHost.Bridge.Obd.csproj" />
     <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Push/Shiny.WebAppHost.Bridge.Push.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Speech/Shiny.WebAppHost.Bridge.Speech.csproj" />
     <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Wifi/Shiny.WebAppHost.Bridge.Wifi.csproj" />
   </ItemGroup>
 

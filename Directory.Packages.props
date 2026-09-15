@@ -16,11 +16,22 @@
         <PackageVersion Include="Shiny.Hosting.Maui" Version="5.6.3"/>
         <PackageVersion Include="Shiny.Jobs" Version="5.6.3"/>
         <PackageVersion Include="Shiny.Push" Version="5.6.3"/>
+        <PackageVersion Include="Shiny.Notifications" Version="5.6.3"/>
+        <PackageVersion Include="Shiny.Notifications.Linux" Version="5.6.3"/>
         <PackageVersion Include="Shiny.Net.Wifi" Version="5.6.3"/>
         <PackageVersion Include="Shiny.Net.Wifi.Linux" Version="5.6.3"/>
         <PackageVersion Include="Shiny.Net.Discovery" Version="5.6.3"/>
+        <PackageVersion Include="Shiny.Obd" Version="1.2.0"/>
+        <PackageVersion Include="Shiny.Obd.Ble" Version="1.2.0"/>
+        <PackageVersion Include="Shiny.Obd.Wifi" Version="1.2.0"/>
         <PackageVersion Include="Shiny.Locations" Version="5.6.3"/>
         <PackageVersion Include="Shiny.BluetoothLE" Version="5.6.3"/>
+        <PackageVersion Include="Shiny.Health" Version="2.0.1"/>
+        <PackageVersion Include="Shiny.Contacts" Version="5.6.3"/>
+        <PackageVersion Include="Shiny.Calendar" Version="5.6.3"/>
+        <PackageVersion Include="Shiny.Speech" Version="3.0.0-beta-0030"/>
+        <PackageVersion Include="Shiny.Net.Http" Version="5.6.3"/>
+        <PackageVersion Include="Shiny.Core.Linux" Version="5.6.3"/>
 
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12"/>
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12"/>

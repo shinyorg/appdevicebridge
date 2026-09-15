@@ -22,7 +22,7 @@ app, served from the device itself, updated from your own server, and able to ca
 │                                   │                          │
 │  WebAppHost ── Shiny.Net.HttpServer (loopback only)          │
 │    ├─ session guard   launch token → HttpOnly cookie         │
-│    ├─ /_bridge/*      AppSupport · GPS · geofences · BLE     │
+│    ├─ /_bridge/*      device · location · BLE · push · …     │
 │    ├─ /_bridge/events Server-Sent Events                     │
 │    └─ static files ◀─ ZipFileSource ◀─ baseline or download  │
 │                                              ▲               │
@@ -35,18 +35,26 @@ app, served from the device itself, updated from your own server, and able to ca
 
 | Package | Use it in | What it does |
 | --- | --- | --- |
-| `Shiny.WebAppHost.Maui` | the app | `UseWebAppHost`, `WebAppHostView`, `WebAppHostPage` |
+| `Shiny.WebAppHost.Maui` | the app | `UseWebAppHost`, `WebAppHostView`, `WebAppHostPage`, `AllowWebPermissions` |
 | `Shiny.WebAppHost.Blazor` | the Blazor WebAssembly app | `AddWebAppHostClient()`: `WebAppBridge` calls, `WebAppEvents`, `WebAppNativeCalls` (C# handlers for jobs, GPS, geofences and push) |
 | `Shiny.WebAppHost` | (dependency) | host, updater, install store, session guard, bridge contracts, built-in settings and files endpoints; no MAUI dependency |
 | `Shiny.WebAppHost.Core` | (dependency) | protocol contracts, version ordering, release signatures |
 | `Shiny.WebAppHost.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
-| `Shiny.WebAppHost.Bridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store |
-| `Shiny.WebAppHost.Bridge.Locations` | the app | `AddGpsBridge()`, `AddGeofenceBridge()`, `AddLocationBridges()` |
+| `Shiny.WebAppHost.Bridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, share, haptics and vibration, connectivity, battery, screen and clipboard |
+| `Shiny.WebAppHost.Bridge.Locations` | the app | `AddGpsBridge()`, `AddGeofenceBridge()`, `AddLocationBridges()`, `AddMotionActivityBridge()` |
 | `Shiny.WebAppHost.Bridge.BluetoothLE` | the app | `AddBluetoothLEBridge()` |
+| `Shiny.WebAppHost.Bridge.Obd` | the app | `AddObdBridge()`: OBD-II over Bluetooth LE or Wi-Fi adapters — decoded PIDs, VIN, trouble codes, live readings |
 | `Shiny.WebAppHost.Bridge.Wifi` | the app | `AddWifiBridge(hotspot: false)`: current network and changes, scan, connect, known networks, radio, hotspot |
 | `Shiny.WebAppHost.Bridge.Discovery` | the app | `AddDiscoveryBridge(DiscoveryProtocols.All)`: mDNS/Bonjour, SSDP/UPnP, WS-Discovery search, browse, resolve and publish |
 | `Shiny.WebAppHost.Bridge.Jobs` | the app | `AddWebAppJob(name, configure)`: background jobs handled by the page or `background.js` |
 | `Shiny.WebAppHost.Bridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
+| `Shiny.WebAppHost.Bridge.Notifications` | the app | `AddNotificationsBridge()`: local notifications now, scheduled, repeating or at a geofence; pending, cancel, badge, channels; taps handed to the web app |
+| `Shiny.WebAppHost.Bridge.HttpTransfers` | the app | `AddHttpTransfersBridge()`: background uploads and downloads to and from file roots, with progress events and completion handlers |
+| `Shiny.WebAppHost.Bridge.AppLinks` | the app | `AddAppLinksBridge(o => o.Schemes.Add("myapp"))`: deep links and universal/app links routed to the page |
+| `Shiny.WebAppHost.Bridge.Health` | the app | `AddHealthBridge()`: HealthKit and Health Connect permissions, bucketed reads, writes and live readings |
+| `Shiny.WebAppHost.Bridge.Speech` | the app | `AddSpeechBridge()`: on-device speech recognition, dictation as events, text-to-speech, voices |
+| `Shiny.WebAppHost.Bridge.Contacts` | the app | `AddContactsBridge()`: access, paged search, read, photos, create, update and delete (Android, iOS) |
+| `Shiny.WebAppHost.Bridge.Calendar` | the app | `AddCalendarBridge()`: access, calendars, events in a date range, create, update and delete |
 
 ## The app
 
@@ -110,6 +118,37 @@ Plus the usage descriptions and permissions for whichever bridges you add.
 | `Channel` | stable | Follow a prerelease channel such as `beta`. |
 | `BlockOnRequiredUpdateFailure` | `false` | By default, a required download that fails midway is treated as offline. |
 | `ApplyOptionalUpdatesImmediately` | `false` | Swap to an optional update and reload as soon as it lands. |
+
+### Camera, microphone and location in the page
+
+The page can use `getUserMedia`, `navigator.geolocation` and `<input type="file" capture>` directly, with no
+bridge, but not by default. A WebView denies these unless the app decides for it, and on Android it can't even
+ask for the runtime permission. Say which ones the web app may use:
+
+```csharp
+builder
+    .UseWebAppHost(o => { … })
+    .AllowWebPermissions(WebAppWebPermissions.Camera | WebAppWebPermissions.Microphone | WebAppWebPermissions.Geolocation);
+```
+
+- **Only the web app gets them.** Requests from any other origin, such as a site the user navigated to or a
+  third-party iframe, are denied. One exception: Android's file chooser doesn't say which frame opened it, so
+  an iframe the web app embeds can still reach the camera through `<input capture>`.
+- **The OS prompt comes when the page first asks.** You still declare the permissions: `CAMERA`, `RECORD_AUDIO`,
+  `MODIFY_AUDIO_SETTINGS` and the location permissions on Android; `NSCameraUsageDescription`,
+  `NSMicrophoneUsageDescription` and `NSLocationWhenInUseUsageDescription` on Apple platforms, plus the
+  `com.apple.security.device.camera` and `com.apple.security.device.audio-input` entitlements when sandboxed.
+  On Apple platforms a missing usage description crashes the app when the page asks.
+- **File inputs** already work everywhere MAUI's WebView supports them. On Android, `capture` opens the camera
+  when `Camera` is allowed; otherwise it opens the file picker. On the macOS (AppKit) head the host adds the open
+  panel that head lacks.
+
+| | Camera / microphone | Geolocation |
+| --- | --- | --- |
+| Android | decided by the host | decided by the host |
+| iOS, Mac Catalyst, macOS (AppKit) | decided by the host | WebKit asks the user itself; the usage description is the only gate |
+| Windows | decided by the host | decided by the host |
+| Linux (GTK4) | denied: WebKitGTK needs a `permission-request` handler, which the host doesn't install | denied |
 
 ## The server
 
@@ -175,12 +214,21 @@ Binding to loopback keeps other machines out, but not other apps: on Android any
 | host (built in) | `GET /_bridge/host`, `POST /_bridge/host/apply-update` | |
 | settings (built in) | `GET/DELETE settings/{local\|secure}`, `GET/PUT/DELETE settings/{scope}/{key}` | |
 | files (built in) | `GET files`, `GET files/{root}/list`, `GET files/{root}/info`, `GET/PUT files/{root}/content`, `POST files/{root}/append`, `POST files/{root}/directory`, `DELETE files/{root}/entry`, `POST files/{root}/move`, `POST files/{root}/copy`, with paths in `?path=` | |
-| AppSupport | `GET app/info`, `POST/DELETE app/orientation`, `POST app/browser`, `POST app/map`, `POST app/settings`, `GET app/store`, `POST app/store/open`, `POST app/store/review` | `app.orientation`, `app.culture`, `app.timezone` |
+| AppSupport | `GET app/info`, `POST/DELETE app/orientation`, `POST app/browser`, `POST app/map`, `POST app/settings`, `GET app/store`, `POST app/store/open`, `POST app/store/review`, `POST app/share`, `POST app/haptics`, `POST/DELETE app/vibrate`, `GET app/connectivity`, `GET app/battery`, `GET app/screen`, `PUT/DELETE app/screen/keep-awake`, `GET/PUT/DELETE app/clipboard` | `app.orientation`, `app.culture`, `app.timezone`, `app.connectivity`, `app.battery`, `app.energysaver` |
 | GPS | `GET gps/status`, `POST gps/access`, `GET gps/last`, `GET gps/current`, `GET/POST/DELETE gps/listener` | `gps.reading` |
 | Geofences | `GET geofences/status`, `POST geofences/access`, `GET/POST/DELETE geofences/regions`, `DELETE geofences/regions/{id}`, `GET geofences/regions/{id}/state` | `geofence.status` |
+| Motion activity | `GET motion/status`, `POST motion/access`, `GET motion/current`, `GET/POST/DELETE motion/listener` | `motion.activity` |
 | Bluetooth LE | `GET ble/status`, `POST ble/access`, `POST/DELETE ble/scan`, `GET ble/peripherals[/{uuid}]`, `POST/DELETE …/connection`, `GET …/rssi`, `GET …/services`, `GET …/characteristics`, `GET/PUT …/characteristics/{c}`, `POST/DELETE …/notifications` | `ble.scan`, `ble.status`, `ble.notification`, `ble.error` |
+| OBD-II | `GET obd/status`, `GET obd/commands`, `POST obd/scan`, `GET obd/adapters`, `POST/DELETE obd/connection`, `POST obd/command`, `GET obd/vin`, `GET/DELETE obd/dtc`, `POST/DELETE obd/monitor` | `obd.reading`, `obd.disconnected` |
 | Wi-Fi | `GET wifi`, `POST wifi/access`, `GET wifi/networks`, `GET wifi/current`, `POST/DELETE wifi/connection`, `GET wifi/known`, `DELETE wifi/known?id=`, `GET/PUT wifi/radio`, `GET/POST/DELETE wifi/hotspot`, `GET wifi/hotspot/clients` | `wifi.changed`, `wifi.hotspot` |
 | Discovery | `POST discovery/{mdns,ssdp,wsd}/search`, `POST discovery/{mdns,ssdp,wsd}/browse`, `GET discovery/mdns/resolve`, `GET discovery/wsd/resolve`, `GET discovery/ssdp/description?udn=`, `POST discovery/{mdns,ssdp,wsd}/publications`, `GET discovery/browses`, `DELETE discovery/browses/{id}`, `GET discovery/publications`, `DELETE discovery/publications/{id}` | `discovery.mdns`, `discovery.ssdp`, `discovery.wsd`, `discovery.error`, `discovery.stopped` |
+| Notifications | `GET notifications`, `POST notifications/access`, `POST notifications/send`, `GET notifications/pending`, `DELETE notifications[?scope=]`, `DELETE notifications/{id}`, `GET/PUT notifications/badge`, `GET/POST notifications/channels`, `DELETE notifications/channels/{id}` | `notification.entry`, `notification.received` |
+| HTTP transfers | `GET/POST/DELETE transfers`, `GET/DELETE transfers/{id}`, `POST transfers/{id}/pause`, `POST transfers/{id}/resume` | `transfer.progress`, `transfer.completed`, `transfer.failed`, `transfer.cancelled` |
+| App links | `GET/DELETE links/pending` | `app.link` |
+| Health | `GET health`, `POST health/access`, `GET/POST health/samples/{type}`, `POST/DELETE health/listeners/{type}` | `health.reading`, `health.stopped` |
+| Speech | `GET speech/status`, `POST speech/access`, `POST speech/recognize`, `GET/POST/DELETE speech/listener`, `POST/DELETE speech/speak`, `GET speech/voices?culture=`, `GET speech/cultures` | `speech.partial`, `speech.result`, `speech.keyword`, `speech.ended`, `speech.spoken`, `speech.error` |
+| Contacts | `GET contacts`, `POST contacts/access`, `GET/POST contacts/items`, `GET/PUT/DELETE contacts/items/{id}`, `GET contacts/items/{id}/photo` | |
+| Calendar | `GET calendar`, `POST calendar/access`, `GET calendar/calendars`, `GET/POST calendar/events`, `GET/PUT/DELETE calendar/events/{id}` | |
 
 ```js
 const info = await (await fetch("/_bridge/app/info")).json();
@@ -205,6 +253,162 @@ Android; the Access Wi-Fi Information and Hotspot Configuration entitlements on 
 - **Platform setup:** on iOS and Mac Catalyst, list every browsed service type in `NSBonjourServices`
   and set `NSLocalNetworkUsageDescription`. On Android, SSDP and WS-Discovery need
   `CHANGE_WIFI_MULTICAST_STATE`.
+
+**Device:** sharing, haptics, connectivity, battery, the screen and the clipboard come from .NET MAUI
+Essentials, so each head's own build decides what works. A feature a backend lacks returns `501` on its
+own, and the rest keep working. Files are shared by the same `{ root, path }` as the files bridge:
+
+```js
+await fetch("/_bridge/app/share", { method: "POST", body: JSON.stringify({ files: [{ root: "data", path: "photos/cat.jpg" }] }) });
+```
+
+`app.connectivity`, `app.battery` and `app.energysaver` only run while a page is listening. On Android,
+vibration needs `VIBRATE`, and battery needs `BATTERY_STATS` in the manifest (without it, `GET app/battery`
+returns `403`). `vibrate` is capped at 5 seconds.
+
+**Motion activity:** walking, running, cycling, driving or stationary, from the OS's activity recognition.
+There's no history, only the latest reading and live ones. `AddLocationBridges()` doesn't include it,
+because it needs its own setup: `NSMotionUsageDescription` on iOS (the permission request crashes without it),
+and `ACTIVITY_RECOGNITION` with Google Play Services on Android. Other platforms return `501`.
+
+**OBD-II:**
+- **Adapters:** ELM327 and OBDLink, one at a time. `scan` finds Bluetooth LE adapters, or with
+  `"transport": "wifi"` probes the addresses Wi-Fi adapters ship with. `connection` takes the
+  `peripheralUuid` from a scan, or a Wi-Fi `host` and `port`. The host must be a loopback, private or
+  link-local IP address.
+- **Reading:** `command` takes a name from `GET obd/commands` (`engineRpm`, `vehicleSpeed`,
+  `coolantTemperature`…) and answers the decoded value with its unit. `raw` sends a read-only request:
+  modes 01, 02, 03, 05, 06, 07, 09, 0A or 22, or an informational AT command. Commands are serialized,
+  because ELM327 is half-duplex.
+- **Trouble codes:** `GET obd/dtc` returns stored, pending and permanent codes. A list is `null` when
+  the vehicle doesn't support that mode. `DELETE obd/dtc` needs `?confirm=true`, because clearing codes
+  also resets the emissions readiness monitors.
+- **Monitoring:** `monitor` polls up to 10 commands, every 250 ms at most often, and sends each result
+  as `obd.reading`. It stops when the page's last event stream closes. After three rounds with no
+  answers the connection is dropped with `obd.disconnected`.
+- **Platform setup:** Bluetooth as for the Bluetooth LE bridge. Wi-Fi adapters need
+  `NSLocalNetworkUsageDescription` on iOS and Mac Catalyst. On Android, the app has to bind to the
+  adapter's network, which has no internet. Linux supports Wi-Fi adapters only.
+
+**HTTP transfers:**
+- **Queuing:** `POST /_bridge/transfers` with a `type` (`Download`, `UploadMultipart` or `UploadRaw`), a `url`,
+  and a file as `root` plus `path`, the same names `/_bridge/files` uses. Uploads can add `method`, `headers`,
+  `formDataName` and a small multipart `body`. Downloads can pass `"overwrite": false`.
+- **Downloads land whole:** the file is written beside its destination under a hidden name and moved into
+  place when it completes. The destination is checked again at that moment.
+- **Limits:** http and https only. Loopback URLs are refused unless you change `AllowUrl`. Connection,
+  length and proxy headers are refused. At most `MaxTransfers` (32) are queued at once.
+- **Ownership:** the page only lists and cancels its own transfers. `DELETE /_bridge/transfers` leaves the native
+  app's transfers running.
+- **Finishing in the background:** `transfer.completed` and `transfer.failed` reach the page, or background.js
+  when no page is open. Progress is an event only, at most every `ProgressInterval` (250 ms) per transfer.
+- **Platform setup:** Android needs `FOREGROUND_SERVICE_DATA_SYNC`. On iOS and Mac Catalyst, override
+  `HandleEventsForBackgroundUrl` in the app delegate and pass it to
+  `Shiny.Hosting.Host.Lifecycle.OnHandleEventsForBackgroundUrl`, or transfers that finish while the app is
+  suspended wait for the next launch. macOS and Linux run transfers in-process only.
+
+**App links:** links to the app become routes in the web app. A custom scheme's host is the first path segment,
+so `myapp://orders/42` becomes `/orders/42`. An https link on a listed host keeps its path, so
+`https://app.example.com/orders/42` also becomes `/orders/42`. Set `MapRoute` to map links another way.
+- **Other links:** any other scheme or host is left to the native app.
+- **Route checks:** a route must be a local page path. Routes that aren't, including anything under `/_bridge`
+  or `/_host`, are refused, whatever `MapRoute` returns.
+- **Delivery:** the page gets `app.link` while it's open. `DELETE /_bridge/links/pending` returns the latest
+  link and removes it. Call it at boot and on each event, so a link is acted on exactly once.
+- **Cold start:** with `NavigateOnColdStart`, a link that launched the app becomes the first page loaded, and is
+  consumed.
+- **Background:** links never go to `background.js`.
+
+```js
+async function openPendingLink() {
+    const response = await fetch("/_bridge/links/pending", { method: "DELETE" });
+    if (response.status === 200) router.push((await response.json()).route);
+}
+openPendingLink();
+events.addEventListener("app.link", openPendingLink);
+```
+
+Platform setup:
+- **Android:** a `SingleTop` main activity with `ACTION_VIEW` intent filters, plus `assetlinks.json` for https.
+- **Apple:** `CFBundleURLTypes`, plus the Associated Domains entitlement and `apple-app-site-association` for https.
+- **maui-labs AppKit:** the head overrides `OpenUrls` and calls `AppLinks.Receive`, because the launching link
+  arrives before `MauiProgram`.
+- **Windows:** a protocol registration; redirect activations to the first instance for links while running.
+- **Linux:** `x-scheme-handler` in the .desktop file; cold starts only.
+
+**Health:**
+- **Platforms:** HealthKit on iOS, Health Connect on Android. Other platforms return `501`. On Android
+  without Health Connect, every call except `GET health` returns `503`.
+- **Access:** ask for access before reading, one entry per type. On iOS, HealthKit never reveals a read
+  denial: `granted` can be `true` and reads still come back empty. On Android, reading a type that
+  wasn't granted returns `403`.
+- **Types:** `GET health` lists every type, with its unit and whether it's bucketed.
+- **Reads:** numeric types and blood pressure are totalled or averaged into `minutes`, `hours` or `days`
+  buckets. Cycle tracking, workouts and nutrition come back as individual records. A read covers at
+  most 366 days and 2,000 buckets.
+- **Writes:** `POST health/samples/{type}` takes `start`, `end` and the fields for the type: `value`,
+  `systolic`/`diastolic`, `flow`, `workout` and so on.
+- **Listeners:** a listener sends `health.reading` for new samples. At most 8 run at once, and they stop
+  when the page's last event stream closes.
+- **Privacy:** health values are never logged.
+- **Platform setup:** on iOS, add the HealthKit entitlement plus `NSHealthShareUsageDescription` and
+  `NSHealthUpdateUsageDescription`. On Android, set minSdk 26, add a `android.permission.health.*`
+  permission for each record type, the Health Connect `<queries>` entry, and the
+  `VIEW_PERMISSION_USAGE` activity-alias. MainActivity also needs a filter for
+  `androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE`.
+
+```js
+await fetch("/_bridge/health/access", { method: "POST", body: JSON.stringify({ permissions: [{ type: "StepCount", access: "Read" }] }) });
+const today = new Date(); today.setHours(0, 0, 0, 0);
+const steps = await (await fetch(`/_bridge/health/samples/StepCount?start=${today.toISOString()}&end=${new Date().toISOString()}&interval=hours`)).json();
+```
+
+**Speech:** built on Shiny.Speech, which is still a prerelease package.
+- **Recognizing once:** `recognize` listens until a pause and returns `{ "text": … }`. It gives up after
+  `timeoutMs`: 15 s by default, 60 s at most. `text` is `null` if nothing was heard.
+- **Dictation:** `POST listener` keeps the microphone open and streams `speech.partial` and
+  `speech.result` events until you delete it. It also stops when the page's last event stream
+  closes, so a page that goes away can't leave the microphone on. `speech.ended` says why it
+  stopped: `stopped`, `page_closed` or `error`.
+- **One microphone:** a recognition and a listener can't run at once. The second gets `409`
+  `microphone_busy`.
+- **Speaking:** `speak` waits until the text has been spoken, unless you pass `"wait": false`, which
+  returns `202` and raises `speech.spoken` when done. A new utterance interrupts the current one.
+  Text is capped at 4,000 characters.
+- **Platforms:** Linux has no OS speech engine, so its endpoints return `501`. To use a cloud
+  provider or Whisper there, pass `o => o.RegisterSpeechServices = false` and register your own
+  `ISpeechToTextService` / `ITextToSpeechService`.
+- **Platform setup:** Android needs `RECORD_AUDIO`, plus a `<queries>` entry for
+  `android.intent.action.TTS_SERVICE`. Apple platforms need `NSSpeechRecognitionUsageDescription` and
+  `NSMicrophoneUsageDescription`, plus the `com.apple.security.device.audio-input` entitlement for sandboxed apps.
+
+**Contacts:**
+- **Platforms:** Android and iOS. Shiny.Contacts has no Mac Catalyst, macOS, Windows or Linux backend, so there
+  every endpoint returns `501`.
+- **Listing:** `GET contacts/items?search=&offset=&limit=` returns one page (50 by default, 500 at most) and
+  `hasMore`. `search` matches names, phone numbers and emails.
+- **Photos:** photos never go in the JSON. `hasPhoto` says whether one exists, and
+  `GET contacts/items/{id}/photo?size=full|thumbnail` returns the image bytes.
+- **Writing:** `PUT` changes only the properties you send. An empty list clears one.
+- **iOS:** reading `note` and `relationships` needs the `com.apple.developer.contacts.notes` entitlement.
+  Without it they come back empty.
+
+**Calendar:**
+- **Platforms:** Android, iOS, Mac Catalyst, macOS and Windows.
+- **Access:** `POST calendar/access` takes `ReadWrite` (the default), `ReadOnly` or `WriteOnly`. Write-only
+  access (iOS 17+) is reported as `Restricted`.
+- **Listing:** `GET calendar/events` requires `start` and `end`, at most 366 days apart. Paging works like
+  contacts.
+- **Reminders:** `reminderMinutes` counts minutes before the start.
+- **Read-only fields:** attendees, the organizer and recurrence can be read but not written.
+- **Read-only calendars:** writing to one returns `403 read_only`, and so does writing to a system calendar on
+  Windows, which only allows writes to app-owned calendars.
+- **Deleting:** `DELETE calendar/events/{id}?series=true` removes the rest of a recurring series rather than one
+  occurrence.
+- **Mac Catalyst, sandboxed macOS:** also need the `com.apple.security.personal-information.calendars`
+  entitlement. Without it, access is denied without a prompt.
+
+Both bridges return `403 access_denied` until access has been granted.
 
 ### Settings and files
 
@@ -290,6 +494,10 @@ then the handler. It gets `BackgroundScriptTimeout` (25 s) and 64 MB.
 | GPS reading delivered in the background | `gps` with a reading | `AddGpsBridge()` |
 | Geofence transition | `geofence` with `{ identifier, state }` | `AddGeofenceBridge()` |
 | Push | `push.received`, `push.entry` with `{ data, title, message }` | `AddPushBridge(o => o.DispatchToWebApp = true)` (Bridge.Push) |
+| Motion activity delivered in the background | `motion` with `{ activity, confidence, timestamp }` | `AddMotionActivityBridge()` (Bridge.Locations) |
+| Notification tapped | `notification.entry` with `{ id, title, message, channel, thread, data, action, text }` | `AddNotificationsBridge()` (Bridge.Notifications) |
+| Notification presented while the app is open (Apple platforms) | `notification.received` with the same shape | `AddNotificationsBridge()` |
+| HTTP transfer finished | `transfer.completed` / `transfer.failed` with the transfer | `AddHttpTransfersBridge()` (Bridge.HttpTransfers) |
 
 From your own native code, call `WebAppInvoker.InvokeAsync(name, payload, typeInfo)`.
 
@@ -302,6 +510,25 @@ Jobs with the same charging and network requirements run together as one native 
 `POST/DELETE /_bridge/push/registration` and `GET/PUT /_bridge/push/tags`, plus the `push.token` and
 `push.unregistered` events. Pushes only reach the web app when you set `DispatchToWebApp`. You still
 need Shiny.Push's platform setup: APNs entitlements, and `google-services.json` on Android.
+
+**Notifications:** `POST /_bridge/notifications/send` takes a `message` and optionally a `title`, `channel`,
+`thread`, `data`, and one trigger: `scheduleDate`, `repeat` (`{ "intervalSeconds": 3600 }` or
+`{ "timeOfDay": "09:00:00", "dayOfWeek": "Monday" }`), or `geofence` (`{ "latitude", "longitude", "radiusMeters" }`).
+It answers `{ "id": 7 }`. Sending needs no UI, so `background.js` can notify from a job or a geofence.
+
+- **Images:** on iOS and Mac Catalyst, `image: { "root": "data", "path": "photos/cat.jpg" }` attaches a file the
+  page wrote through the files bridge. Other platforms ignore it. `GET /_bridge/notifications` reports what the
+  platform supports: `badge`, `entry`, `received`, `geofences` and `images`.
+- **Ownership:** only notifications the web app sent reach its handlers, unless you set
+  `AddNotificationsBridge(o => o.Dispatch = WebAppNotificationDispatch.All)`. The bridge marks its notifications
+  with a `webapphost.source` data key, which the page never sees and can't set.
+- **Taps:** reach `notification.entry` on Android, iOS and Mac Catalyst. Windows and Linux have no tap callback,
+  and on the macOS (AppKit) head nothing runs Shiny's startup tasks, so neither handler fires there yet.
+- **Linux:** scheduled notifications only fire while the app runs, and repeating ones don't fire at all in
+  Shiny.Notifications.Linux 5.6.3.
+- **Platform setup:** on Android, `POST_NOTIFICATIONS`, `SCHEDULE_EXACT_ALARM` for on-time schedules, and a
+  drawable named `notification` for the small icon (without it, `send` returns `400`). Geofence triggers need the
+  location usage descriptions.
 
 **Blazor WebAssembly:** handlers registered from the page can be C#, through `WebAppNativeCalls` in Shiny.WebAppHost.Blazor. The
 background path can't: Jint doesn't run WebAssembly, and a hidden WebView is exactly what iOS
@@ -358,7 +585,7 @@ adb reverse tcp:<ws port> tcp:<ws port>
 
 ## Samples
 
-- `samples/Sample.Blazor`: the web app, a Blazor WebAssembly app with a page for every bridge, plus `wwwroot/background.js`.
+- `samples/Sample.Blazor`: the web app, a Blazor WebAssembly app with a page for every bridge, a Media page for the camera, microphone and location through the WebView's own APIs, plus `wwwroot/background.js`.
 - `samples/Sample.App`: shared MAUI setup using every bridge package. Sample.Blazor is published and zipped into it at build time (`-p:SkipWebAppBuild=true` skips that).
 - Heads:
   - `samples/Sample.Maui`: Android, iOS, Mac Catalyst and Windows.

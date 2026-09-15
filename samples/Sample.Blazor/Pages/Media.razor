@@ -1,0 +1,129 @@
+@page "/media"
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<h1>Camera, microphone and location</h1>
+<p class="muted">
+    The WebView's own APIs — getUserMedia, navigator.geolocation, file inputs — not the bridge. The app has to call
+    AllowWebPermissions for each, and declare the matching OS permissions.
+</p>
+
+<h2>Camera</h2>
+<div class="actions">
+    <button @onclick="StartCamera">Start camera</button>
+    <button @onclick="StopCamera">Stop</button>
+</div>
+<video @ref="video" autoplay muted playsinline style="width: 100%; max-height: 40vh; background: #000; border-radius: 8px;"></video>
+
+<h2>Microphone</h2>
+<div class="actions">
+    <button @onclick="StartMicrophone">Listen</button>
+    <button @onclick="StopMicrophone">Stop</button>
+</div>
+<progress max="100" value="@level" style="width: 100%;"></progress>
+
+<h2>Location</h2>
+<div class="actions">
+    <button @onclick="GetPosition">navigator.geolocation</button>
+</div>
+
+<h2>Capture a photo</h2>
+<InputFile OnChange="OnFileChosen" accept="image/*" capture="environment" />
+@if (photo is not null)
+{
+    <img src="@photo" alt="Captured photo" style="display: block; max-width: 100%; max-height: 40vh; margin-top: 8px; border-radius: 8px;" />
+}
+
+<Output Value="@output" Error="@error" />
+
+@code {
+    ElementReference video;
+    IJSObjectReference? module;
+    DotNetObjectReference<Media>? self;
+    string? output;
+    string? error;
+    string? photo;
+    int level;
+
+    async Task<IJSObjectReference> Module() => module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/media.js");
+
+    async Task Try(Func<Task<string?>> action)
+    {
+        error = null;
+
+        try
+        {
+            output = await action();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    Task StartCamera() => Try(async () => await (await Module()).InvokeAsync<string>("startCamera", video));
+
+    Task StopCamera() => Try(async () =>
+    {
+        await (await Module()).InvokeVoidAsync("stopCamera", video);
+        return "camera stopped";
+    });
+
+    Task StartMicrophone() => Try(async () =>
+    {
+        self ??= DotNetObjectReference.Create(this);
+        await (await Module()).InvokeVoidAsync("startMicrophone", self);
+        return "listening";
+    });
+
+    Task StopMicrophone() => Try(async () =>
+    {
+        await (await Module()).InvokeVoidAsync("stopMicrophone");
+        level = 0;
+        return "microphone stopped";
+    });
+
+    Task GetPosition() => Try(async () =>
+    {
+        var position = await (await Module()).InvokeAsync<JsonElement>("getPosition");
+        return position.ToString();
+    });
+
+    [JSInvokable]
+    public void OnLevel(int value)
+    {
+        level = value;
+        StateHasChanged();
+    }
+
+    Task OnFileChosen(InputFileChangeEventArgs e) => Try(async () =>
+    {
+        const long MaxBytes = 20 * 1024 * 1024;
+
+        var file = e.File;
+        await using var stream = file.OpenReadStream(MaxBytes);
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer);
+
+        photo = $"data:{(String.IsNullOrEmpty(file.ContentType) ? "image/jpeg" : file.ContentType)};base64,{Convert.ToBase64String(buffer.ToArray())}";
+        return $"{file.Name}  {file.ContentType}  {file.Size:N0} bytes";
+    });
+
+    public async ValueTask DisposeAsync()
+    {
+        if (module is not null)
+        {
+            try
+            {
+                await module.InvokeVoidAsync("stopCamera", video);
+                await module.InvokeVoidAsync("stopMicrophone");
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+            }
+        }
+
+        self?.Dispose();
+    }
+}

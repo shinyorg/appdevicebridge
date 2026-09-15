@@ -1,0 +1,68 @@
+@page "/notifications"
+@inherits BridgePage
+
+<h1>Notifications</h1>
+<p class="muted">Tap a notification and <code>notification.entry</code> arrives here, or in background.js when the app is closed. Apple platforms also report notifications that arrive while the app is open.</p>
+
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("notifications")))'>Status</button>
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("notifications/access", new JsonObject { ["timeSensitive"] = true })))'>Request access</button>
+    <button @onclick="SendNow">Send now</button>
+    <button @onclick="Schedule">Schedule in 10 s</button>
+    <button @onclick="SendWithReply">Send with reply</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("notifications/pending")))'>Pending</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("notifications")))'>Cancel all</button>
+    <button @onclick='@(() => Run(() => Bridge.PutAsync("notifications/badge", new JsonObject { ["value"] = 3 })))'>Badge 3</button>
+    <button @onclick='@(() => Run(() => Bridge.PutAsync("notifications/badge", new JsonObject { ["value"] = 0 })))'>Clear badge</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("notifications/channels")))'>Channels</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    string log = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        foreach (var name in new[] { "notification.entry", "notification.received" })
+            await Listen(name, e => log = Prepend(log, $"{DateTime.Now:T}  {name}  {e.GetRawText()}"));
+    }
+
+    Task SendNow() => Run(() => Bridge.PostAsync("notifications/send", new JsonObject
+    {
+        ["title"] = "WebAppHost",
+        ["message"] = $"Sent from the page at {DateTime.Now:T}",
+        ["data"] = new JsonObject { ["screen"] = "notifications" }
+    }));
+
+    Task Schedule() => Run(() => Bridge.PostAsync("notifications/send", new JsonObject
+    {
+        ["title"] = "WebAppHost",
+        ["message"] = "Scheduled ten seconds ago",
+        ["scheduleDate"] = DateTimeOffset.Now.AddSeconds(10).ToString("O")
+    }));
+
+    async Task SendWithReply()
+    {
+        await Run(async () =>
+        {
+            await Bridge.PostAsync("notifications/channels", new JsonObject
+            {
+                ["identifier"] = "sample-reply",
+                ["importance"] = "High",
+                ["actions"] = new JsonArray(
+                    new JsonObject { ["identifier"] = "reply", ["title"] = "Reply", ["actionType"] = "TextReply" },
+                    new JsonObject { ["identifier"] = "dismiss", ["title"] = "Dismiss", ["actionType"] = "Destructive" }
+                )
+            });
+
+            return await Bridge.PostAsync("notifications/send", new JsonObject
+            {
+                ["title"] = "WebAppHost",
+                ["message"] = "Long-press to reply",
+                ["channel"] = "sample-reply"
+            });
+        });
+    }
+}

@@ -36,8 +36,13 @@ public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls)
 
             await nativeCalls.HandleAsync("gps", payload => this.Recorded("gps", payload));
             await nativeCalls.HandleAsync("geofence", payload => this.Recorded("geofence", payload));
+            await nativeCalls.HandleAsync("motion", payload => this.Recorded("motion", payload));
             await nativeCalls.HandleAsync("push.received", payload => this.Recorded("push.received", payload));
             await nativeCalls.HandleAsync("push.entry", payload => this.Recorded("push.entry", payload));
+            await nativeCalls.HandleAsync("notification.entry", payload => this.Recorded("notification.entry", payload));
+            await nativeCalls.HandleAsync("notification.received", payload => this.Recorded("notification.received", payload));
+            await nativeCalls.HandleAsync("transfer.completed", payload => this.Recorded("transfer.completed", payload));
+            await nativeCalls.HandleAsync("transfer.failed", payload => this.Recorded("transfer.failed", payload));
         }
         catch (JSException ex)
         {

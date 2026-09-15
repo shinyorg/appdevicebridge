@@ -1,0 +1,74 @@
+@page "/calendar"
+@inherits BridgePage
+
+<h1>Calendar</h1>
+<p class="muted">Android, iOS, Mac Catalyst, macOS and Windows. Events are listed for a date range of at most 366 days.</p>
+
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("calendar")))'>Access status</button>
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("calendar/access", new JsonObject { ["access"] = "ReadWrite" })))'>Request access</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("calendar/calendars")))'>Calendars</button>
+</div>
+
+<div class="form">
+    <input @bind="search" placeholder="title contains" />
+</div>
+<div class="actions">
+    <button @onclick="@(() => Load(0))">Next 30 days</button>
+    <button disabled="@(offset == 0)" @onclick="@(() => Load(Math.Max(0, offset - PageSize)))">Previous page</button>
+    <button disabled="@(!hasMore)" @onclick="@(() => Load(offset + PageSize))">Next page</button>
+</div>
+
+<div class="actions">
+    <button @onclick="CreateSample">Create a sample event tomorrow</button>
+    <button disabled="@(createdId is null)" @onclick="DeleteSample">Delete the sample event</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    const int PageSize = 20;
+
+    string search = String.Empty;
+    int offset;
+    bool hasMore;
+    string? createdId;
+
+    Task Load(int from) => Run(async () =>
+    {
+        var start = DateTimeOffset.Now;
+        var end = start.AddDays(30);
+        var page = await Bridge.GetAsync(
+            $"calendar/events?start={Uri.EscapeDataString(start.ToString("O"))}&end={Uri.EscapeDataString(end.ToString("O"))}" +
+            $"&search={Uri.EscapeDataString(search)}&offset={from}&limit={PageSize}"
+        );
+
+        offset = from;
+        hasMore = page?.GetProperty("hasMore").GetBoolean() == true;
+        return page;
+    });
+
+    Task CreateSample() => Run(async () =>
+    {
+        var start = new DateTimeOffset(DateTime.Today.AddDays(1).AddHours(10));
+        var result = await Bridge.PostAsync("calendar/events", new JsonObject
+        {
+            ["title"] = "WebAppHost sample",
+            ["description"] = "Created from the sample web app.",
+            ["location"] = "Room 3",
+            ["start"] = start.ToString("O"),
+            ["end"] = start.AddMinutes(30).ToString("O"),
+            ["reminderMinutes"] = new JsonArray(15)
+        });
+
+        createdId = result is { } r ? Text(r, "id") : null;
+        return result;
+    });
+
+    Task DeleteSample() => Run(async () =>
+    {
+        var result = await Bridge.DeleteAsync($"calendar/events/{Uri.EscapeDataString(createdId!)}");
+        createdId = null;
+        return result;
+    });
+}

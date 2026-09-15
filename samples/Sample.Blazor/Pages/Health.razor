@@ -1,0 +1,55 @@
+@page "/health"
+@inherits BridgePage
+
+<h1>Health</h1>
+<p class="muted">HealthKit on iOS, Health Connect on Android. Needs the HealthKit entitlement, or Health Connect installed with the health permissions declared.</p>
+
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("health")))'>Status</button>
+    <button @onclick="RequestAccess">Request steps and heart rate</button>
+    <button @onclick="StepsToday">Steps today, by hour</button>
+    <button @onclick="HeartRateWeek">Heart rate, last 7 days</button>
+</div>
+
+<div class="actions">
+    <button @onclick="StartWatching">Watch steps</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("health/listeners/StepCount")))'>Stop</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    string log = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        foreach (var name in new[] { "health.reading", "health.stopped" })
+            await Listen(name, e => log = Prepend(log, $"{DateTime.Now:T}  {name}  {e.GetRawText()}"));
+    }
+
+    Task RequestAccess() => Run(() => Bridge.PostAsync("health/access", new JsonObject
+    {
+        ["permissions"] = new JsonArray(
+            new JsonObject { ["type"] = "StepCount", ["access"] = "Read" },
+            new JsonObject { ["type"] = "HeartRate", ["access"] = "Read" }
+        )
+    }));
+
+    Task StepsToday()
+    {
+        var now = DateTimeOffset.Now;
+        return Run(() => Bridge.GetAsync(Samples("StepCount", new DateTimeOffset(now.Date, now.Offset), now, "hours")));
+    }
+
+    Task HeartRateWeek()
+    {
+        var now = DateTimeOffset.Now;
+        return Run(() => Bridge.GetAsync(Samples("HeartRate", now.AddDays(-7), now, "days")));
+    }
+
+    Task StartWatching() => Run(() => Bridge.PostAsync("health/listeners/StepCount"));
+
+    static string Samples(string type, DateTimeOffset start, DateTimeOffset end, string interval)
+        => $"health/samples/{type}?start={Uri.EscapeDataString(start.ToString("O"))}&end={Uri.EscapeDataString(end.ToString("O"))}&interval={interval}";
+}

@@ -1,4 +1,6 @@
 using System.Reflection;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Shiny.WebAppHost.Maui;
 
@@ -43,6 +45,33 @@ public static class WebAppHostMauiExtensions
             configure(o);
         });
 
+        return builder;
+    }
+
+    /// <summary>
+    /// Lets the web app use the camera, microphone or location through the WebView's own APIs —
+    /// <c>getUserMedia</c>, <c>navigator.geolocation</c>, <c>&lt;input type="file" capture&gt;</c>. Without this
+    /// call every such request is denied. Calling it again replaces the earlier set.
+    /// <code>
+    /// builder
+    ///     .UseWebAppHost(o => { … })
+    ///     .AllowWebPermissions(WebAppWebPermissions.Camera | WebAppWebPermissions.Microphone);
+    /// </code>
+    /// <para>
+    /// Requests are granted only to the host's own loopback origin, never to a page the user navigated to or an
+    /// embedded third-party frame. The OS permission is requested when the page first asks, so the app still
+    /// declares it: <c>CAMERA</c>, <c>RECORD_AUDIO</c> and <c>MODIFY_AUDIO_SETTINGS</c>, and the location permissions,
+    /// on Android; <c>NSCameraUsageDescription</c>, <c>NSMicrophoneUsageDescription</c> and
+    /// <c>NSLocationWhenInUseUsageDescription</c> on Apple platforms, plus the camera and audio-input entitlements
+    /// when sandboxed.
+    /// </para>
+    /// </summary>
+    public static MauiAppBuilder AllowWebPermissions(this MauiAppBuilder builder, WebAppWebPermissions permissions)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Services.RemoveAll<WebAppWebPermissionPolicy>();
+        builder.Services.AddSingleton(sp => new WebAppWebPermissionPolicy(permissions, sp));
         return builder;
     }
 

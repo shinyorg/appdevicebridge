@@ -1,13 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- One net10.0 target serves every head: the Android, iOS, Mac Catalyst and Windows single
-         projects reference it, and so do the maui-labs AppKit (net10.0-macos) and GTK4 (plain
-         net10.0) heads — the GTK head being plain net10.0 is why this cannot multi-target. -->
+    <!-- Cleared: src/Directory.Build.props sets the single target. -->
+    <TargetFramework></TargetFramework>
+
+    <!-- Multi-targeted for the WebView permission handling, which is platform code. Plain net10.0 stays for the
+         maui-labs GTK4 head, which has no platform TFM; the AppKit head picks net10.0-macos. The public API is the
+         same on every target, so a shared net10.0 library such as Sample.App compiles against any of them. -->
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.WebAppHost.Maui</RootNamespace>
-    <Description>Shows a Shiny.WebAppHost web app in a .NET MAUI WebView — progress while a required update downloads, a restart of the loopback server when the app resumes,. Works on Android, iOS, Mac Catalyst, Windows, and the maui-labs macOS (AppKit) and Linux (GTK4) backends.</Description>
+    <Description>Shows a Shiny.WebAppHost web app in a .NET MAUI WebView — progress while a required update downloads, a restart of the loopback server when the app resumes, and opt-in camera, microphone and geolocation for the page. Works on Android, iOS, Mac Catalyst, Windows, and the maui-labs macOS (AppKit) and Linux (GTK4) backends.</Description>
+
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-macos'))">14.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
   </PropertyGroup>
 
   <ItemGroup>

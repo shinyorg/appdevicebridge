@@ -1,0 +1,77 @@
+@page "/contacts"
+@inherits BridgePage
+
+<h1>Contacts</h1>
+<p class="muted">Android and iOS. Photos come from <code>items/{id}/photo</code>, not the JSON.</p>
+
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("contacts")))'>Access status</button>
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("contacts/access")))'>Request access</button>
+</div>
+
+<div class="form">
+    <input @bind="search" placeholder="search name, phone or email" />
+</div>
+<div class="actions">
+    <button @onclick="@(() => Load(0))">Search</button>
+    <button disabled="@(offset == 0)" @onclick="@(() => Load(Math.Max(0, offset - PageSize)))">Previous page</button>
+    <button disabled="@(!hasMore)" @onclick="@(() => Load(offset + PageSize))">Next page</button>
+</div>
+
+<ul>
+    @foreach (var (id, name) in contacts)
+    {
+        <li><a href="" @onclick="@(() => Run(() => Bridge.GetAsync($"contacts/items/{Uri.EscapeDataString(id)}")))" @onclick:preventDefault>@name</a></li>
+    }
+</ul>
+
+<div class="actions">
+    <button @onclick="CreateSample">Create a sample contact</button>
+    <button disabled="@(createdId is null)" @onclick="DeleteSample">Delete the sample contact</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    const int PageSize = 20;
+
+    string search = String.Empty;
+    int offset;
+    bool hasMore;
+    string? createdId;
+    List<(string Id, string Name)> contacts = [];
+
+    Task Load(int from) => Run(async () =>
+    {
+        var page = await Bridge.GetAsync($"contacts/items?search={Uri.EscapeDataString(search)}&offset={from}&limit={PageSize}");
+        offset = from;
+        hasMore = page?.GetProperty("hasMore").GetBoolean() == true;
+        contacts = page?.GetProperty("items").EnumerateArray()
+            .Select(x => (Text(x, "id") ?? String.Empty, Text(x, "displayName") ?? "(no name)"))
+            .ToList() ?? [];
+
+        return page;
+    });
+
+    Task CreateSample() => Run(async () =>
+    {
+        var result = await Bridge.PostAsync("contacts/items", new JsonObject
+        {
+            ["givenName"] = "Sample",
+            ["familyName"] = $"WebAppHost {DateTime.Now:HHmmss}",
+            ["organization"] = new JsonObject { ["company"] = "Shiny" },
+            ["phones"] = new JsonArray(new JsonObject { ["number"] = "555-0100", ["type"] = "Mobile" }),
+            ["emails"] = new JsonArray(new JsonObject { ["address"] = "sample@example.com", ["type"] = "Work" })
+        });
+
+        createdId = result is { } r ? Text(r, "id") : null;
+        return result;
+    });
+
+    Task DeleteSample() => Run(async () =>
+    {
+        var result = await Bridge.DeleteAsync($"contacts/items/{Uri.EscapeDataString(createdId!)}");
+        createdId = null;
+        return result;
+    });
+}

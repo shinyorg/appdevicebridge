@@ -30,7 +30,7 @@
 
 	<!-- Discovery bridge: iOS only browses and advertises the service types listed here. -->
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>The sample web app finds and advertises services on your local network.</string>
+	<string>The sample web app finds and advertises services, and OBD adapters, on your local network.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_http._tcp</string>
@@ -41,5 +41,38 @@
 	<string>The sample web app shows your position.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>The sample web app scans for Bluetooth LE devices.</string>
+
+	<!-- WebView camera and microphone (AllowWebPermissions), and the Speech bridge -->
+	<key>NSCameraUsageDescription</key>
+	<string>The sample web app shows the camera and takes photos.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>The sample web app shows a microphone level and recognizes speech.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>The sample web app turns what you say into text.</string>
+
+	<!-- Motion activity bridge: the permission request terminates the app without this -->
+	<key>NSMotionUsageDescription</key>
+	<string>The sample web app shows whether you are walking, running, cycling or driving.</string>
+
+	<!-- Calendar bridge -->
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>The sample web app lists, adds and removes calendar events.</string>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>The sample web app adds events to your calendar.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>The sample web app lists, adds and removes calendar events.</string>
+
+	<!-- App links bridge: sample://… -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>org.shinylib.webapphost.sample</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>sample</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

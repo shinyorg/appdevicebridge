@@ -315,7 +315,15 @@ public sealed class WebAppHost : IAsyncDisposable
     }
 
     Uri BuildStartUri()
-        => new(this.origin!, $"{WebAppSession.StartPath}?token={Uri.EscapeDataString(this.session.Token)}");
+    {
+        var start = $"{WebAppSession.StartPath}?token={Uri.EscapeDataString(this.session.Token)}";
+
+        // A link that launched the app rides through the token exchange, whose redirect accepts only local paths.
+        if (this.bridges.OfType<WebAppLinksBridge>().FirstOrDefault()?.Links.TakeStartRoute() is { } route)
+            start += $"&path={Uri.EscapeDataString(route)}";
+
+        return new(this.origin!, start);
+    }
 
     /// <summary>
     /// Serves the newer of the bundled and installed builds, falling back to the other when one will not
@@ -535,7 +543,7 @@ public sealed class WebAppHost : IAsyncDisposable
 
         // Only a local path: anything else would make this an open redirect.
         var path = context.Request.Query["path"].ToString();
-        if (path.Length == 0 || path[0] != '/' || path.StartsWith("//", StringComparison.Ordinal) || path.Contains('\\'))
+        if (!WebAppLinks.IsLocalRoute(path))
             path = "/";
 
         context.Response.Cookies.Append(WebAppSession.CookieName, this.session.Token, new CookieOptions

@@ -13,4 +13,57 @@
     <button @onclick='@(() => Run(() => Bridge.GetAsync("app/store")))'>Store listing</button>
 </div>
 
+<h2>Share</h2>
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("app/share", new JsonObject { ["text"] = "Served from the device", ["uri"] = "https://shinylib.net", ["title"] = "WebAppHost" })))'>Share a link</button>
+    <button @onclick="ShareFile">Share a file</button>
+</div>
+
+<h2>Feedback</h2>
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("app/haptics", new JsonObject { ["type"] = "click" })))'>Click</button>
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("app/haptics", new JsonObject { ["type"] = "longPress" })))'>Long press</button>
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("app/vibrate", new JsonObject { ["durationMs"] = 400 })))'>Vibrate</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("app/vibrate")))'>Stop vibrating</button>
+</div>
+
+<h2>Status</h2>
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("app/connectivity")))'>Connectivity</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("app/battery")))'>Battery</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("app/screen")))'>Screen</button>
+    <button @onclick='@(() => Run(() => Bridge.PutAsync("app/screen/keep-awake", null)))'>Keep awake</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("app/screen/keep-awake")))'>Allow sleep</button>
+</div>
+
+<h2>Clipboard</h2>
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.PutAsync("app/clipboard", new JsonObject { ["text"] = $"Copied at {DateTime.Now:T}" })))'>Copy</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("app/clipboard")))'>Paste</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("app/clipboard")))'>Clear</button>
+</div>
+
 <Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    string log = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        foreach (var name in new[] { "app.orientation", "app.connectivity", "app.battery", "app.energysaver" })
+            await Listen(name, e => log = Prepend(log, $"{DateTime.Now:T}  {name}  {e.GetRawText()}"));
+    }
+
+    // Files are shared by the same { root, path } the files bridge uses, so write one there first.
+    Task ShareFile() => Run(async () =>
+    {
+        await Bridge.SendAsync(HttpMethod.Put, "files/cache/content?path=share/hello.txt", new StringContent($"Hello from the web app, {DateTime.Now:T}"));
+
+        return await Bridge.PostAsync("app/share", new JsonObject
+        {
+            ["title"] = "hello.txt",
+            ["files"] = new JsonArray { new JsonObject { ["root"] = "cache", ["path"] = "share/hello.txt" } }
+        });
+    });
+}

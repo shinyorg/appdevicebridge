@@ -17,11 +17,35 @@
     <button @onclick='@(() => Run(() => Bridge.DeleteAsync("geofences/regions")))'>Clear</button>
 </div>
 
+<h2>Motion activity</h2>
+<p class="muted">Needs AddMotionActivityBridge(). Readings that arrive in the background go to the motion handler.</p>
+<div class="actions">
+    <button @onclick="CurrentActivity">Current activity</button>
+    <button @onclick="ListenForActivity">Listen</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("motion/listener")))'>Stop</button>
+</div>
+
 <Output Value="@Output" Error="@Error" />
 
 @code {
-    protected override Task OnInitializedAsync()
-        => Listen("gps.reading", e => Output = ((JsonElement?)e).ToIndentedJson());
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen("gps.reading", e => Output = ((JsonElement?)e).ToIndentedJson());
+        await Listen("motion.activity", e => Output = ((JsonElement?)e).ToIndentedJson());
+    }
+
+    Task CurrentActivity() => Run(async () =>
+    {
+        await Bridge.PostAsync("motion/access");
+        return await Bridge.GetAsync("motion/current");
+    });
+
+    Task ListenForActivity() => Run(async () =>
+    {
+        await Bridge.PostAsync("motion/access");
+        await Bridge.PostAsync("motion/listener");
+        return await Bridge.GetAsync("motion/listener");
+    });
 
     Task Current() => Run(async () =>
     {

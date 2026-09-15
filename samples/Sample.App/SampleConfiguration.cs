@@ -1,11 +1,19 @@
 using System.Reflection;
 using Shiny.Jobs;
+using Shiny.WebAppHost.Bridge.AppLinks;
 using Shiny.WebAppHost.Bridge.AppSupport;
 using Shiny.WebAppHost.Bridge.BluetoothLE;
+using Shiny.WebAppHost.Bridge.Calendar;
+using Shiny.WebAppHost.Bridge.Contacts;
 using Shiny.WebAppHost.Bridge.Discovery;
+using Shiny.WebAppHost.Bridge.Health;
+using Shiny.WebAppHost.Bridge.HttpTransfers;
 using Shiny.WebAppHost.Bridge.Jobs;
 using Shiny.WebAppHost.Bridge.Locations;
+using Shiny.WebAppHost.Bridge.Notifications;
+using Shiny.WebAppHost.Bridge.Obd;
 using Shiny.WebAppHost.Bridge.Push;
+using Shiny.WebAppHost.Bridge.Speech;
 using Shiny.WebAppHost.Bridge.Wifi;
 using Shiny.WebAppHost.Maui;
 
@@ -38,12 +46,31 @@ public static class SampleConfiguration
             o.DevServer = DevServer();
 #endif
         })
+
+        // getUserMedia, navigator.geolocation and <input capture> in the page itself; see Pages/Media.razor.
+        .AllowWebPermissions(WebAppWebPermissions.Camera | WebAppWebPermissions.Microphone | WebAppWebPermissions.Geolocation)
+
         .AddAppSupportBridge()
         .AddLocationBridges()
+        .AddMotionActivityBridge()
         .AddBluetoothLEBridge()
+        .AddObdBridge()
         .AddWifiBridge()
         .AddDiscoveryBridge()
         .AddPushBridge(o => o.DispatchToWebApp = true)
+        .AddNotificationsBridge()
+        .AddHttpTransfersBridge()
+        .AddHealthBridge()
+        .AddSpeechBridge()
+        .AddContactsBridge()
+        .AddCalendarBridge()
+
+        // sample://device opens /device. Universal links would add o.Hosts, which needs a domain you control.
+        .AddAppLinksBridge(o =>
+        {
+            o.Schemes.Add("sample");
+            o.NavigateOnColdStart = true;
+        })
 
         // Handled as "job:sync" by the page when it is open, by background.js when it is not.
         .AddWebAppJob("sync", job => job.WithInternet(InternetAccess.Any));

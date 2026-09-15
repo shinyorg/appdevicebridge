@@ -176,7 +176,12 @@ public sealed class WebAppHostOptions
 
     internal WebAppVersion ParsedHostVersion => WebAppVersion.Parse(this.HostVersion);
 
-    internal IReadOnlyList<WebAppFileRoot> ResolveFileRoots()
+    /// <summary>
+    /// The roots the page's paths are confined to: <see cref="FileRoots"/>, or the <c>data</c> and <c>cache</c>
+    /// defaults. Bridges that accept a file from the page — a notification image, an upload — resolve it here, so
+    /// they refuse exactly what the files bridge refuses.
+    /// </summary>
+    public IReadOnlyList<WebAppFileRoot> ResolveFileRoots()
         => this.FileRoots.Count > 0
             ? [.. this.FileRoots.Select(x => new WebAppFileRoot(x.Key, x.Value))]
             :

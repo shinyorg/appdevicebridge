@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Cleared: src/Directory.Build.props sets the single target. -->
+    <TargetFramework></TargetFramework>
+
+    <!-- Multi-targeted because Shiny.Health only has a backend in its iOS (HealthKit) and Android (Health Connect)
+         builds. Every other head — Mac Catalyst, Windows, macOS, Linux — resolves net10.0, registers nothing, and
+         answers 501. -->
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
+
+    <UseMaui>true</UseMaui>
+    <SingleProject>false</SingleProject>
+    <RootNamespace>Shiny.WebAppHost.Bridge.Health</RootNamespace>
+    <Description>Health data for a Shiny.WebAppHost web app, backed by Shiny.Health — Apple HealthKit and Android Health Connect: permissions, bucketed reads, writes and live observation. One call: builder.AddHealthBridge().</Description>
+
+    <!-- Health Connect's client library requires API 26. -->
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">26.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Shiny.Health" />
+  </ItemGroup>
+
+  <ItemGroup Condition="$(TargetFramework.Contains('-android')) OR $(TargetFramework.Contains('-ios'))">
+    <PackageReference Include="Shiny.Hosting.Maui" />
+    <Compile Include="../Shared/ShinyMauiHosting.cs" Link="ShinyMauiHosting.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.WebAppHost/Shiny.WebAppHost.csproj" />
+  </ItemGroup>
+
+</Project>

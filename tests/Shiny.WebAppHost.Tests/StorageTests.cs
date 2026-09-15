@@ -62,6 +62,64 @@ public class WebAppFileRootTests
             Directory.Delete(scratch, recursive: true);
         }
     }
+
+    [Fact]
+    public void FileRootsDefaultToDataAndCache()
+    {
+        var options = new WebAppHostOptions { AppId = "demo", InstallDirectory = Path.Combine(Path.GetTempPath(), "webapphost-tests", "install") };
+
+        var roots = options.ResolveFileRoots();
+
+        Assert.Equal(["data", "cache"], roots.Select(x => x.Name));
+        Assert.Equal(Path.Combine(options.InstallDirectory, "files"), roots[0].FullPath);
+    }
+
+    [Fact]
+    public void ConfiguredFileRootsReplaceTheDefaultsAndStayConfined()
+    {
+        var scratch = Path.Combine(Path.GetTempPath(), "webapphost-tests", Guid.NewGuid().ToString("n"));
+        var options = new WebAppHostOptions { AppId = "demo" };
+        options.FileRoots["photos"] = scratch;
+
+        var root = Assert.Single(options.ResolveFileRoots());
+
+        Assert.Equal("photos", root.Name);
+        Assert.Equal(Path.Combine(scratch, "a", "b.jpg"), root.Resolve("a/b.jpg"));
+        Assert.Null(root.Resolve("../outside.jpg"));
+    }
+}
+
+public class WebAppFileRootsTests
+{
+    static WebAppHostOptions Options(bool enableFiles = true)
+    {
+        var options = new WebAppHostOptions { AppId = "demo", EnableFiles = enableFiles };
+        options.FileRoots["data"] = Path.Combine(Path.GetTempPath(), "webapphost-tests", "roots", "data");
+        return options;
+    }
+
+    [Fact]
+    public void ResolvesAFileInANamedRoot()
+    {
+        var options = Options();
+
+        Assert.True(WebAppFileRoots.TryResolve(options, "DATA", "photos/cat.jpg", out var full));
+        Assert.Equal(Path.Combine(options.FileRoots["data"], "photos", "cat.jpg"), full);
+    }
+
+    [Theory]
+    [InlineData("cache", "a.txt")]      // replaced by FileRoots
+    [InlineData("data", "../a.txt")]
+    [InlineData("data", "")]            // the root itself is not a file
+    [InlineData("data", "/")]
+    [InlineData("../data", "a.txt")]
+    [InlineData(null, "a.txt")]
+    public void RefusesWhatTheFilesBridgeWould(string? root, string path)
+        => Assert.False(WebAppFileRoots.TryResolve(Options(), root, path, out _));
+
+    [Fact]
+    public void RefusesEverythingWhenFilesAreDisabled()
+        => Assert.False(WebAppFileRoots.TryResolve(Options(enableFiles: false), "data", "a.txt", out _));
 }
 
 public class StorageBridgeTests

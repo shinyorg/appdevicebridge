@@ -32,6 +32,9 @@ public class WebAppHostView : ContentView
     {
         this.WebView = new WebView { IsVisible = false };
 
+        // The WebView's handler can arrive before this view's, and a new one arrives with every reconnect.
+        this.WebView.HandlerChanged += (_, _) => WebAppWebViewPermissions.Attach(this.WebView);
+
         this.loading = new VerticalStackLayout
         {
             Spacing = 12,
