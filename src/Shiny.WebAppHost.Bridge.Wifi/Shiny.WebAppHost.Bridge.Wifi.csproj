@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Cleared: src/Directory.Build.props sets the single target. -->
+    <TargetFramework></TargetFramework>
+
+    <!-- AddWifi has one signature on every target, but Android's manager needs Shiny's host, and UseShiny only
+         exists in Shiny.Hosting.Maui's platform builds. The net10.0 build serves the maui-labs heads: macOS
+         resolves Shiny.Net.Wifi's own macOS build at runtime, Linux gets the NetworkManager implementation. -->
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
+    <UseMaui>true</UseMaui>
+    <SingleProject>false</SingleProject>
+    <RootNamespace>Shiny.WebAppHost.Bridge.Wifi</RootNamespace>
+    <Description>Wi-Fi endpoints for a Shiny.WebAppHost web app, backed by Shiny.Net.Wifi — the current network and its changes, scanning, connecting, known networks, the radio, and optionally a hotspot. One call: builder.AddWifiBridge().</Description>
+
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Shiny.Net.Wifi" />
+  </ItemGroup>
+
+  <!-- Linux Wi-Fi is NetworkManager over D-Bus, shipped separately so no other platform carries it. Only the
+       net10.0 build references it, and it is only called when the process is actually on Linux. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Shiny.Net.Wifi.Linux" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <DefineConstants>$(DefineConstants);WIFI_LINUX</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0'">
+    <PackageReference Include="Shiny.Hosting.Maui" />
+    <Compile Include="../Shared/ShinyMauiHosting.cs" Link="ShinyMauiHosting.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.WebAppHost/Shiny.WebAppHost.csproj" />
+  </ItemGroup>
+
+</Project>

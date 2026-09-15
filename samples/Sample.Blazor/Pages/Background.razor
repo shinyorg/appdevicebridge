@@ -1,0 +1,53 @@
+@page "/background"
+@inherits BridgePage
+@inject NativeCallHandlers Handlers
+
+<h1>Background</h1>
+<p class="muted">
+    Jobs, background GPS readings, geofence transitions and pushes are handled by this page while it is open —
+    listed below — and by background.js when it is not.
+</p>
+
+<div class="actions">
+    <button @onclick="Refresh">What background.js did</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+
+<h2>Handled here</h2>
+<pre class="log">@String.Join("\n", Handlers.Calls)</pre>
+
+@code {
+    protected override void OnInitialized() => Handlers.Changed += OnChanged;
+
+    void OnChanged() => InvokeAsync(StateHasChanged);
+
+    Task Refresh() => Run(async () =>
+    {
+        var runs = await TryGet("settings/local/sync-runs");
+        var last = await TryGet("settings/local/last-background-position");
+
+        string log;
+        try
+        {
+            log = await Bridge.GetStringAsync("files/data/content?path=background.log");
+        }
+        catch (WebAppBridgeException ex) when (ex.StatusCode == 404)
+        {
+            log = "(nothing yet)";
+        }
+
+        return ToElement(new JsonObject
+        {
+            ["backgroundSyncRuns"] = runs is { } r ? JsonNode.Parse(r.GetRawText()) : 0,
+            ["lastBackgroundPosition"] = last is { } p ? JsonNode.Parse(p.GetRawText()) : null,
+            ["log"] = log
+        });
+    });
+
+    public override ValueTask DisposeAsync()
+    {
+        Handlers.Changed -= OnChanged;
+        return base.DisposeAsync();
+    }
+}

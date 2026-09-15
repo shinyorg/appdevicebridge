@@ -1,0 +1,36 @@
+@page "/wifi"
+@inherits BridgePage
+
+<h1>Wi-Fi</h1>
+
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("wifi")))'>Capabilities</button>
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("wifi/access")))'>Request access</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("wifi/current")))'>Current network</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("wifi/networks")))'>Scan</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("wifi/known")))'>Known networks</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("wifi/radio")))'>Radio</button>
+</div>
+
+<h2>Join a network</h2>
+<div class="form">
+    <input @bind="ssid" placeholder="SSID" />
+    <input @bind="passphrase" placeholder="Passphrase" type="password" />
+    <button @onclick="Join">Join</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    string ssid = String.Empty;
+    string passphrase = String.Empty;
+
+    protected override Task OnInitializedAsync()
+        => Listen("wifi.changed", e => Output = ((JsonElement?)e).ToIndentedJson());
+
+    Task Join() => Run(() => Bridge.PostAsync("wifi/connection", new JsonObject
+    {
+        ["ssid"] = ssid,
+        ["passphrase"] = passphrase.Length > 0 ? passphrase : null
+    }));
+}

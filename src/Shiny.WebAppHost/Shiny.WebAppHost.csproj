@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.WebAppHost</RootNamespace>
+    <Description>Runs a zipped web app (Blazor, React, anything static) from a loopback Shiny.Net.HttpServer — keeps it up to date from a Shiny.WebAppHost.AspNetCore server, verifies every download against a signature before serving it, and exposes native services to the page through authenticated bridge endpoints. No MAUI dependency; Shiny.WebAppHost.Maui adds the WebView.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shiny.Net.HttpServer" />
+
+    <!-- One AddShinyStores signature on every target, so this net10.0 build can call it and each head
+         still gets its platform store: Keychain, Android KeyStore, DPAPI, or a file on Linux. -->
+    <PackageReference Include="Shiny.Extensions.Stores" />
+
+    <!-- Runs background.js when a native call arrives with no page to take it. A pure .NET interpreter:
+         no JIT, no native engine to ship per platform, and allowed on iOS. -->
+    <PackageReference Include="Jint" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.WebAppHost.Core/Shiny.WebAppHost.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.WebAppHost.Tests" />
+  </ItemGroup>
+
+</Project>

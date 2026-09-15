@@ -1,0 +1,86 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Shared by every head. Plain net10.0 because the Linux GTK4 head is plain net10.0 — each head
+         still resolves its own platform build of the bridges, whose extension methods keep one
+         signature across targets. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <UseMaui>true</UseMaui>
+    <SingleProject>false</SingleProject>
+    <RootNamespace>Sample</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Maui/Shiny.WebAppHost.Maui.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.AppSupport/Shiny.WebAppHost.Bridge.AppSupport.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.BluetoothLE/Shiny.WebAppHost.Bridge.BluetoothLE.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Discovery/Shiny.WebAppHost.Bridge.Discovery.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Jobs/Shiny.WebAppHost.Bridge.Jobs.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Locations/Shiny.WebAppHost.Bridge.Locations.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Push/Shiny.WebAppHost.Bridge.Push.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Wifi/Shiny.WebAppHost.Bridge.Wifi.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="../keys/dev-public.pem" LogicalName="Sample.dev-public.pem" Visible="false" />
+  </ItemGroup>
+
+  <!-- Where Debug builds look for `dotnet watch` on the development machine. Pass
+       -p:WebAppDevServer=http://192.168.1.20:5288 for a physical device, or -p:WebAppDevServer=off to always
+       use the embedded build. Left empty, the app picks the emulator or simulator default at runtime. -->
+  <ItemGroup Condition="'$(WebAppDevServer)' != ''">
+    <AssemblyMetadata Include="WebAppDevServer" Value="$(WebAppDevServer)" />
+  </ItemGroup>
+
+  <!--
+    Sample.Blazor is published, zipped and embedded as the baseline, so the app runs offline on first launch.
+    It is deliberately not a ProjectReference: referencing a Blazor WebAssembly app from a library drags its
+    runtime in. It is built out of band and consumed purely as a zip.
+
+    The hook is AssignTargetPaths rather than BeforeCompile: resource manifest names are assigned before
+    BeforeCompile runs, so an EmbeddedResource added there is silently dropped. Build with
+    -p:SkipWebAppBuild=true to skip the publish during inner-loop work on the native side.
+  -->
+  <Target Name="_WebAppProps">
+    <PropertyGroup>
+      <WebAppProject>$(MSBuildThisFileDirectory)../Sample.Blazor/Sample.Blazor.csproj</WebAppProject>
+      <!-- No trailing separator: it is a quoted argument below, and on Windows a trailing backslash escapes the quote. -->
+      <WebAppPublishDir>$(IntermediateOutputPath)webapp-publish</WebAppPublishDir>
+      <WebAppPlaceholderDir>$(IntermediateOutputPath)webapp-placeholder/</WebAppPlaceholderDir>
+      <WebAppZip>$(IntermediateOutputPath)webapp.zip</WebAppZip>
+    </PropertyGroup>
+    <ItemGroup>
+      <WebAppSource Include="$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.razor;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.cs;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.css;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.js;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.html;$(MSBuildThisFileDirectory)../Sample.Blazor/*.csproj;$(MSBuildThisFileDirectory)../../src/Shiny.WebAppHost.Blazor/**/*.cs;$(MSBuildThisFileDirectory)../../src/Shiny.WebAppHost.Blazor/**/*.js"
+                    Exclude="$(MSBuildThisFileDirectory)../Sample.Blazor/bin/**;$(MSBuildThisFileDirectory)../Sample.Blazor/obj/**;$(MSBuildThisFileDirectory)../../src/Shiny.WebAppHost.Blazor/bin/**;$(MSBuildThisFileDirectory)../../src/Shiny.WebAppHost.Blazor/obj/**" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="_PublishWebApp"
+          DependsOnTargets="_WebAppProps"
+          Condition="'$(SkipWebAppBuild)' != 'true'"
+          Inputs="@(WebAppSource)"
+          Outputs="$(WebAppZip)">
+    <RemoveDir Directories="$(WebAppPublishDir)" />
+    <Exec Command="dotnet publish &quot;$(WebAppProject)&quot; -c $(Configuration) -o &quot;$(WebAppPublishDir)&quot; --nologo" StandardOutputImportance="low" />
+    <Delete Files="$(WebAppZip)" />
+    <ZipDirectory SourceDirectory="$(WebAppPublishDir)/wwwroot" DestinationFile="$(WebAppZip)" Overwrite="true" />
+  </Target>
+
+  <Target Name="EmbedWebApp" DependsOnTargets="_WebAppProps;_PublishWebApp" BeforeTargets="AssignTargetPaths">
+    <!-- A placeholder so the app still builds with SkipWebAppBuild; the host refuses it and says why. -->
+    <MakeDir Directories="$(WebAppPlaceholderDir)" Condition="!Exists('$(WebAppZip)')" />
+    <WriteLinesToFile File="$(WebAppPlaceholderDir)README.txt" Overwrite="true"
+                      Lines="Sample.Blazor was not built into this app. Build without -p:SkipWebAppBuild=true."
+                      Condition="!Exists('$(WebAppZip)')" />
+    <ZipDirectory SourceDirectory="$(WebAppPlaceholderDir)" DestinationFile="$(WebAppZip)" Overwrite="true" Condition="!Exists('$(WebAppZip)')" />
+
+    <ItemGroup>
+      <EmbeddedResource Include="$(WebAppZip)" LogicalName="Sample.webapp.zip" Visible="false" />
+    </ItemGroup>
+  </Target>
+
+</Project>

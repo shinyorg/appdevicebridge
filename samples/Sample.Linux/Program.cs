@@ -1,0 +1,10 @@
+using Microsoft.Maui.Platforms.Linux.Gtk4.Platform;
+
+namespace Sample.Linux;
+
+public class Program : GtkMauiApplication
+{
+    protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
+
+    public static void Main(string[] args) => new Program().Run(args);
+}

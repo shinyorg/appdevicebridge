@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Shiny.WebAppHost.Tests</RootNamespace>
+
+    <!-- xunit v3 runs on Microsoft.Testing.Platform: the test assembly is its own runner. -->
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Core/Shiny.WebAppHost.Core.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost/Shiny.WebAppHost.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.AspNetCore/Shiny.WebAppHost.AspNetCore.csproj" />
+  </ItemGroup>
+
+</Project>

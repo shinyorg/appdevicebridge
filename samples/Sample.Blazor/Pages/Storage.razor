@@ -1,0 +1,54 @@
+@page "/storage"
+@inherits BridgePage
+
+<h1>Storage</h1>
+
+<h2>Settings</h2>
+<div class="form">
+    <select @bind="scope">
+        <option value="local">local</option>
+        <option value="secure">secure</option>
+    </select>
+    <input @bind="key" placeholder="key" />
+    <input @bind="value" placeholder='JSON value, e.g. "hello" or { "a": 1 }' />
+</div>
+<div class="actions">
+    <button @onclick="SaveSetting">Save</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync($"settings/{scope}/{key}")))'>Load</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync($"settings/{scope}")))'>List</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync($"settings/{scope}/{key}")))'>Delete</button>
+</div>
+
+<h2>Files <span class="muted">(data root)</span></h2>
+<div class="form">
+    <input @bind="path" placeholder="notes/today.txt" />
+    <input @bind="content" placeholder="file contents" />
+</div>
+<div class="actions">
+    <button @onclick="SaveFile">Write</button>
+    <button @onclick="ReadFile">Read</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync($"files/data/list?path={Uri.EscapeDataString(Folder)}")))'>List folder</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync($"files/data/entry?path={Uri.EscapeDataString(path)}&recursive=true")))'>Delete</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    string scope = "local";
+    string key = "greeting";
+    string value = "\"hello\"";
+    string path = "notes/today.txt";
+    string content = "Written from Blazor";
+
+    string Folder => path.Contains('/') ? path[..path.LastIndexOf('/')] : String.Empty;
+
+    Task SaveSetting() => Run(async () =>
+    {
+        await Bridge.SendAsync(HttpMethod.Put, $"settings/{scope}/{key}", new StringContent(value, System.Text.Encoding.UTF8, "application/json"));
+        return await Bridge.GetAsync($"settings/{scope}");
+    });
+
+    Task SaveFile() => Run(() => Bridge.SendAsync(HttpMethod.Put, $"files/data/content?path={Uri.EscapeDataString(path)}", new StringContent(content)));
+
+    Task ReadFile() => Run(async () => ToElement(JsonValue.Create(await Bridge.GetStringAsync($"files/data/content?path={Uri.EscapeDataString(path)}"))));
+}

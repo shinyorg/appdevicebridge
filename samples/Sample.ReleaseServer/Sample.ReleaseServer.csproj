@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Sample.ReleaseServer</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Shiny.WebAppHost.AspNetCore/Shiny.WebAppHost.AspNetCore.csproj" />
+  </ItemGroup>
+
+</Project>

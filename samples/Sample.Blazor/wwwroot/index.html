@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>WebAppHost Sample</title>
+    <base href="/" />
+    <link rel="preload" id="webassembly" />
+    <link rel="stylesheet" href="css/app.css" />
+    <script type="importmap"></script>
+</head>
+
+<body>
+    <div id="app">
+        <div class="loading">Starting…</div>
+    </div>
+
+    <div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="." class="reload">Reload</a>
+        <span class="dismiss">🗙</span>
+    </div>
+    <script>
+        // Inside the app's WebView there is no console to look at, so a failure before Blazor renders is shown
+        // in place of the loading text instead of leaving "Starting…" up forever.
+        (() => {
+            const show = message => {
+                const loading = document.querySelector("#app .loading");
+                if (loading)
+                    loading.textContent = "Could not start: " + message;
+            };
+
+            window.addEventListener("error", e => show(e.message || (e.target && e.target.src) || "a resource failed to load"), true);
+            window.addEventListener("unhandledrejection", e => show(String((e.reason && e.reason.message) || e.reason)));
+        })();
+    </script>
+    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+</body>
+
+</html>

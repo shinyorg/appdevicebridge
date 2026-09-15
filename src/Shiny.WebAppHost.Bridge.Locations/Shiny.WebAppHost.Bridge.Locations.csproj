@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Cleared: src/Directory.Build.props sets the single target, and TargetFramework wins over
+         TargetFrameworks when both are set. -->
+    <TargetFramework></TargetFramework>
+
+    <!-- Multi-targeted because Shiny.Locations' registration methods only exist in its platform builds,
+         with a different signature on each — so AddGpsBridge has to be compiled per platform to call
+         the right one. The plain net10.0 target serves the desktop heads, where the endpoints answer 501. -->
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
+    <UseMaui>true</UseMaui>
+    <SingleProject>false</SingleProject>
+    <RootNamespace>Shiny.WebAppHost.Bridge.Locations</RootNamespace>
+    <Description>GPS and geofencing endpoints for a Shiny.WebAppHost web app, backed by Shiny.Locations — permissions, current and last position, a listener streamed to the page as events, and geofence regions. One call each: builder.AddGpsBridge(), builder.AddGeofenceBridge().</Description>
+
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Shiny.Locations" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0'">
+    <PackageReference Include="Shiny.Hosting.Maui" />
+    <Compile Include="../Shared/ShinyMauiHosting.cs" Link="ShinyMauiHosting.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.WebAppHost/Shiny.WebAppHost.csproj" />
+  </ItemGroup>
+
+</Project>

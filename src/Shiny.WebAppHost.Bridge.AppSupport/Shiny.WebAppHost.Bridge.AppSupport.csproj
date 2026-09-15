@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net10.0 only: AddAppSupport and AddAppStore have the same signature on every target, so the
+         head's own platform build of Shiny.Extensions.MauiHosting supplies the implementation. -->
+    <UseMaui>true</UseMaui>
+    <SingleProject>false</SingleProject>
+    <RootNamespace>Shiny.WebAppHost.Bridge.AppSupport</RootNamespace>
+    <Description>Device and app information, orientation, browser, maps, settings and app store endpoints for a Shiny.WebAppHost web app, backed by Shiny.Extensions.MauiHosting. One call: builder.AddAppSupportBridge().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Shiny.Extensions.MauiHosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.WebAppHost/Shiny.WebAppHost.csproj" />
+  </ItemGroup>
+
+</Project>

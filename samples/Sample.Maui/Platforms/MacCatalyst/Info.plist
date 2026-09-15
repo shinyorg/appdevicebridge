@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>2</integer>
+	</array>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.developer-tools</string>
+
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+
+	<!-- Shiny.Jobs schedules web app jobs under these, one per charging/network combination. -->
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.shiny.job</string>
+		<string>com.shiny.jobnet</string>
+		<string>com.shiny.jobpower</string>
+		<string>com.shiny.jobpowernet</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>processing</string>
+	</array>
+
+	<!-- Discovery bridge: iOS only browses and advertises the service types listed here. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>The sample web app finds and advertises services on your local network.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_http._tcp</string>
+		<string>_webapphost._tcp</string>
+	</array>
+
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>The sample web app shows your position.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>The sample web app scans for Bluetooth LE devices.</string>
+</dict>
+</plist>

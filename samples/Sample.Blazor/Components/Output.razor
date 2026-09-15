@@ -1,0 +1,13 @@
+@if (Error is not null)
+{
+    <pre class="error">@Error</pre>
+}
+else if (Value is not null)
+{
+    <pre>@Value</pre>
+}
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public string? Error { get; set; }
+}

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- There is no -linux TFM: the GTK4 backend from dotnet/maui-labs runs from a plain net10.0 head. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <UseMaui>true</UseMaui>
+    <RootNamespace>Sample.Linux</RootNamespace>
+
+    <!-- The GTK4 backend marks its entry points Linux-only, and a plain net10.0 head cannot say it only
+         runs there. -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+
+    <ApplicationTitle>WebAppHost Sample</ApplicationTitle>
+    <ApplicationId>org.shinylib.webapphost.sample</ApplicationId>
+    <ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.Maui.Platforms.Linux.Gtk4" />
+    <PackageReference Include="Microsoft.Maui.Platforms.Linux.Gtk4.Essentials" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Sample.App/Sample.App.csproj" />
+  </ItemGroup>
+
+</Project>

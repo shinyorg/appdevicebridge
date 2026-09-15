@@ -1,0 +1,63 @@
+@page "/discovery"
+@inherits BridgePage
+
+<h1>Discovery</h1>
+
+<h2>mDNS / Bonjour</h2>
+<div class="form">
+    <input @bind="serviceType" placeholder="_http._tcp" />
+    <button @onclick="SearchMdns">Search</button>
+    <button @onclick="BrowseMdns">Browse</button>
+    <button @onclick="PublishSelf">Advertise this app</button>
+</div>
+
+<h2>SSDP and WS-Discovery</h2>
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("discovery/ssdp/search", new JsonObject { ["searchTarget"] = "ssdp:all" })))'>UPnP devices</button>
+    <button @onclick="OnvifCameras">ONVIF cameras</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("discovery/publications")))'>Publications</button>
+    <button @onclick="StopBrowsing">Stop browsing</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    string serviceType = "_http._tcp";
+    string log = String.Empty;
+
+    protected override Task OnInitializedAsync() => Listen("discovery.mdns", e =>
+    {
+        var service = e.GetProperty("service");
+        log = Prepend(log, $"{Text(e, "status")}  {Text(service, "fullName")}  {service.GetProperty("port").GetInt32()}");
+    });
+
+    Task SearchMdns() => Run(() => Bridge.PostAsync("discovery/mdns/search", new JsonObject { ["serviceType"] = serviceType, ["scanMs"] = 4000 }));
+
+    Task BrowseMdns() => Run(() => Bridge.PostAsync("discovery/mdns/browse", new JsonObject { ["serviceType"] = serviceType }));
+
+    // iOS only lets the app advertise and browse types listed in NSBonjourServices; the sample lists this one.
+    Task PublishSelf() => Run(() => Bridge.PostAsync("discovery/mdns/publications", new JsonObject
+    {
+        ["instanceName"] = "WebAppHost Sample",
+        ["serviceType"] = "_webapphost._tcp",
+        ["port"] = 5780,
+        ["txtRecords"] = new JsonObject { ["app"] = "sample" }
+    }));
+
+    Task OnvifCameras() => Run(() => Bridge.PostAsync("discovery/wsd/search", new JsonObject
+    {
+        ["types"] = new JsonArray(new JsonObject { ["name"] = "NetworkVideoTransmitter", ["namespace"] = "http://www.onvif.org/ver10/network/wsdl" })
+    }));
+
+    Task StopBrowsing() => Run(async () =>
+    {
+        if (await Bridge.GetAsync("discovery/browses") is { } browses)
+        {
+            foreach (var browse in browses.EnumerateArray())
+                await Bridge.DeleteAsync($"discovery/browses/{Text(browse, "id")}");
+        }
+
+        return await Bridge.GetAsync("discovery/browses");
+    });
+}

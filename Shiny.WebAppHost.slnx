@@ -1,0 +1,25 @@
+<Solution>
+    <Folder Name="/samples/">
+        <Project Path="samples/Sample.Blazor/Sample.Blazor.csproj" />
+        <Project Path="samples/Sample.App/Sample.App.csproj"/>
+        <Project Path="samples/Sample.Maui/Sample.Maui.csproj"/>
+        <Project Path="samples/Sample.MacOS/Sample.MacOS.csproj"/>
+        <Project Path="samples/Sample.Linux/Sample.Linux.csproj"/>
+        <Project Path="samples/Sample.ReleaseServer/Sample.ReleaseServer.csproj"/>
+    </Folder>
+    <Folder Name="/tests/">
+        <Project Path="tests/Shiny.WebAppHost.Tests/Shiny.WebAppHost.Tests.csproj"/>
+    </Folder>
+    <Project Path="src/Shiny.WebAppHost.AspNetCore/Shiny.WebAppHost.AspNetCore.csproj"/>
+    <Project Path="src/Shiny.WebAppHost.Bridge.AppSupport/Shiny.WebAppHost.Bridge.AppSupport.csproj"/>
+    <Project Path="src/Shiny.WebAppHost.Bridge.BluetoothLE/Shiny.WebAppHost.Bridge.BluetoothLE.csproj"/>
+    <Project Path="src/Shiny.WebAppHost.Bridge.Jobs/Shiny.WebAppHost.Bridge.Jobs.csproj" />
+    <Project Path="src/Shiny.WebAppHost.Bridge.Wifi/Shiny.WebAppHost.Bridge.Wifi.csproj" />
+    <Project Path="src/Shiny.WebAppHost.Bridge.Discovery/Shiny.WebAppHost.Bridge.Discovery.csproj" />
+    <Project Path="src/Shiny.WebAppHost.Bridge.Push/Shiny.WebAppHost.Bridge.Push.csproj" />
+    <Project Path="src/Shiny.WebAppHost.Bridge.Locations/Shiny.WebAppHost.Bridge.Locations.csproj"/>
+    <Project Path="src/Shiny.WebAppHost.Core/Shiny.WebAppHost.Core.csproj"/>
+    <Project Path="src/Shiny.WebAppHost.Maui/Shiny.WebAppHost.Maui.csproj"/>
+    <Project Path="src/Shiny.WebAppHost.Blazor/Shiny.WebAppHost.Blazor.csproj" />
+    <Project Path="src/Shiny.WebAppHost/Shiny.WebAppHost.csproj"/>
+</Solution>

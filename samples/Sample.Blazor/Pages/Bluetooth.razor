@@ -1,0 +1,36 @@
+@page "/bluetooth"
+@inherits BridgePage
+
+<h1>Bluetooth LE</h1>
+
+<div class="actions">
+    <button @onclick="Scan">Scan</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("ble/scan")))'>Stop</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("ble/peripherals")))'>Connected</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+
+<ul class="list">
+    @foreach (var p in peripherals.Values.OrderByDescending(x => x.Rssi).Take(40))
+    {
+        <li><strong>@(p.Name ?? "(unnamed)")</strong> <span class="muted">@p.Rssi dBm · @p.Uuid</span></li>
+    }
+</ul>
+
+@code {
+    readonly Dictionary<string, (string Uuid, string? Name, int Rssi)> peripherals = [];
+
+    protected override Task OnInitializedAsync() => Listen("ble.scan", e =>
+    {
+        var uuid = e.GetProperty("uuid").GetString()!;
+        peripherals[uuid] = (uuid, Text(e, "name") ?? Text(e, "localName"), e.GetProperty("rssi").GetInt32());
+    });
+
+    Task Scan() => Run(async () =>
+    {
+        await Bridge.PostAsync("ble/access");
+        peripherals.Clear();
+        return await Bridge.PostAsync("ble/scan");
+    });
+}

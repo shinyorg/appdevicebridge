@@ -1,0 +1,57 @@
+@page "/location"
+@inherits BridgePage
+
+<h1>Location</h1>
+
+<h2>GPS</h2>
+<div class="actions">
+    <button @onclick="Current">Current position</button>
+    <button @onclick="StartListening">Listen (background)</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("gps/listener")))'>Stop</button>
+</div>
+
+<h2>Geofences</h2>
+<div class="actions">
+    <button @onclick="WatchHere">Watch 200 m around me</button>
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("geofences/regions")))'>Regions</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("geofences/regions")))'>Clear</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    protected override Task OnInitializedAsync()
+        => Listen("gps.reading", e => Output = ((JsonElement?)e).ToIndentedJson());
+
+    Task Current() => Run(async () =>
+    {
+        await Bridge.PostAsync("gps/access");
+        return await Bridge.GetAsync("gps/current");
+    });
+
+    // Standard background mode: readings keep arriving with the app in the background, where they go to the
+    // gps handler — this page's if it is open, background.js's if not.
+    Task StartListening() => Run(async () =>
+    {
+        await Bridge.PostAsync("gps/access", new JsonObject { ["backgroundMode"] = "Standard" });
+        return await Bridge.PostAsync("gps/listener", new JsonObject { ["backgroundMode"] = "Standard" });
+    });
+
+    Task WatchHere() => Run(async () =>
+    {
+        await Bridge.PostAsync("gps/access");
+        await Bridge.PostAsync("geofences/access");
+
+        var here = await Bridge.GetAsync("gps/current") ?? throw new InvalidOperationException("No position yet.");
+
+        await Bridge.PostAsync("geofences/regions", new JsonObject
+        {
+            ["identifier"] = "sample-here",
+            ["latitude"] = here.GetProperty("latitude").GetDouble(),
+            ["longitude"] = here.GetProperty("longitude").GetDouble(),
+            ["radiusMeters"] = 200
+        });
+
+        return await Bridge.GetAsync("geofences/regions");
+    });
+}

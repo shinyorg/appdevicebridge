@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- A true AppKit app via dotnet/maui-labs — not Mac Catalyst. -->
+    <TargetFramework>net10.0-macos</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <SupportedOSPlatformVersion>14.0</SupportedOSPlatformVersion>
+    <RootNamespace>Sample.MacOS</RootNamespace>
+
+    <ApplicationTitle>WebAppHost Sample</ApplicationTitle>
+    <ApplicationId>org.shinylib.webapphost.sample</ApplicationId>
+    <ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.Maui.Platforms.MacOS" />
+    <PackageReference Include="Microsoft.Maui.Platforms.MacOS.Essentials" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Sample.App/Sample.App.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,24 @@
+@page "/push"
+@inherits BridgePage
+
+<h1>Push</h1>
+<p class="muted">Needs the platform's push setup — APNs entitlements on Apple platforms, google-services.json on Android — before registration can succeed.</p>
+
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("push")))'>Status and token</button>
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("push/registration")))'>Register</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("push/registration")))'>Unregister</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    string log = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        foreach (var name in new[] { "push.token", "push.unregistered", "push.received", "push.entry" })
+            await Listen(name, e => log = Prepend(log, $"{DateTime.Now:T}  {name}  {e.GetRawText()}"));
+    }
+}

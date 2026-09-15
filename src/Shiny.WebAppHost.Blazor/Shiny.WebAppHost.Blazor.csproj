@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.WebAppHost.Blazor</RootNamespace>
+    <Description>Blazor WebAssembly client for a web app hosted by Shiny.WebAppHost — call bridge endpoints, subscribe to native events, and handle native calls (background jobs, GPS, geofences, push) in C# while the page is open.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+  </ItemGroup>
+
+</Project>

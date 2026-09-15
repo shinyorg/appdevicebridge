@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- One net10.0 target serves every head: the Android, iOS, Mac Catalyst and Windows single
+         projects reference it, and so do the maui-labs AppKit (net10.0-macos) and GTK4 (plain
+         net10.0) heads — the GTK head being plain net10.0 is why this cannot multi-target. -->
+    <UseMaui>true</UseMaui>
+    <SingleProject>false</SingleProject>
+    <RootNamespace>Shiny.WebAppHost.Maui</RootNamespace>
+    <Description>Shows a Shiny.WebAppHost web app in a .NET MAUI WebView — progress while a required update downloads, a restart of the loopback server when the app resumes,. Works on Android, iOS, Mac Catalyst, Windows, and the maui-labs macOS (AppKit) and Linux (GTK4) backends.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.WebAppHost/Shiny.WebAppHost.csproj" />
+  </ItemGroup>
+
+</Project>
