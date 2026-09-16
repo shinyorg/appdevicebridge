@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Sample.App/Sample.App.csproj" />
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.TrayIcon/Shiny.WebAppHost.Bridge.TrayIcon.csproj" />
   </ItemGroup>
 
 </Project>

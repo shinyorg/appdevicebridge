@@ -1,0 +1,102 @@
+@page "/desktop"
+@inherits BridgePage
+
+<h1>Desktop</h1>
+<p class="muted">Launch at login and the system tray. Both answer <code>501</code> on Android and iOS.</p>
+
+<h2>Launch at login</h2>
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("app/startup")))'>State</button>
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("app/startup/registration")))'>Register</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("app/startup/registration")))'>Unregister</button>
+    <button @onclick='@(() => Run(() => Bridge.PostAsync("app/startup/settings")))'>Open OS settings</button>
+</div>
+
+<h2>Tray icon</h2>
+<div class="form">
+    <input @bind="tooltip" placeholder="Tooltip" />
+    <input @bind="badge" placeholder="Badge, e.g. 3" />
+</div>
+<div class="actions">
+    <button @onclick='@(() => Run(() => Bridge.GetAsync("tray")))'>Status</button>
+    <button @onclick="Show">Show with menu</button>
+    <button @onclick="Update">Apply tooltip and badge</button>
+    <button @onclick="Notify">Notify</button>
+    <button @onclick="Animate">Animate</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync($"tray/{TrayId}/animation")))'>Stop animating</button>
+    <button @onclick='@(() => Run(() => Bridge.DeleteAsync($"tray/{TrayId}")))'>Remove</button>
+</div>
+
+<h2>Clicks</h2>
+<pre>@(clicks.Length == 0 ? "Click the tray icon or pick something from its menu." : clicks)</pre>
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    // PUT rather than POST, so a hot reload adopts the icon it made last time instead of adding another.
+    const string TrayId = "main";
+
+    // A 22x22 template image: black with an alpha channel, which macOS and Linux tint for the menu bar.
+    const string Dot = "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAAWElEQVR42mNgIA70oGGKQA+RmCxD/xPARBtOrIEkW0COociGU91QnIb3UNHgHmq7FquraWJwDw0M7hk1GCNlDK1UQdMMQrMsTdNCiKbFJs0KeppXTRRXpgB3d0Dso2MAxAAAAABJRU5ErkJggg==";
+    const string Ring = "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAAZklEQVR42u2VwQoAIAhD+3/2z3WLENRp7ZbgLV+xpY7BBUxeBchsQWeSNJwFli/oQE/4c6gLjyTwTKMkQVG7DB6CM0MQ1HEHimbvB30wrM7PzZN/N0mDyFpaOoSkY1M26OWr6XqZLuDH/OUlvt1/AAAAAElFTkSuQmCC";
+
+    string tooltip = "WebAppHost Sample";
+    string badge = String.Empty;
+    string clicks = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen("tray.click", e => clicks = Prepend(clicks, $"{DateTime.Now:T}  click  {e.GetRawText()}"));
+        await Listen("tray.menu", e => clicks = Prepend(clicks, $"{DateTime.Now:T}  menu   {e.GetRawText()}"));
+    }
+
+    Task Show() => Run(() => Bridge.PutAsync($"tray/{TrayId}", new JsonObject
+    {
+        ["tooltip"] = tooltip,
+        ["templateImage"] = true,
+        ["icon"] = new JsonObject { ["data"] = Dot },
+        ["menu"] = new JsonObject
+        {
+            ["items"] = new JsonArray
+            {
+                new JsonObject { ["id"] = "open", ["label"] = "Open the app" },
+                new JsonObject { ["id"] = "sync", ["label"] = "Sync now", ["accelerator"] = "Ctrl+S" },
+                new JsonObject { ["type"] = "Separator" },
+                new JsonObject { ["id"] = "notify", ["type"] = "Check", ["label"] = "Notifications", ["checked"] = true },
+                new JsonObject
+                {
+                    ["type"] = "Submenu",
+                    ["label"] = "More",
+                    ["items"] = new JsonArray
+                    {
+                        new JsonObject { ["id"] = "about", ["label"] = "About" },
+                        new JsonObject { ["id"] = "quit", ["label"] = "Quit" }
+                    }
+                }
+            }
+        }
+    }));
+
+    // Only what is sent changes, and an empty string clears a value.
+    Task Update() => Run(() => Bridge.PutAsync($"tray/{TrayId}", new JsonObject
+    {
+        ["tooltip"] = tooltip,
+        ["badge"] = badge
+    }));
+
+    Task Notify() => Run(() => Bridge.PostAsync($"tray/{TrayId}/notification", new JsonObject
+    {
+        ["title"] = "WebAppHost",
+        ["message"] = "Sent from the page, shown by the tray."
+    }));
+
+    Task Animate() => Run(() => Bridge.PutAsync($"tray/{TrayId}/animation", new JsonObject
+    {
+        ["intervalMs"] = 400,
+        ["frames"] = new JsonArray
+        {
+            new JsonObject { ["data"] = Dot },
+            new JsonObject { ["data"] = Ring }
+        }
+    }));
+}

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net10.0 only: UseTrayIcon has the same signature on every target, so each head's own platform build
+         of Shiny.Maui.Controls.Desktop supplies the factory — NSStatusItem on the macOS AppKit and Mac
+         Catalyst builds, Shell_NotifyIcon on Windows, ayatana-appindicator on the plain net10.0 one. -->
+    <UseMaui>true</UseMaui>
+    <SingleProject>false</SingleProject>
+    <RootNamespace>Shiny.WebAppHost.Bridge.TrayIcon</RootNamespace>
+    <Description>System tray / menu bar endpoints for a Shiny.WebAppHost web app, backed by Shiny.Maui.Controls.Desktop — icons the page owns, context menus it builds, badges, balloon notifications and animation, with clicks handed back to the page or to background.js. Desktop only: macOS (AppKit and Catalyst), Windows and Linux. One call: builder.AddTrayIconBridge().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Shiny.Maui.Controls.Desktop" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.WebAppHost/Shiny.WebAppHost.csproj" />
+  </ItemGroup>
+
+</Project>

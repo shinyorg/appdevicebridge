@@ -41,6 +41,8 @@ public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls)
             await nativeCalls.HandleAsync("push.entry", payload => this.Recorded("push.entry", payload));
             await nativeCalls.HandleAsync("notification.entry", payload => this.Recorded("notification.entry", payload));
             await nativeCalls.HandleAsync("notification.received", payload => this.Recorded("notification.received", payload));
+            await nativeCalls.HandleAsync("tray.click", payload => this.Recorded("tray.click", payload));
+            await nativeCalls.HandleAsync("tray.menu", payload => this.Recorded("tray.menu", payload));
             await nativeCalls.HandleAsync("transfer.completed", payload => this.Recorded("transfer.completed", payload));
             await nativeCalls.HandleAsync("transfer.failed", payload => this.Recorded("transfer.failed", payload));
         }

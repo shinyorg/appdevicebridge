@@ -40,7 +40,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.WebAppHost` | (dependency) | host, updater, install store, session guard, bridge contracts, built-in settings and files endpoints; no MAUI dependency |
 | `Shiny.WebAppHost.Core` | (dependency) | protocol contracts, version ordering, release signatures |
 | `Shiny.WebAppHost.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
-| `Shiny.WebAppHost.Bridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, share, haptics and vibration, connectivity, battery, screen and clipboard |
+| `Shiny.WebAppHost.Bridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, launch at login, share, haptics and vibration, connectivity, battery, screen and clipboard |
 | `Shiny.WebAppHost.Bridge.Locations` | the app | `AddGpsBridge()`, `AddGeofenceBridge()`, `AddLocationBridges()`, `AddMotionActivityBridge()` |
 | `Shiny.WebAppHost.Bridge.BluetoothLE` | the app | `AddBluetoothLEBridge()` |
 | `Shiny.WebAppHost.Bridge.Obd` | the app | `AddObdBridge()`: OBD-II over Bluetooth LE or Wi-Fi adapters — decoded PIDs, VIN, trouble codes, live readings |
@@ -55,6 +55,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.WebAppHost.Bridge.Speech` | the app | `AddSpeechBridge()`: on-device speech recognition, dictation as events, text-to-speech, voices |
 | `Shiny.WebAppHost.Bridge.Contacts` | the app | `AddContactsBridge()`: access, paged search, read, photos, create, update and delete (Android, iOS) |
 | `Shiny.WebAppHost.Bridge.Calendar` | the app | `AddCalendarBridge()`: access, calendars, events in a date range, create, update and delete |
+| `Shiny.WebAppHost.Bridge.TrayIcon` | the app | `AddTrayIconBridge()`: system tray / menu bar icons, menus, badges, notifications and animation, with clicks handed back to the web app |
 
 ## The app
 
@@ -214,7 +215,7 @@ Binding to loopback keeps other machines out, but not other apps: on Android any
 | host (built in) | `GET /_bridge/host`, `POST /_bridge/host/apply-update` | |
 | settings (built in) | `GET/DELETE settings/{local\|secure}`, `GET/PUT/DELETE settings/{scope}/{key}` | |
 | files (built in) | `GET files`, `GET files/{root}/list`, `GET files/{root}/info`, `GET/PUT files/{root}/content`, `POST files/{root}/append`, `POST files/{root}/directory`, `DELETE files/{root}/entry`, `POST files/{root}/move`, `POST files/{root}/copy`, with paths in `?path=` | |
-| AppSupport | `GET app/info`, `POST/DELETE app/orientation`, `POST app/browser`, `POST app/map`, `POST app/settings`, `GET app/store`, `POST app/store/open`, `POST app/store/review`, `POST app/share`, `POST app/haptics`, `POST/DELETE app/vibrate`, `GET app/connectivity`, `GET app/battery`, `GET app/screen`, `PUT/DELETE app/screen/keep-awake`, `GET/PUT/DELETE app/clipboard` | `app.orientation`, `app.culture`, `app.timezone`, `app.connectivity`, `app.battery`, `app.energysaver` |
+| AppSupport | `GET app/info`, `POST/DELETE app/orientation`, `POST app/browser`, `POST app/map`, `POST app/settings`, `GET app/store`, `POST app/store/open`, `POST app/store/review`, `POST app/share`, `POST app/haptics`, `POST/DELETE app/vibrate`, `GET app/connectivity`, `GET app/battery`, `GET app/screen`, `PUT/DELETE app/screen/keep-awake`, `GET/PUT/DELETE app/clipboard`, `GET app/startup`, `POST/DELETE app/startup/registration`, `POST app/startup/settings` | `app.orientation`, `app.culture`, `app.timezone`, `app.connectivity`, `app.battery`, `app.energysaver` |
 | GPS | `GET gps/status`, `POST gps/access`, `GET gps/last`, `GET gps/current`, `GET/POST/DELETE gps/listener` | `gps.reading` |
 | Geofences | `GET geofences/status`, `POST geofences/access`, `GET/POST/DELETE geofences/regions`, `DELETE geofences/regions/{id}`, `GET geofences/regions/{id}/state` | `geofence.status` |
 | Motion activity | `GET motion/status`, `POST motion/access`, `GET motion/current`, `GET/POST/DELETE motion/listener` | `motion.activity` |
@@ -229,6 +230,7 @@ Binding to loopback keeps other machines out, but not other apps: on Android any
 | Speech | `GET speech/status`, `POST speech/access`, `POST speech/recognize`, `GET/POST/DELETE speech/listener`, `POST/DELETE speech/speak`, `GET speech/voices?culture=`, `GET speech/cultures` | `speech.partial`, `speech.result`, `speech.keyword`, `speech.ended`, `speech.spoken`, `speech.error` |
 | Contacts | `GET contacts`, `POST contacts/access`, `GET/POST contacts/items`, `GET/PUT/DELETE contacts/items/{id}`, `GET contacts/items/{id}/photo` | |
 | Calendar | `GET calendar`, `POST calendar/access`, `GET calendar/calendars`, `GET/POST calendar/events`, `GET/PUT/DELETE calendar/events/{id}` | |
+| Tray icon | `GET/POST/DELETE tray`, `GET/PUT/DELETE tray/{id}`, `PUT/DELETE tray/{id}/menu`, `POST tray/{id}/menu/show`, `POST tray/{id}/notification`, `PUT/DELETE tray/{id}/animation` | `tray.click`, `tray.menu` |
 
 ```js
 const info = await (await fetch("/_bridge/app/info")).json();
@@ -410,6 +412,55 @@ const steps = await (await fetch(`/_bridge/health/samples/StepCount?start=${toda
 
 Both bridges return `403 access_denied` until access has been granted.
 
+**Startup:** part of the app bridge, because the same package is behind it. `GET /_bridge/app/startup` says
+whether the app launches when the user logs in. Windows writes it under `HKCU\…\CurrentVersion\Run`
+(unpackaged apps only — the OS virtualizes that key for MSIX), macOS 13+ submits the running bundle to
+`SMAppService`, and Linux writes `~/.config/autostart/{Identifier}.desktop`. Mobile has no such list, so it
+answers `{ "supported": false, "state": "NotSupported" }` and the rest return `501`. `state` is read back from
+the OS every time rather than remembered, because the user can turn a registered app off in Task Manager,
+System Settings or Login Items without the app hearing about it — which is also why `Enabled` is not the only
+success: `DisabledByUser`, `DisabledByPolicy` and `RequiresApproval` mean the user has to finish the job in the
+OS, and `POST app/startup/settings` opens the screen where they do. Pass arguments your app can recognise on an
+OS-started launch:
+
+```csharp
+builder.AddAppSupportBridge(startup: o => o.Arguments.Add("--autostart"));
+```
+
+**Tray icon:** the system tray on Windows, the menu bar on macOS, the status notifier area on Linux —
+desktop only, `501` elsewhere.
+- **Naming an icon:** use `PUT /_bridge/tray/main` rather than `POST /_bridge/tray`. The first call creates
+  the icon and later ones adopt it, so a page reload or an applied update doesn't stack up a second icon.
+  A `PUT` changes only the properties it sends; `""` clears `tooltip`, `title` or `badge`.
+- **Images:** either `{ "root": "data", "path": "icons/tray.png" }` — the same file roots the files bridge
+  takes, so the page can't point the tray at anything it couldn't already read — or `{ "data": "…" }` holding
+  base64, with or without a `data:` URI prefix, which is how a page ships an icon it drew itself. Set
+  `"templateImage": true` for a black-with-alpha image macOS and Linux tint for light and dark menu bars.
+- **Menus:** each entry is `Item`, `Check`, `Separator` or `Submenu`, and its `id` is what comes back on
+  `tray.menu`; omit it and one is assigned. Ids must be unique across the whole menu.
+- **Clicks reach the web app either way:** `tray.click` and `tray.menu` go out as events *and* as calls the
+  page handles when it is open and `background.js` handles when it is not — which is the case a tray menu
+  exists for. `tray.click` isn't raised on Linux, where the app indicator handles clicks itself and opens the
+  menu on its own (so `menu/show` is a no-op there).
+- **Lifetime:** icons outlive the page and are removed when the app shuts down, or by
+  `DELETE /_bridge/tray/{id}`. `MaxIcons` (4) caps how many exist at once.
+
+```js
+await fetch("/_bridge/tray/main", {
+    method: "PUT",
+    body: JSON.stringify({
+        tooltip: "Field App",
+        templateImage: true,
+        icon: { root: "data", path: "icons/tray.png" },
+        menu: { items: [
+            { id: "open", label: "Open" },
+            { type: "Separator" },
+            { id: "sync", type: "Check", label: "Sync", checked: true }
+        ] }
+    })
+});
+```
+
 ### Settings and files
 
 Both are built into the host and on by default (`EnableSettings`, `EnableFiles`).
@@ -586,7 +637,7 @@ adb reverse tcp:<ws port> tcp:<ws port>
 ## Samples
 
 - `samples/Sample.Blazor`: the web app, a Blazor WebAssembly app with a page for every bridge, a Media page for the camera, microphone and location through the WebView's own APIs, plus `wwwroot/background.js`.
-- `samples/Sample.App`: shared MAUI setup using every bridge package. Sample.Blazor is published and zipped into it at build time (`-p:SkipWebAppBuild=true` skips that).
+- `samples/Sample.App`: shared MAUI setup using every bridge package except the tray, which each desktop head adds for itself because its dependency is desktop-only. Sample.Blazor is published and zipped into it at build time (`-p:SkipWebAppBuild=true` skips that).
 - Heads:
   - `samples/Sample.Maui`: Android, iOS, Mac Catalyst and Windows.
   - `samples/Sample.MacOS`: AppKit.

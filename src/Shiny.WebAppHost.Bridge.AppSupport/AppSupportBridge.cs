@@ -6,9 +6,10 @@ using Shiny.Net.HttpServer;
 namespace Shiny.WebAppHost.Bridge.AppSupport;
 
 /// <summary>
-/// <c>/_bridge/app</c> — device and app information, orientation, the browser, maps, settings and the
-/// app store, over Shiny.Extensions.MauiHosting — plus sharing, haptics, connectivity, battery, the screen and
-/// the clipboard over .NET MAUI Essentials (see AppSupportBridge.Device.cs).
+/// <c>/_bridge/app</c> — device and app information, orientation, the browser, maps, settings, the app store
+/// and launch-at-login, over Shiny.Extensions.MauiHosting (see AppSupportBridge.Startup.cs) — plus sharing,
+/// haptics, connectivity, battery, the screen and the clipboard over .NET MAUI Essentials (see
+/// AppSupportBridge.Device.cs).
 /// <code>
 /// GET    /_bridge/app/info
 /// POST   /_bridge/app/orientation     { "orientation": "Portrait" }
@@ -19,6 +20,10 @@ namespace Shiny.WebAppHost.Bridge.AppSupport;
 /// GET    /_bridge/app/store           (needs AddAppStore)
 /// POST   /_bridge/app/store/open
 /// POST   /_bridge/app/store/review
+/// GET    /_bridge/app/startup
+/// POST   /_bridge/app/startup/registration
+/// DELETE /_bridge/app/startup/registration
+/// POST   /_bridge/app/startup/settings
 ///
 /// events: app.orientation, app.culture, app.timezone
 /// </code>
@@ -35,6 +40,7 @@ public sealed partial class AppSupportBridge : IWebAppBridge, IDisposable
     {
         this.app = services.GetOptionalService<IAppSupport>();
         this.store = services.GetOptionalService<IAppStore>();
+        this.startup = services.GetOptionalService<IStartupService>();
         this.options = services.GetOptionalService<WebAppHostOptions>();
         this.events = events;
 
@@ -66,6 +72,7 @@ public sealed partial class AppSupportBridge : IWebAppBridge, IDisposable
             .MapPost("/store/review", this.RequestReviewAsync);
 
         this.MapDevice(routes);
+        this.MapStartup(routes);
     }
 
     ValueTask InfoAsync(HttpContext context)
@@ -265,17 +272,31 @@ public sealed partial class AppSupportBridge : IWebAppBridge, IDisposable
 public static class AppSupportBridgeExtensions
 {
     /// <summary>
-    /// Adds <c>/_bridge/app</c> and registers <c>IAppSupport</c> — there is nothing else to call. Pass
-    /// <paramref name="appStore"/> to register <c>IAppStore</c> too and light up the store endpoints.
+    /// Adds <c>/_bridge/app</c> and registers <c>IAppSupport</c> and <c>IStartupService</c> — there is nothing
+    /// else to call. Pass <paramref name="appStore"/> to register <c>IAppStore</c> too and light up the store
+    /// endpoints, and <paramref name="startup"/> to configure the launch-at-login entry.
     /// <code>
-    /// builder.AddAppSupportBridge(store => store.AppleAppId = "123456789");
+    /// builder.AddAppSupportBridge(
+    ///     store => store.AppleAppId = "123456789",
+    ///     startup => startup.Arguments.Add("--autostart")
+    /// );
     /// </code>
+    /// <para>
+    /// The startup endpoints are always mapped, because <c>IStartupService</c> needs no configuration to work and
+    /// does nothing until the page asks it to. On a platform with no startup list they report themselves
+    /// unsupported rather than disappearing, so a shared web app can keep the call in and hide the UI.
+    /// </para>
     /// </summary>
-    public static MauiAppBuilder AddAppSupportBridge(this MauiAppBuilder builder, Action<AppStoreOptions>? appStore = null)
+    public static MauiAppBuilder AddAppSupportBridge(
+        this MauiAppBuilder builder,
+        Action<AppStoreOptions>? appStore = null,
+        Action<StartupServiceOptions>? startup = null
+    )
     {
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.AddAppSupport();
+        builder.AddStartupService(startup);
 
         if (appStore is not null)
             builder.AddAppStore(appStore);

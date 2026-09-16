@@ -50,7 +50,9 @@ public static class SampleConfiguration
         // getUserMedia, navigator.geolocation and <input capture> in the page itself; see Pages/Media.razor.
         .AllowWebPermissions(WebAppWebPermissions.Camera | WebAppWebPermissions.Microphone | WebAppWebPermissions.Geolocation)
 
-        .AddAppSupportBridge()
+        // Launch at login rides along with the app bridge: same package behind it, and desktop-only in the
+        // sense that mobile answers { "supported": false } rather than the endpoints going missing.
+        .AddAppSupportBridge(startup: o => o.Arguments.Add("--autostart"))
         .AddLocationBridges()
         .AddMotionActivityBridge()
         .AddBluetoothLEBridge()

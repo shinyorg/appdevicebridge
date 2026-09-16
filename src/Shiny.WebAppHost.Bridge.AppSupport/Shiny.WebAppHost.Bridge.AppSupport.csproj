@@ -6,7 +6,7 @@
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.WebAppHost.Bridge.AppSupport</RootNamespace>
-    <Description>Device and app information, orientation, browser, maps, settings, app store, sharing, haptics, vibration, connectivity, battery, screen and clipboard endpoints for a Shiny.WebAppHost web app, backed by Shiny.Extensions.MauiHosting and .NET MAUI Essentials. One call: builder.AddAppSupportBridge().</Description>
+    <Description>Device and app information, orientation, browser, maps, settings, app store, launch-at-login (Windows, macOS, Linux), sharing, haptics, vibration, connectivity, battery, screen and clipboard endpoints for a Shiny.WebAppHost web app, backed by Shiny.Extensions.MauiHosting and .NET MAUI Essentials. One call: builder.AddAppSupportBridge().</Description>
   </PropertyGroup>
 
   <ItemGroup>

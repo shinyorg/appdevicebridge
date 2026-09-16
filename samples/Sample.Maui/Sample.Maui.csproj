@@ -34,4 +34,9 @@
     <ProjectReference Include="../Sample.App/Sample.App.csproj" />
   </ItemGroup>
 
+  <!-- Desktop only, and Windows is the only desktop this head builds. -->
+  <ItemGroup Condition="$(TargetFramework.Contains('-windows'))">
+    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.TrayIcon/Shiny.WebAppHost.Bridge.TrayIcon.csproj" />
+  </ItemGroup>
+
 </Project>

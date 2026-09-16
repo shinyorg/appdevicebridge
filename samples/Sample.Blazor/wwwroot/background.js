@@ -28,6 +28,11 @@ webapphost.on("notification.entry", async ({ id, data, action, text }) => {
     await write("last-notification", { id, data, action, text, at: new Date().toISOString() });
 });
 
+// A tray menu earns its keep with the window closed, which is exactly when no page is listening.
+webapphost.on("tray.menu", async ({ id, itemId, checked }) => {
+    await log(`tray ${id}: ${itemId}${checked === null || checked === undefined ? "" : ` = ${checked}`}`);
+});
+
 webapphost.on("transfer.completed", async ({ id, type, root, path }) => {
     await log(`transfer ${id} (${type}) completed: ${root}/${path}`);
 });

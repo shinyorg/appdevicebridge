@@ -1,3 +1,7 @@
+#if WINDOWS
+using Shiny.WebAppHost.Bridge.TrayIcon;
+#endif
+
 namespace Sample.Maui;
 
 public static class MauiProgram
@@ -6,5 +10,10 @@ public static class MauiProgram
         .CreateBuilder()
         .UseMauiApp<global::Sample.App>()
         .ConfigureSample()
+
+        // The tray bridge is desktop only, and Windows is the only desktop this head builds.
+#if WINDOWS
+        .AddTrayIconBridge()
+#endif
         .Build();
 }

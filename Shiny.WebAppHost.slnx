@@ -35,6 +35,7 @@
     <Project Path="src/Shiny.WebAppHost.Bridge.Notifications/Shiny.WebAppHost.Bridge.Notifications.csproj" />
     <Project Path="src/Shiny.WebAppHost.Bridge.Obd/Shiny.WebAppHost.Bridge.Obd.csproj" />
     <Project Path="src/Shiny.WebAppHost.Bridge.Speech/Shiny.WebAppHost.Bridge.Speech.csproj" />
+    <Project Path="src/Shiny.WebAppHost.Bridge.TrayIcon/Shiny.WebAppHost.Bridge.TrayIcon.csproj" />
     <Project Path="src/Shiny.WebAppHost.Core/Shiny.WebAppHost.Core.csproj" />
     <Project Path="src/Shiny.WebAppHost.Maui/Shiny.WebAppHost.Maui.csproj" />
     <Project Path="src/Shiny.WebAppHost.Blazor/Shiny.WebAppHost.Blazor.csproj" />
