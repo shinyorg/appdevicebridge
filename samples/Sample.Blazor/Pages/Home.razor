@@ -1,28 +1,29 @@
 @page "/"
 @inherits BridgePage
+@inject IHostBridge HostBridge
 @inject NavigationManager Navigation
 
-<h1>WebAppHost + Blazor</h1>
+<h1>AppDeviceBridge + Blazor</h1>
 
 @if (host is { } h)
 {
-    <p class="muted">web app @Text(h, "webAppVersion") (@Text(h, "webAppOrigin")) · host @Text(h, "hostVersion") · @Text(h, "platform")</p>
+    <p class="muted">web app @h.WebAppVersion (@h.WebAppOrigin) · host @h.HostVersion · @h.Platform</p>
 
-    @if (Text(h, "devServer") is { } dev)
+    @if (h.DevServer is { } dev)
     {
         <p class="banner">Pages from dotnet watch at @dev — edit Sample.Blazor and save.</p>
     }
 
-    @if (Text(h, "pendingVersion") is { } pending)
+    @if (h.PendingVersion is { } pending)
     {
         <div class="banner">Version @pending is ready. <button @onclick="ApplyUpdate">Reload now</button></div>
     }
 
     <h2>Bridges</h2>
     <ul class="chips">
-        @foreach (var bridge in h.GetProperty("bridges").EnumerateArray())
+        @foreach (var bridge in h.Bridges)
         {
-            <li class="@(bridge.GetProperty("isSupported").GetBoolean() ? "" : "unsupported")">@bridge.GetProperty("name").GetString()</li>
+            <li class="@(bridge.IsSupported ? "" : "unsupported")">@bridge.Name</li>
         }
     </ul>
 }
@@ -33,18 +34,20 @@
 <pre class="log">@log</pre>
 
 @code {
+    // Raw events, for a page that only shows what arrives. Each bridge's typed client has the same events, typed.
     static readonly string[] EventNames =
     [
         "app.orientation", "app.culture", "app.timezone", "gps.reading", "geofence.status", "ble.status", "ble.error",
         "wifi.changed", "push.token", "push.received", "push.entry", "discovery.error", "discovery.stopped"
     ];
 
-    JsonElement? host;
+    HostInfo? host;
     string log = String.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        await Run(async () => host = await Bridge.GetAsync("host"));
+        await Run(async () => host = await HostBridge.GetInfoAsync(), "Loaded.");
+        Output = null;
 
         foreach (var name in EventNames)
             await Listen(name, e => log = Prepend(log, $"{DateTime.Now:T}  {name}  {e.GetRawText()}"));
@@ -52,7 +55,7 @@
 
     async Task ApplyUpdate()
     {
-        if (await Bridge.PostAsync("host/apply-update") is { } result && result.GetProperty("applied").GetBoolean())
+        if ((await HostBridge.ApplyUpdateAsync()).Applied)
             Navigation.NavigateTo(Navigation.Uri, forceLoad: true);
     }
 }

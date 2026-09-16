@@ -5,39 +5,39 @@
 // The same /_bridge endpoints the page uses are available through fetch. There is no DOM, no timers and no
 // state between calls: keep what must survive in settings or files. The top level should only register handlers.
 
-webapphost.on("job:sync", async ({ name }) => {
+appdevicebridge.on("job:sync", async ({ name }) => {
     const runs = (await read("sync-runs")) ?? 0;
     await write("sync-runs", runs + 1);
     await log(`job ${name} ran (run ${runs + 1})`);
 });
 
-webapphost.on("gps", async reading => {
+appdevicebridge.on("gps", async reading => {
     await write("last-background-position", reading);
 });
 
-webapphost.on("geofence", async ({ identifier, state }) => {
+appdevicebridge.on("geofence", async ({ identifier, state }) => {
     await log(`geofence ${identifier}: ${state}`);
 });
 
-webapphost.on("motion", async ({ activity, confidence }) => {
+appdevicebridge.on("motion", async ({ activity, confidence }) => {
     await log(`motion ${activity} (${confidence})`);
 });
 
 // A tap on a notification the web app sent. `action` and `text` are set for an action button or a typed reply.
-webapphost.on("notification.entry", async ({ id, data, action, text }) => {
+appdevicebridge.on("notification.entry", async ({ id, data, action, text }) => {
     await write("last-notification", { id, data, action, text, at: new Date().toISOString() });
 });
 
 // A tray menu earns its keep with the window closed, which is exactly when no page is listening.
-webapphost.on("tray.menu", async ({ id, itemId, checked }) => {
+appdevicebridge.on("tray.menu", async ({ id, itemId, checked }) => {
     await log(`tray ${id}: ${itemId}${checked === null || checked === undefined ? "" : ` = ${checked}`}`);
 });
 
-webapphost.on("transfer.completed", async ({ id, type, root, path }) => {
+appdevicebridge.on("transfer.completed", async ({ id, type, root, path }) => {
     await log(`transfer ${id} (${type}) completed: ${root}/${path}`);
 });
 
-webapphost.on("transfer.failed", async ({ id, statusCode, error }) => {
+appdevicebridge.on("transfer.failed", async ({ id, statusCode, error }) => {
     await log(`transfer ${id} failed: ${statusCode ?? "-"} ${error}`);
 });
 

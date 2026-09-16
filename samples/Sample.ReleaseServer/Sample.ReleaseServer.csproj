@@ -6,7 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Shiny.WebAppHost.AspNetCore/Shiny.WebAppHost.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AspNetCore/Shiny.AppDeviceBridge.AspNetCore.csproj" />
   </ItemGroup>
 
 </Project>

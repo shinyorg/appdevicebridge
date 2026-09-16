@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Push.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge push bridge — registration, the token, tags and push events — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddPushBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

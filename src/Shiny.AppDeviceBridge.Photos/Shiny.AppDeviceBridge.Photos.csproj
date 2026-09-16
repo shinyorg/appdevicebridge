@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Cleared: src/Directory.Build.props sets the single target. -->
+    <TargetFramework></TargetFramework>
+
+    <!-- The picker is Essentials' on every head. The library is each platform's own: PhotoKit on Apple platforms,
+         MediaStore on Android, the Pictures folder on Windows. net10.0 serves Linux, which picks but has no library. -->
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
+    <UseMaui>true</UseMaui>
+    <SingleProject>false</SingleProject>
+    <RootNamespace>Shiny.AppDeviceBridge.Photos</RootNamespace>
+    <Description>Photos for a Shiny.AppDeviceBridge web app — the system photo picker, and browsing the photo library with thumbnails and full-size exports, delivered as files the page reads through the files bridge. One call: builder.AddPhotosBridge().</Description>
+
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-macos'))">14.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Photos.Client/Shiny.AppDeviceBridge.Photos.Client.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,15 +1,16 @@
 @page "/wifi"
 @inherits BridgePage
+@inject IWifiBridge WifiBridge
 
 <h1>Wi-Fi</h1>
 
 <div class="actions">
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("wifi")))'>Capabilities</button>
-    <button @onclick='@(() => Run(() => Bridge.PostAsync("wifi/access")))'>Request access</button>
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("wifi/current")))'>Current network</button>
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("wifi/networks")))'>Scan</button>
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("wifi/known")))'>Known networks</button>
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("wifi/radio")))'>Radio</button>
+    <button @onclick="@(() => Run(() => WifiBridge.GetStatusAsync(), Json.WifiStatus))">Capabilities</button>
+    <button @onclick="@(() => Run(() => WifiBridge.RequestAccessAsync(), Json.WifiAccessResult))">Request access</button>
+    <button @onclick="@(() => Run(() => WifiBridge.GetCurrentNetworkAsync(), Json.WifiNetworkInfo))">Current network</button>
+    <button @onclick="@(() => Run(() => WifiBridge.ScanAsync(), Json.IReadOnlyListWifiScanResult))">Scan</button>
+    <button @onclick="@(() => Run(() => WifiBridge.GetKnownNetworksAsync(), Json.IReadOnlyListKnownWifiNetwork))">Known networks</button>
+    <button @onclick="@(() => Run(() => WifiBridge.GetRadioAsync(), Json.WifiRadioState))">Radio</button>
 </div>
 
 <h2>Join a network</h2>
@@ -22,15 +23,17 @@
 <Output Value="@Output" Error="@Error" />
 
 @code {
+    static WifiJsonContext Json => WifiJsonContext.Default;
+
     string ssid = String.Empty;
     string passphrase = String.Empty;
 
     protected override Task OnInitializedAsync()
-        => Listen("wifi.changed", e => Output = ((JsonElement?)e).ToIndentedJson());
+        => Listen<WifiChangedEvent>(WifiBridge.OnChangedAsync, e => Output = Compact(e, Json.WifiChangedEvent));
 
-    Task Join() => Run(() => Bridge.PostAsync("wifi/connection", new JsonObject
+    Task Join() => Run(() => WifiBridge.ConnectAsync(new WifiConnectRequest
     {
-        ["ssid"] = ssid,
-        ["passphrase"] = passphrase.Length > 0 ? passphrase : null
-    }));
+        Ssid = ssid,
+        Passphrase = passphrase.Length > 0 ? passphrase : null
+    }), Json.WifiNetworkInfo);
 }

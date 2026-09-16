@@ -1,5 +1,7 @@
 @page "/background"
 @inherits BridgePage
+@inject ISettingsBridge SettingsBridge
+@inject IFilesBridge FilesBridge
 @inject NativeCallHandlers Handlers
 
 <h1>Background</h1>
@@ -22,28 +24,24 @@
 
     void OnChanged() => InvokeAsync(StateHasChanged);
 
+    // background.js writes these through the same settings and files bridges.
     Task Refresh() => Run(async () =>
     {
-        var runs = await TryGet("settings/local/sync-runs");
-        var last = await TryGet("settings/local/last-background-position");
+        var runs = await SettingsBridge.GetAsync(SettingsScope.Local, "sync-runs", SampleJson.Default.Int32);
+        var last = await SettingsBridge.GetAsync(SettingsScope.Local, "last-background-position", SampleJson.Default.NullableJsonElement);
 
         string log;
         try
         {
-            log = await Bridge.GetStringAsync("files/data/content?path=background.log");
+            log = await FilesBridge.ReadTextAsync("data", "background.log");
         }
-        catch (WebAppBridgeException ex) when (ex.StatusCode == 404)
+        catch (BridgeException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             log = "(nothing yet)";
         }
 
-        return ToElement(new JsonObject
-        {
-            ["backgroundSyncRuns"] = runs is { } r ? JsonNode.Parse(r.GetRawText()) : 0,
-            ["lastBackgroundPosition"] = last is { } p ? JsonNode.Parse(p.GetRawText()) : null,
-            ["log"] = log
-        });
-    });
+        return new BackgroundReport(runs, last, log);
+    }, SampleJson.Default.BackgroundReport);
 
     public override ValueTask DisposeAsync()
     {

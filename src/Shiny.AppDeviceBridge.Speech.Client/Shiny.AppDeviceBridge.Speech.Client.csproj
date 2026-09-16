@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Speech.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge speech bridge — one-shot recognition, continuous dictation with keywords, text-to-speech and voices — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddSpeechBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

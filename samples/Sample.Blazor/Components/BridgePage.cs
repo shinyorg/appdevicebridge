@@ -1,7 +1,8 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
 using Microsoft.AspNetCore.Components;
-using Shiny.WebAppHost.Blazor;
+using Shiny.AppDeviceBridge.Blazor;
+using Shiny.AppDeviceBridge.Client;
 
 namespace Sample.Blazor.Components;
 
@@ -10,25 +11,26 @@ public abstract class BridgePage : ComponentBase, IAsyncDisposable
 {
     readonly List<IAsyncDisposable> subscriptions = [];
 
-    [Inject] protected WebAppBridge Bridge { get; set; } = null!;
     [Inject] protected WebAppEvents Events { get; set; } = null!;
 
     protected string? Output { get; set; }
     protected string? Error { get; set; }
     protected bool Busy { get; set; }
 
-    protected async Task Run(Func<Task<JsonElement?>> call)
+    /// <summary>A typed call, its result shown as JSON through the bridge's own serialization metadata.</summary>
+    protected async Task Run<T>(Func<Task<T>> call, JsonTypeInfo<T> display)
     {
         this.Busy = true;
         this.Error = null;
 
         try
         {
-            this.Output = (await call()).ToIndentedJson();
+            var result = await call();
+            this.Output = ((JsonElement?)JsonSerializer.SerializeToElement(result, display)).ToIndentedJson();
         }
         catch (Exception ex)
         {
-            this.Error = ex.Message;
+            this.Error = Describe(ex);
         }
         finally
         {
@@ -36,6 +38,33 @@ public abstract class BridgePage : ComponentBase, IAsyncDisposable
         }
     }
 
+    /// <summary>A typed call with nothing to show but that it worked.</summary>
+    protected async Task Run(Func<Task> call, string done)
+    {
+        this.Busy = true;
+        this.Error = null;
+
+        try
+        {
+            await call();
+            this.Output = done;
+        }
+        catch (Exception ex)
+        {
+            this.Error = Describe(ex);
+        }
+        finally
+        {
+            this.Busy = false;
+        }
+    }
+
+    /// <summary>A bridge refusal with its status and code, so the page shows what a caller would switch on.</summary>
+    static string Describe(Exception ex) => ex is BridgeException bridge
+        ? $"{(int)bridge.StatusCode} {bridge.Code ?? bridge.StatusCode.ToString()}: {bridge.Message}"
+        : ex.Message;
+
+    /// <summary>A raw event by name, for a page that only shows what arrives. A bridge's typed client has the same events, typed.</summary>
     protected async Task Listen(string eventName, Action<JsonElement> handler)
     {
         try
@@ -52,29 +81,25 @@ public abstract class BridgePage : ComponentBase, IAsyncDisposable
         }
     }
 
-    /// <summary>A GET that treats 404 as nothing, for values that may simply not exist yet.</summary>
-    protected async Task<JsonElement?> TryGet(string path)
+    /// <summary>A typed bridge event, handled on the renderer's thread and re-rendered after.</summary>
+    protected async Task Listen<T>(Func<Func<T, Task>, Task<IAsyncDisposable>> subscribe, Action<T> handler)
     {
         try
         {
-            return await this.Bridge.GetAsync(path);
+            this.subscriptions.Add(await subscribe(e => this.InvokeAsync(() =>
+            {
+                handler(e);
+                this.StateHasChanged();
+            })));
         }
-        catch (WebAppBridgeException ex) when (ex.StatusCode == 404)
+        catch (Exception ex)
         {
-            return null;
+            this.Error = $"Events are unavailable: {ex.Message}";
         }
     }
 
-    protected static JsonElement ToElement(JsonNode node)
-    {
-        using var document = JsonDocument.Parse(node.ToJsonString());
-        return document.RootElement.Clone();
-    }
-
-    protected static string? Text(JsonElement element, string property)
-        => element.ValueKind == JsonValueKind.Object && element.TryGetProperty(property, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()
-            : null;
+    /// <summary>A contract as compact JSON, for a log line.</summary>
+    protected static string Compact<T>(T value, JsonTypeInfo<T> typeInfo) => JsonSerializer.Serialize(value, typeInfo);
 
     protected static string Prepend(string log, string line)
     {

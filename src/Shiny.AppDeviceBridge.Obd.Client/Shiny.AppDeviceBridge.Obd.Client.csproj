@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Obd.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge OBD-II bridge — ELM327 and OBDLink adapters over Bluetooth LE or Wi-Fi, readings, the VIN, trouble codes and a live monitor — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddObdBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

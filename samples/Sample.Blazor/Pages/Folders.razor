@@ -1,0 +1,62 @@
+@page "/folders"
+@inherits BridgePage
+@inject IFoldersBridge FoldersBridge
+@inject IFilesBridge FilesBridge
+
+<h1>Folders</h1>
+<p class="muted">Pick a folder and it becomes a file root the files bridge reads and writes — still there after the app restarts, until it is forgotten.</p>
+
+<div class="form">
+    <input @bind="root" placeholder="root name, e.g. documents" />
+</div>
+<div class="actions">
+    <button @onclick="Pick">Pick a folder</button>
+    <button @onclick="Refresh">Picked folders</button>
+</div>
+
+<ul class="list">
+    @foreach (var folder in folders)
+    {
+        <li>
+            <strong>@folder.Root</strong> <span class="muted">@folder.DisplayName@(folder.Available ? "" : " · unavailable")</span>
+            <button disabled="@(!folder.Available)" @onclick="@(() => Run(() => FilesBridge.ListAsync(folder.Root), FilesJson.IReadOnlyListFileEntry))">List</button>
+            <button disabled="@(!folder.Available)" @onclick="@(() => Write(folder))">Write a note</button>
+            <button @onclick="@(() => Forget(folder))">Forget</button>
+        </li>
+    }
+</ul>
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    static FoldersJsonContext Json => FoldersJsonContext.Default;
+    static AppDeviceBridgeJsonContext FilesJson => AppDeviceBridgeJsonContext.Default;
+
+    string root = "documents";
+    IReadOnlyList<PickedFolder> folders = [];
+
+    protected override Task OnInitializedAsync() => Refresh();
+
+    Task Refresh() => Run(async () =>
+    {
+        var list = await FoldersBridge.GetFoldersAsync();
+        folders = list.Folders;
+        return list;
+    }, Json.FolderList);
+
+    Task Pick() => Run(async () =>
+    {
+        var picked = await FoldersBridge.PickAsync(new FolderPickRequest(root, "Choose a folder for the web app"));
+        folders = (await FoldersBridge.GetFoldersAsync()).Folders;
+        return picked;
+    }, Json.PickedFolder);
+
+    Task Write(PickedFolder folder)
+        => Run(() => FilesBridge.WriteTextAsync(folder.Root, "appdevicebridge-note.txt", $"Written by the web app at {DateTime.Now:O}"), FilesJson.FileEntry);
+
+    Task Forget(PickedFolder folder) => Run(async () =>
+    {
+        await FoldersBridge.ForgetAsync(folder.Root);
+        folders = (await FoldersBridge.GetFoldersAsync()).Folders;
+    }, "Forgotten.");
+}

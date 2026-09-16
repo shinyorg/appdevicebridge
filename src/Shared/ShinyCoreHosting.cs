@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Shiny.Infrastructure;
 
-namespace Shiny.WebAppHost.Bridge;
+namespace Shiny.AppDeviceBridge;
 
 /// <summary>
 /// Compiled into bridge packages for macOS, where Shiny.Hosting.Maui has no build and so nothing calls UseShiny.

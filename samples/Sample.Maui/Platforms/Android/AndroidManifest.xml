@@ -5,7 +5,7 @@
         <activity-alias
             android:name="ViewPermissionUsageActivity"
             android:exported="true"
-            android:targetActivity="org.shinylib.webapphost.sample.MainActivity"
+            android:targetActivity="org.shinylib.appdevicebridge.sample.MainActivity"
             android:permission="android.permission.START_VIEW_PERMISSION_USAGE">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
@@ -64,6 +64,8 @@
 
     <!-- Contacts and Calendar bridges -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />

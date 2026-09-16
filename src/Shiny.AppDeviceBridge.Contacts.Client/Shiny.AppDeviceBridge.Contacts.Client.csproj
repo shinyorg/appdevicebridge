@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Contacts.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge contacts bridge — access, search and paging, create, update, delete and photos — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddContactsBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

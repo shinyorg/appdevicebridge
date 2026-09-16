@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Photos.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge photos bridge — the system photo picker, and browsing the photo library with thumbnails and exports — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddPhotosBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

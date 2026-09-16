@@ -1,5 +1,5 @@
 using Microsoft.Maui.Platforms.Linux.Gtk4.Hosting;
-using Shiny.WebAppHost.Bridge.TrayIcon;
+using Shiny.AppDeviceBridge.TrayIcon;
 
 namespace Sample.Linux;
 

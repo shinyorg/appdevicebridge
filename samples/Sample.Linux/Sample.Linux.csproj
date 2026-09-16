@@ -11,8 +11,8 @@
          runs there. -->
     <NoWarn>$(NoWarn);CA1416</NoWarn>
 
-    <ApplicationTitle>WebAppHost Sample</ApplicationTitle>
-    <ApplicationId>org.shinylib.webapphost.sample</ApplicationId>
+    <ApplicationTitle>AppDeviceBridge Sample</ApplicationTitle>
+    <ApplicationId>org.shinylib.appdevicebridge.sample</ApplicationId>
     <ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
   </PropertyGroup>
@@ -25,7 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Sample.App/Sample.App.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.TrayIcon/Shiny.WebAppHost.Bridge.TrayIcon.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.TrayIcon/Shiny.AppDeviceBridge.TrayIcon.csproj" />
   </ItemGroup>
 
 </Project>

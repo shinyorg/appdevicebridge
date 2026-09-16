@@ -1,12 +1,13 @@
 @page "/contacts"
 @inherits BridgePage
+@inject IContactsBridge ContactsBridge
 
 <h1>Contacts</h1>
-<p class="muted">Android and iOS. Photos come from <code>items/{id}/photo</code>, not the JSON.</p>
+<p class="muted">Android and iOS. Photos come from <code>GetPhotoAsync</code>, not the JSON.</p>
 
 <div class="actions">
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("contacts")))'>Access status</button>
-    <button @onclick='@(() => Run(() => Bridge.PostAsync("contacts/access")))'>Request access</button>
+    <button @onclick="@(() => Run(() => ContactsBridge.GetAccessAsync(), Json.ContactsAccessResult))">Access status</button>
+    <button @onclick="@(() => Run(() => ContactsBridge.RequestAccessAsync(), Json.ContactsAccessResult))">Request access</button>
 </div>
 
 <div class="form">
@@ -19,9 +20,9 @@
 </div>
 
 <ul>
-    @foreach (var (id, name) in contacts)
+    @foreach (var contact in contacts)
     {
-        <li><a href="" @onclick="@(() => Run(() => Bridge.GetAsync($"contacts/items/{Uri.EscapeDataString(id)}")))" @onclick:preventDefault>@name</a></li>
+        <li><a href="" @onclick="@(() => Run(() => ContactsBridge.GetContactAsync(contact.Id!), Json.Contact))" @onclick:preventDefault>@contact.DisplayName</a></li>
     }
 </ul>
 
@@ -35,43 +36,41 @@
 @code {
     const int PageSize = 20;
 
+    static ContactsJsonContext Json => ContactsJsonContext.Default;
+
     string search = String.Empty;
     int offset;
     bool hasMore;
     string? createdId;
-    List<(string Id, string Name)> contacts = [];
+    IReadOnlyList<Contact> contacts = [];
 
     Task Load(int from) => Run(async () =>
     {
-        var page = await Bridge.GetAsync($"contacts/items?search={Uri.EscapeDataString(search)}&offset={from}&limit={PageSize}");
+        var page = await ContactsBridge.GetContactsAsync(search, from, PageSize);
         offset = from;
-        hasMore = page?.GetProperty("hasMore").GetBoolean() == true;
-        contacts = page?.GetProperty("items").EnumerateArray()
-            .Select(x => (Text(x, "id") ?? String.Empty, Text(x, "displayName") ?? "(no name)"))
-            .ToList() ?? [];
-
+        hasMore = page.HasMore;
+        contacts = page.Items;
         return page;
-    });
+    }, Json.ContactPage);
 
     Task CreateSample() => Run(async () =>
     {
-        var result = await Bridge.PostAsync("contacts/items", new JsonObject
+        var created = await ContactsBridge.CreateContactAsync(new ContactInput
         {
-            ["givenName"] = "Sample",
-            ["familyName"] = $"WebAppHost {DateTime.Now:HHmmss}",
-            ["organization"] = new JsonObject { ["company"] = "Shiny" },
-            ["phones"] = new JsonArray(new JsonObject { ["number"] = "555-0100", ["type"] = "Mobile" }),
-            ["emails"] = new JsonArray(new JsonObject { ["address"] = "sample@example.com", ["type"] = "Work" })
+            GivenName = "Sample",
+            FamilyName = $"AppDeviceBridge {DateTime.Now:HHmmss}",
+            Organization = new ContactOrganization(Company: "Shiny"),
+            Phones = [new ContactPhone("555-0100", PhoneType.Mobile)],
+            Emails = [new ContactEmail("sample@example.com", EmailType.Work)]
         });
 
-        createdId = result is { } r ? Text(r, "id") : null;
-        return result;
-    });
+        createdId = created.Id;
+        return created;
+    }, Json.ContactCreated);
 
     Task DeleteSample() => Run(async () =>
     {
-        var result = await Bridge.DeleteAsync($"contacts/items/{Uri.EscapeDataString(createdId!)}");
+        await ContactsBridge.DeleteContactAsync(createdId!);
         createdId = null;
-        return result;
-    });
+    }, "Deleted.");
 }

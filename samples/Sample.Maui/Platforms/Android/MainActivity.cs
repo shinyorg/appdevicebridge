@@ -7,7 +7,7 @@ namespace Sample.Maui;
 // Name is explicit so the Health Connect activity-alias in AndroidManifest.xml can target it. SingleTop so an app
 // link reaches this activity through OnNewIntent instead of stacking a second WebView and host.
 [Activity(
-    Name = "org.shinylib.webapphost.sample.MainActivity",
+    Name = "org.shinylib.appdevicebridge.sample.MainActivity",
     Theme = "@style/Maui.MainTheme.NoActionBar",
     MainLauncher = true,
     LaunchMode = LaunchMode.SingleTop,

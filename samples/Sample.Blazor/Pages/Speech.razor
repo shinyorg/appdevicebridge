@@ -1,5 +1,6 @@
 @page "/speech"
 @inherits BridgePage
+@inject ISpeechBridge SpeechBridge
 
 <h1>Speech</h1>
 <p class="muted">On-device recognition and text-to-speech. Linux has no OS speech engine, so every call there answers 501.</p>
@@ -8,17 +9,17 @@
 <div class="form">
     <input @bind="text" placeholder="Something to say" />
     <button @onclick="Speak">Speak</button>
-    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("speech/speak")))'>Stop</button>
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("speech/voices")))'>Voices</button>
+    <button @onclick="@(() => Run(() => SpeechBridge.StopSpeakingAsync(), "Stopped."))">Stop</button>
+    <button @onclick="@(() => Run(() => SpeechBridge.GetVoicesAsync(), Json.IReadOnlyListSpeechVoice))">Voices</button>
 </div>
 
 <h2>Recognition</h2>
 <div class="actions">
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("speech/status")))'>Status</button>
-    <button @onclick='@(() => Run(() => Bridge.PostAsync("speech/access")))'>Request access</button>
-    <button @onclick='@(() => Run(() => Bridge.PostAsync("speech/recognize", new JsonObject { ["silenceTimeoutMs"] = 2000 })))' disabled="@Busy">Recognize once</button>
-    <button @onclick='@(() => Run(() => Bridge.PostAsync("speech/listener")))'>Start dictation</button>
-    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("speech/listener")))'>Stop dictation</button>
+    <button @onclick="@(() => Run(() => SpeechBridge.GetStatusAsync(), Json.SpeechStatus))">Status</button>
+    <button @onclick="@(() => Run(() => SpeechBridge.RequestAccessAsync(), Json.SpeechAccessResult))">Request access</button>
+    <button @onclick="@(() => Run(() => SpeechBridge.RecognizeAsync(new RecognizeRequest(SilenceTimeoutMs: 2000)), Json.RecognizeResult))" disabled="@Busy">Recognize once</button>
+    <button @onclick="@(() => Run(() => SpeechBridge.StartListenerAsync(new SpeechListenerRequest()), Json.SpeechListener))">Start dictation</button>
+    <button @onclick="@(() => Run(() => SpeechBridge.StopListenerAsync(), "Stopped."))">Stop dictation</button>
 </div>
 
 @if (partial is not null)
@@ -30,32 +31,34 @@
 <pre class="log">@log</pre>
 
 @code {
+    static SpeechJsonContext Json => SpeechJsonContext.Default;
+
     string text = "Hello from the web app.";
     string? partial;
     string log = String.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        await Listen("speech.partial", e => partial = Text(e, "text"));
+        await Listen<SpeechRecognized>(SpeechBridge.OnPartialAsync, e => partial = e.Text);
 
-        await Listen("speech.result", e =>
+        await Listen<SpeechRecognized>(SpeechBridge.OnResultAsync, e =>
         {
             partial = null;
-            log = Prepend(log, $"{DateTime.Now:T}  heard  {Text(e, "text")}");
+            Log("heard", e.Text);
         });
 
-        foreach (var name in new[] { "speech.keyword", "speech.ended", "speech.spoken", "speech.error" })
+        await Listen<SpeechKeyword>(SpeechBridge.OnKeywordAsync, e => Log("speech.keyword", e.Keyword));
+        await Listen<SpeechEnded>(SpeechBridge.OnEndedAsync, e =>
         {
-            await Listen(name, e =>
-            {
-                if (name == "speech.ended")
-                    partial = null;
-
-                log = Prepend(log, $"{DateTime.Now:T}  {name}  {e.GetRawText()}");
-            });
-        }
+            partial = null;
+            Log("speech.ended", e.Reason.ToString());
+        });
+        await Listen<SpeakResult>(SpeechBridge.OnSpokenAsync, e => Log("speech.spoken", e.Completed ? "completed" : "interrupted"));
+        await Listen<SpeechError>(SpeechBridge.OnErrorAsync, e => Log("speech.error", $"{e.Source}: {e.Message}"));
     }
 
-    // Returns as soon as speech starts; speech.spoken says when it finished.
-    Task Speak() => Run(() => Bridge.PostAsync("speech/speak", new JsonObject { ["text"] = text, ["wait"] = false }));
+    void Log(string name, string detail) => log = Prepend(log, $"{DateTime.Now:T}  {name}  {detail}");
+
+    // Returns as soon as speech starts; OnSpokenAsync says when it finished.
+    Task Speak() => Run(() => SpeechBridge.SpeakAsync(new SpeakRequest(text, Wait: false)), "Speaking.");
 }

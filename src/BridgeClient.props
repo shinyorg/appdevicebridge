@@ -1,0 +1,22 @@
+<Project>
+
+  <!--
+    Imported by every Shiny.AppDeviceBridge.*.Client project: a bridge's contracts, its [BridgeClient] interface and
+    the client generated from it. Plain net10.0 with no MAUI and no Blazor, because two very different apps reference
+    it — the WebAssembly page, for the typed client, and the native bridge, for the contracts it serializes.
+
+    In a package, the generator arrives with Shiny.AppDeviceBridge.Client. In-repo it has to be referenced as an
+    analyzer here, because analyzers do not flow across a ProjectReference.
+  -->
+  <!-- Always, not only in Release: the TypeScript generator carries these summaries into the page's JSDoc. -->
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)Shiny.AppDeviceBridge.Client/Shiny.AppDeviceBridge.Client.csproj" />
+    <ProjectReference Include="$(MSBuildThisFileDirectory)Shiny.AppDeviceBridge.Client.SourceGenerators/Shiny.AppDeviceBridge.Client.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

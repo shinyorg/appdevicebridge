@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Always, not only in Release: the TypeScript generator carries the built-in bridges' summaries into JSDoc. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <RootNamespace>Shiny.AppDeviceBridge.Client</RootNamespace>
+    <Description>The foundation of Shiny.AppDeviceBridge's typed clients: the transport a page talks to the host through, the attributes a bridge's API is declared with, and the generator that turns that declaration into a client. Every Shiny.AppDeviceBridge.*.Client package builds on it; so can a bridge of your own.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
+
+  <!--
+    The generator ships inside this package, under analyzers/dotnet/cs, so a client package that declares a
+    [BridgeClient] interface gets its implementation without a second reference. In-repo, projects reference
+    the generator project directly as an analyzer, because analyzers do not flow across a ProjectReference. It runs
+    here too: the built-in bridges' clients (host, settings, files, links) are declared in this package.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Client.SourceGenerators/Shiny.AppDeviceBridge.Client.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" PrivateAssets="all" />
+    <None Include="../Shiny.AppDeviceBridge.Client.SourceGenerators/bin/$(Configuration)/netstandard2.0/Shiny.AppDeviceBridge.Client.SourceGenerators.dll"
+          Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
+  </ItemGroup>
+
+</Project>

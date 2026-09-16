@@ -1,22 +1,24 @@
 @page "/storage"
 @inherits BridgePage
+@inject ISettingsBridge SettingsBridge
+@inject IFilesBridge FilesBridge
 
 <h1>Storage</h1>
 
 <h2>Settings</h2>
 <div class="form">
     <select @bind="scope">
-        <option value="local">local</option>
-        <option value="secure">secure</option>
+        <option value="@SettingsScope.Local">local</option>
+        <option value="@SettingsScope.Secure">secure</option>
     </select>
     <input @bind="key" placeholder="key" />
     <input @bind="value" placeholder='JSON value, e.g. "hello" or { "a": 1 }' />
 </div>
 <div class="actions">
     <button @onclick="SaveSetting">Save</button>
-    <button @onclick='@(() => Run(() => Bridge.GetAsync($"settings/{scope}/{key}")))'>Load</button>
-    <button @onclick='@(() => Run(() => Bridge.GetAsync($"settings/{scope}")))'>List</button>
-    <button @onclick='@(() => Run(() => Bridge.DeleteAsync($"settings/{scope}/{key}")))'>Delete</button>
+    <button @onclick="@(() => Run(() => SettingsBridge.GetValueAsync(scope, key), Json.JsonElement))">Load</button>
+    <button @onclick="@(() => Run(() => SettingsBridge.ListAsync(scope), Json.SettingsList))">List</button>
+    <button @onclick="@(() => Run(() => SettingsBridge.RemoveAsync(scope, key), "Removed."))">Delete</button>
 </div>
 
 <h2>Files <span class="muted">(data root)</span></h2>
@@ -25,16 +27,18 @@
     <input @bind="content" placeholder="file contents" />
 </div>
 <div class="actions">
-    <button @onclick="SaveFile">Write</button>
-    <button @onclick="ReadFile">Read</button>
-    <button @onclick='@(() => Run(() => Bridge.GetAsync($"files/data/list?path={Uri.EscapeDataString(Folder)}")))'>List folder</button>
-    <button @onclick='@(() => Run(() => Bridge.DeleteAsync($"files/data/entry?path={Uri.EscapeDataString(path)}&recursive=true")))'>Delete</button>
+    <button @onclick="@(() => Run(() => FilesBridge.WriteTextAsync("data", path, content), Json.FileEntry))">Write</button>
+    <button @onclick="@(() => Run(() => FilesBridge.ReadTextAsync("data", path), Json.String))">Read</button>
+    <button @onclick="@(() => Run(() => FilesBridge.ListAsync("data", Folder), Json.IReadOnlyListFileEntry))">List folder</button>
+    <button @onclick="@(() => Run(() => FilesBridge.DeleteAsync("data", path, recursive: true), "Deleted."))">Delete</button>
 </div>
 
 <Output Value="@Output" Error="@Error" />
 
 @code {
-    string scope = "local";
+    static AppDeviceBridgeJsonContext Json => AppDeviceBridgeJsonContext.Default;
+
+    SettingsScope scope = SettingsScope.Local;
     string key = "greeting";
     string value = "\"hello\"";
     string path = "notes/today.txt";
@@ -44,11 +48,9 @@
 
     Task SaveSetting() => Run(async () =>
     {
-        await Bridge.SendAsync(HttpMethod.Put, $"settings/{scope}/{key}", new StringContent(value, System.Text.Encoding.UTF8, "application/json"));
-        return await Bridge.GetAsync($"settings/{scope}");
-    });
-
-    Task SaveFile() => Run(() => Bridge.SendAsync(HttpMethod.Put, $"files/data/content?path={Uri.EscapeDataString(path)}", new StringContent(content)));
-
-    Task ReadFile() => Run(async () => ToElement(JsonValue.Create(await Bridge.GetStringAsync($"files/data/content?path={Uri.EscapeDataString(path)}"))));
+        // Any JSON the user typed. A page with its own types calls SetAsync(scope, key, value, typeInfo) instead.
+        using var document = JsonDocument.Parse(value);
+        await SettingsBridge.SetValueAsync(scope, key, document.RootElement);
+        return await SettingsBridge.ListAsync(scope);
+    }, Json.SettingsList);
 }

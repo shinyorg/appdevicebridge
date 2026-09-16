@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.AppSupport.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge app bridge — device and app info, orientation, the browser, maps, the app store, launch at login, sharing, haptics, connectivity, battery, the screen and the clipboard — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddAppBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

@@ -9,8 +9,8 @@
     <SingleProject>true</SingleProject>
     <RootNamespace>Sample.Maui</RootNamespace>
 
-    <ApplicationTitle>WebAppHost Sample</ApplicationTitle>
-    <ApplicationId>org.shinylib.webapphost.sample</ApplicationId>
+    <ApplicationTitle>AppDeviceBridge Sample</ApplicationTitle>
+    <ApplicationId>org.shinylib.appdevicebridge.sample</ApplicationId>
     <ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
 
@@ -36,7 +36,7 @@
 
   <!-- Desktop only, and Windows is the only desktop this head builds. -->
   <ItemGroup Condition="$(TargetFramework.Contains('-windows'))">
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.TrayIcon/Shiny.WebAppHost.Bridge.TrayIcon.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.TrayIcon/Shiny.AppDeviceBridge.TrayIcon.csproj" />
   </ItemGroup>
 
 </Project>

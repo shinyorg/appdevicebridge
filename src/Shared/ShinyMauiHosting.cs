@@ -1,7 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Maui.Hosting;
 
-namespace Shiny.WebAppHost.Bridge;
+namespace Shiny.AppDeviceBridge;
 
 /// <summary>Compiled into each bridge package that needs Shiny's MAUI host, for its platform targets only.</summary>
 static class ShinyMauiHosting

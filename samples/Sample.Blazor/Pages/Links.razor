@@ -1,5 +1,6 @@
 @page "/links"
 @inherits BridgePage
+@inject ILinksBridge LinksBridge
 @inject NavigationManager Navigation
 
 <h1>Links</h1>
@@ -11,8 +12,8 @@
 <pre>@commands</pre>
 
 <div class="actions">
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("links/pending")))'>Pending</button>
-    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("links/pending")))'>Consume</button>
+    <button @onclick="@(() => Run(() => LinksBridge.GetPendingAsync(), Json.AppLink))">Pending</button>
+    <button @onclick="@(() => Run(() => LinksBridge.ConsumeAsync(), Json.AppLink))">Consume</button>
     <button @onclick="ConsumeAndOpen">Consume and open</button>
 </div>
 
@@ -27,23 +28,20 @@
         Linux              xdg-open "sample://links?from=terminal"
         """;
 
+    static AppDeviceBridgeJsonContext Json => AppDeviceBridgeJsonContext.Default;
+
     string log = String.Empty;
 
     protected override Task OnInitializedAsync()
-        => Listen("app.link", e => log = Prepend(log, $"{DateTime.Now:T}  {Text(e, "url")}  →  {Text(e, "route")}"));
+        => Listen<AppLink>(LinksBridge.OnLinkAsync, e => log = Prepend(log, $"{DateTime.Now:T}  {e.Url}  →  {e.Route}"));
 
     async Task ConsumeAndOpen()
     {
-        await Run(() => Bridge.DeleteAsync("links/pending"));
+        AppLink? link = null;
+        await Run(async () => link = await LinksBridge.ConsumeAsync(), Json.AppLink);
 
         // The host only ever hands out local paths, so the route is safe to navigate to as it is.
-        if (Output is not null && Error is null && TryRoute(Output) is { } route)
-            Navigation.NavigateTo(route);
-    }
-
-    static string? TryRoute(string json)
-    {
-        using var document = System.Text.Json.JsonDocument.Parse(json);
-        return Text(document.RootElement, "route");
+        if (link is not null)
+            Navigation.NavigateTo(link.Route);
     }
 }

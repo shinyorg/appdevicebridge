@@ -1,0 +1,77 @@
+@page "/photos"
+@inherits BridgePage
+@inject IPhotosBridge PhotosBridge
+@inject IFilesBridge FilesBridge
+
+<h1>Photos</h1>
+<p class="muted">The system picker needs no permission. The library needs access, and Linux has none. Either way the photo arrives as a file in <code>cache</code>.</p>
+
+<div class="actions">
+    <button @onclick="@(() => Run(() => PhotosBridge.GetStatusAsync(), Json.PhotoStatus))">Status</button>
+    <button @onclick="Pick">Pick photos</button>
+    <button @onclick="@(() => Run(() => PhotosBridge.RequestAccessAsync(), Json.PhotoAccessResult))">Request library access</button>
+    <button @onclick="@(() => Load(0))">Library</button>
+    <button disabled="@(!hasMore)" @onclick="@(() => Load(offset + PageSize))">More</button>
+</div>
+
+<div class="thumbs">
+    @foreach (var (photo, source) in thumbnails)
+    {
+        <img src="@source" alt="@photo.FileName" title="@photo.FileName" @onclick="@(() => Export(photo))" />
+    }
+</div>
+
+@if (preview is not null)
+{
+    <h2>Picked or exported</h2>
+    <img class="preview" src="@preview" />
+}
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    const int PageSize = 24;
+
+    static PhotosJsonContext Json => PhotosJsonContext.Default;
+
+    readonly List<(LibraryPhoto Photo, string Source)> thumbnails = [];
+    int offset;
+    bool hasMore;
+    string? preview;
+
+    Task Pick() => Run(async () =>
+    {
+        var picked = await PhotosBridge.PickAsync(new PhotoPickRequest(Limit: 5));
+
+        if (picked.FirstOrDefault() is { } first)
+            preview = await DataUrlAsync(first);
+
+        return picked;
+    }, Json.IReadOnlyListPhotoFile);
+
+    Task Load(int from) => Run(async () =>
+    {
+        var page = await PhotosBridge.GetLibraryAsync(from, PageSize);
+
+        if (from == 0)
+            thumbnails.Clear();
+
+        foreach (var photo in page.Items)
+            thumbnails.Add((photo, "data:image/jpeg;base64," + Convert.ToBase64String(await PhotosBridge.GetThumbnailAsync(photo.Id, 160))));
+
+        offset = from;
+        hasMore = page.HasMore;
+        return page;
+    }, Json.PhotoPage);
+
+    Task Export(LibraryPhoto photo) => Run(async () =>
+    {
+        var file = await PhotosBridge.ExportAsync(photo.Id, new PhotoExportRequest());
+        preview = await DataUrlAsync(file);
+        return file;
+    }, Json.PhotoFile);
+
+    // A small sample reads the file back into a data URL; a real page would point an img at the files bridge.
+    async Task<string> DataUrlAsync(PhotoFile photo)
+        => $"data:{photo.ContentType ?? "image/jpeg"};base64,{Convert.ToBase64String(await FilesBridge.ReadBytesAsync(photo.File.Root, photo.File.Path))}";
+}

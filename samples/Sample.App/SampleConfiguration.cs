@@ -1,21 +1,23 @@
 using System.Reflection;
 using Shiny.Jobs;
-using Shiny.WebAppHost.Bridge.AppLinks;
-using Shiny.WebAppHost.Bridge.AppSupport;
-using Shiny.WebAppHost.Bridge.BluetoothLE;
-using Shiny.WebAppHost.Bridge.Calendar;
-using Shiny.WebAppHost.Bridge.Contacts;
-using Shiny.WebAppHost.Bridge.Discovery;
-using Shiny.WebAppHost.Bridge.Health;
-using Shiny.WebAppHost.Bridge.HttpTransfers;
-using Shiny.WebAppHost.Bridge.Jobs;
-using Shiny.WebAppHost.Bridge.Locations;
-using Shiny.WebAppHost.Bridge.Notifications;
-using Shiny.WebAppHost.Bridge.Obd;
-using Shiny.WebAppHost.Bridge.Push;
-using Shiny.WebAppHost.Bridge.Speech;
-using Shiny.WebAppHost.Bridge.Wifi;
-using Shiny.WebAppHost.Maui;
+using Shiny.AppDeviceBridge.AppLinks;
+using Shiny.AppDeviceBridge.AppSupport;
+using Shiny.AppDeviceBridge.BluetoothLE;
+using Shiny.AppDeviceBridge.Calendar;
+using Shiny.AppDeviceBridge.Contacts;
+using Shiny.AppDeviceBridge.Discovery;
+using Shiny.AppDeviceBridge.Folders;
+using Shiny.AppDeviceBridge.Health;
+using Shiny.AppDeviceBridge.HttpTransfers;
+using Shiny.AppDeviceBridge.Jobs;
+using Shiny.AppDeviceBridge.Locations;
+using Shiny.AppDeviceBridge.Notifications;
+using Shiny.AppDeviceBridge.Obd;
+using Shiny.AppDeviceBridge.Photos;
+using Shiny.AppDeviceBridge.Push;
+using Shiny.AppDeviceBridge.Speech;
+using Shiny.AppDeviceBridge.Wifi;
+using Shiny.AppDeviceBridge.Maui;
 
 namespace Sample;
 
@@ -66,6 +68,8 @@ public static class SampleConfiguration
         .AddSpeechBridge()
         .AddContactsBridge()
         .AddCalendarBridge()
+        .AddPhotosBridge()
+        .AddFoldersBridge()
 
         // sample://device opens /device. Universal links would add o.Hosts, which needs a domain you control.
         .AddAppLinksBridge(o =>

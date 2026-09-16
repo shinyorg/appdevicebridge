@@ -1,4 +1,4 @@
-using Shiny.WebAppHost.AspNetCore;
+using Shiny.AppDeviceBridge.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,7 +16,7 @@ builder.Services.AddWebAppReleases(o =>
 
 var app = builder.Build();
 
-app.MapGet("/", () => "Shiny.WebAppHost sample release server. Checks: /webapps/sample/check?platform=ios&version=1.0.0");
+app.MapGet("/", () => "Shiny.AppDeviceBridge sample release server. Checks: /webapps/sample/check?platform=ios&version=1.0.0");
 app.MapWebAppReleases("/webapps");
 
 app.Run();

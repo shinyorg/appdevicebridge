@@ -1,11 +1,11 @@
-# Shiny.WebAppHost
+# Shiny.AppDeviceBridge
 
 Ship a web app — Blazor WebAssembly, React, Vue, anything that builds to static files — inside a .NET MAUI
 app, served from the device itself, updated from your own server, and able to call native services.
 
 - **Served locally.** A loopback [Shiny.Net.HttpServer](https://shinylib.net/httpserver) serves the app
   straight out of its zip. Nothing is extracted, and it works offline.
-- **Updated from your server.** At launch the host asks a Shiny.WebAppHost.AspNetCore server whether the
+- **Updated from your server.** At launch the host asks a Shiny.AppDeviceBridge.AspNetCore server whether the
   installed version is still acceptable. A required update downloads before the app shows. An optional
   one downloads in the background and applies next launch.
 - **Verified.** Every release is signed with ECDSA P-256 and checked against a public key compiled
@@ -28,34 +28,39 @@ app, served from the device itself, updated from your own server, and able to ca
 │                                              ▲               │
 └──────────────────────────────────────────────┼───────────────┘
                                                │ signed release
-                          Shiny.WebAppHost.AspNetCore server
+                          Shiny.AppDeviceBridge.AspNetCore server
 ```
 
 ## Packages
 
 | Package | Use it in | What it does |
 | --- | --- | --- |
-| `Shiny.WebAppHost.Maui` | the app | `UseWebAppHost`, `WebAppHostView`, `WebAppHostPage`, `AllowWebPermissions` |
-| `Shiny.WebAppHost.Blazor` | the Blazor WebAssembly app | `AddWebAppHostClient()`: `WebAppBridge` calls, `WebAppEvents`, `WebAppNativeCalls` (C# handlers for jobs, GPS, geofences and push) |
-| `Shiny.WebAppHost` | (dependency) | host, updater, install store, session guard, bridge contracts, built-in settings and files endpoints; no MAUI dependency |
-| `Shiny.WebAppHost.Core` | (dependency) | protocol contracts, version ordering, release signatures |
-| `Shiny.WebAppHost.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
-| `Shiny.WebAppHost.Bridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, launch at login, share, haptics and vibration, connectivity, battery, screen and clipboard |
-| `Shiny.WebAppHost.Bridge.Locations` | the app | `AddGpsBridge()`, `AddGeofenceBridge()`, `AddLocationBridges()`, `AddMotionActivityBridge()` |
-| `Shiny.WebAppHost.Bridge.BluetoothLE` | the app | `AddBluetoothLEBridge()` |
-| `Shiny.WebAppHost.Bridge.Obd` | the app | `AddObdBridge()`: OBD-II over Bluetooth LE or Wi-Fi adapters — decoded PIDs, VIN, trouble codes, live readings |
-| `Shiny.WebAppHost.Bridge.Wifi` | the app | `AddWifiBridge(hotspot: false)`: current network and changes, scan, connect, known networks, radio, hotspot |
-| `Shiny.WebAppHost.Bridge.Discovery` | the app | `AddDiscoveryBridge(DiscoveryProtocols.All)`: mDNS/Bonjour, SSDP/UPnP, WS-Discovery search, browse, resolve and publish |
-| `Shiny.WebAppHost.Bridge.Jobs` | the app | `AddWebAppJob(name, configure)`: background jobs handled by the page or `background.js` |
-| `Shiny.WebAppHost.Bridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
-| `Shiny.WebAppHost.Bridge.Notifications` | the app | `AddNotificationsBridge()`: local notifications now, scheduled, repeating or at a geofence; pending, cancel, badge, channels; taps handed to the web app |
-| `Shiny.WebAppHost.Bridge.HttpTransfers` | the app | `AddHttpTransfersBridge()`: background uploads and downloads to and from file roots, with progress events and completion handlers |
-| `Shiny.WebAppHost.Bridge.AppLinks` | the app | `AddAppLinksBridge(o => o.Schemes.Add("myapp"))`: deep links and universal/app links routed to the page |
-| `Shiny.WebAppHost.Bridge.Health` | the app | `AddHealthBridge()`: HealthKit and Health Connect permissions, bucketed reads, writes and live readings |
-| `Shiny.WebAppHost.Bridge.Speech` | the app | `AddSpeechBridge()`: on-device speech recognition, dictation as events, text-to-speech, voices |
-| `Shiny.WebAppHost.Bridge.Contacts` | the app | `AddContactsBridge()`: access, paged search, read, photos, create, update and delete (Android, iOS) |
-| `Shiny.WebAppHost.Bridge.Calendar` | the app | `AddCalendarBridge()`: access, calendars, events in a date range, create, update and delete |
-| `Shiny.WebAppHost.Bridge.TrayIcon` | the app | `AddTrayIconBridge()`: system tray / menu bar icons, menus, badges, notifications and animation, with clicks handed back to the web app |
+| `Shiny.AppDeviceBridge.Maui` | the app | `UseWebAppHost`, `WebAppHostView`, `WebAppHostPage`, `AllowWebPermissions`, `AddWebAppEndpoints`, `AddWebAppAuthentication`, `AddWebAppAuthorization` |
+| `Shiny.AppDeviceBridge.Blazor` | the Blazor WebAssembly app | `AddWebAppHostClient()`: the page's transport, typed clients for the built-in bridges (`IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge`), `WebAppEvents`, `WebAppNativeCalls` (typed C# handlers for jobs, GPS, geofences and push), and `WebAppBridge` for endpoints of your own |
+| `Shiny.AppDeviceBridge.Client` | (dependency) | the typed-client foundation: `IBridgeTransport`, `BridgeException`, the `[BridgeClient]` attributes and the generator that implements them, and the built-in bridges' contracts |
+| `Shiny.AppDeviceBridge.{Bridge}.Client` | the web app | one per bridge: its contracts and typed client — `ICalendarBridge`, `IWifiBridge`, … — registered with `Add{Bridge}BridgeClient()` |
+| `@shinyorg/appdevicebridge` | a JavaScript or TypeScript web app | the same typed clients in TypeScript, generated from the same declarations (`clients/typescript`) |
+| `Shiny.AppDeviceBridge` | (dependency) | host, updater, install store, session guard, bridge contracts, built-in settings and files endpoints, your own endpoints and their authentication; no MAUI dependency |
+| `Shiny.AppDeviceBridge.Core` | (dependency) | protocol contracts, version ordering, release signatures |
+| `Shiny.AppDeviceBridge.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
+| `Shiny.AppDeviceBridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, launch at login, share, haptics and vibration, connectivity, battery, screen and clipboard |
+| `Shiny.AppDeviceBridge.Locations` | the app | `AddGpsBridge()`, `AddGeofenceBridge()`, `AddLocationBridges()`, `AddMotionActivityBridge()` |
+| `Shiny.AppDeviceBridge.BluetoothLE` | the app | `AddBluetoothLEBridge()` |
+| `Shiny.AppDeviceBridge.Obd` | the app | `AddObdBridge()`: OBD-II over Bluetooth LE or Wi-Fi adapters — decoded PIDs, VIN, trouble codes, live readings |
+| `Shiny.AppDeviceBridge.Wifi` | the app | `AddWifiBridge(hotspot: false)`: current network and changes, scan, connect, known networks, radio, hotspot |
+| `Shiny.AppDeviceBridge.Discovery` | the app | `AddDiscoveryBridge(DiscoveryProtocols.All)`: mDNS/Bonjour, SSDP/UPnP, WS-Discovery search, browse, resolve and publish |
+| `Shiny.AppDeviceBridge.Jobs` | the app | `AddWebAppJob(name, configure)`: background jobs handled by the page or `background.js` |
+| `Shiny.AppDeviceBridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
+| `Shiny.AppDeviceBridge.Notifications` | the app | `AddNotificationsBridge()`: local notifications now, scheduled, repeating or at a geofence; pending, cancel, badge, channels; taps handed to the web app |
+| `Shiny.AppDeviceBridge.HttpTransfers` | the app | `AddHttpTransfersBridge()`: background uploads and downloads to and from file roots, with progress events and completion handlers |
+| `Shiny.AppDeviceBridge.AppLinks` | the app | `AddAppLinksBridge(o => o.Schemes.Add("myapp"))`: deep links and universal/app links routed to the page |
+| `Shiny.AppDeviceBridge.Health` | the app | `AddHealthBridge()`: HealthKit and Health Connect permissions, bucketed reads, writes and live readings |
+| `Shiny.AppDeviceBridge.Speech` | the app | `AddSpeechBridge()`: on-device speech recognition, dictation as events, text-to-speech, voices |
+| `Shiny.AppDeviceBridge.Contacts` | the app | `AddContactsBridge()`: access, paged search, read, photos, create, update and delete (Android, iOS) |
+| `Shiny.AppDeviceBridge.Calendar` | the app | `AddCalendarBridge()`: access, calendars, events in a date range, create, update and delete |
+| `Shiny.AppDeviceBridge.Photos` | the app | `AddPhotosBridge()`: the system photo picker, and the photo library — pages, thumbnails and full-size exports — as files in a file root |
+| `Shiny.AppDeviceBridge.Folders` | the app | `AddFoldersBridge()`: the platform's folder picker, with each picked folder remembered as a file root across launches |
+| `Shiny.AppDeviceBridge.TrayIcon` | the app | `AddTrayIconBridge()`: system tray / menu bar icons, menus, badges, notifications and animation, with clicks handed back to the web app |
 
 ## The app
 
@@ -132,6 +137,39 @@ Plus the usage descriptions and permissions for whichever bridges you add.
 | `BlockOnRequiredUpdateFailure` | `false` | By default, a required download that fails midway is treated as offline. |
 | `ApplyOptionalUpdatesImmediately` | `false` | Swap to an optional update and reload as soon as it lands. |
 | `RemoteAccess.Enabled` | `false` | Bind past loopback. Every bridge still stays on the device until named — see [Serving the network](#serving-the-network). |
+| `BasePath` | `/` | Serve everything under a path — `/kiosk/`, `/kiosk/_bridge/…`. See [Mount points](#mount-points). |
+| `BridgePrefix` | `/_bridge` | Move the bridges when the web app wants that route for itself. |
+
+### Mount points
+
+The app is served at `/` and the bridges at `/_bridge`. Both move:
+
+```csharp
+o.BasePath = "/kiosk";          // http://127.0.0.1:5780/kiosk/
+o.BridgePrefix = "/_native";    // http://127.0.0.1:5780/kiosk/_native/app/info
+```
+
+- **`_host` doesn't move.** `{base}/_host/start`, `/ping` and `/config` stay directly under `BasePath`,
+  because `GET {base}/_host/config` is how a page finds out where everything else is. `BridgePrefix`
+  can't be `/_host` or sit under it.
+- **`<base href>` is rewritten for you.** A Blazor publish ships `<base href="/" />`, which would send
+  every asset request to the origin root. The host rewrites it — in the entry document and in whatever
+  the SPA fallback serves — to match `BasePath`, inserting the tag if the document has none. You don't
+  need to republish with `--base-href`.
+- **The page discovers the prefix, it isn't told it.** `Shiny.AppDeviceBridge.Blazor` and the injected
+  `invoke/client.js` both read `{base}/_host/config` and build their URLs from it. That matters because
+  the web app updates on its own schedule: a page built against one host keeps working when the next
+  host moves the bridges.
+
+```js
+const { base, bridge } = await (await fetch(new URL("_host/config", document.baseURI))).json();
+//    "/kiosk/"        "/kiosk/_native/"
+const info = await (await fetch(bridge + "app/info")).json();
+```
+
+The typed clients, C# and TypeScript, discover the prefix the same way. Raw `fetch("/_bridge/...")` calls in
+your own code are the one thing that won't follow — build them from `bridge`, or keep the defaults. `/kiosk` without the trailing slash redirects to `/kiosk/`, and anything
+outside `BasePath` gets a `404`.
 
 ### Camera, microphone and location in the page
 
@@ -222,6 +260,8 @@ Binding to loopback keeps other machines out, but not other apps: on Android any
   document is refused.
 - **Anything not from this device** is held to a second, stricter set of rules, and by default there is
   nothing for it to reach. See below.
+- **Your own endpoints** are authorized by their own policies, not the launch cookie — which is one
+  scheme among several there. See [Your own endpoints](#your-own-endpoints).
 
 ### Serving the network
 
@@ -270,7 +310,7 @@ GET http://192.168.1.15:5780/_bridge/ble/status                     → 403 remo
 | Geofences | `GET geofences/status`, `POST geofences/access`, `GET/POST/DELETE geofences/regions`, `DELETE geofences/regions/{id}`, `GET geofences/regions/{id}/state` | `geofence.status` |
 | Motion activity | `GET motion/status`, `POST motion/access`, `GET motion/current`, `GET/POST/DELETE motion/listener` | `motion.activity` |
 | Bluetooth LE | `GET ble/status`, `POST ble/access`, `POST/DELETE ble/scan`, `GET ble/peripherals[/{uuid}]`, `POST/DELETE …/connection`, `GET …/rssi`, `GET …/services`, `GET …/characteristics`, `GET/PUT …/characteristics/{c}`, `POST/DELETE …/notifications` | `ble.scan`, `ble.status`, `ble.notification`, `ble.error` |
-| OBD-II | `GET obd/status`, `GET obd/commands`, `POST obd/scan`, `GET obd/adapters`, `POST/DELETE obd/connection`, `POST obd/command`, `GET obd/vin`, `GET/DELETE obd/dtc`, `POST/DELETE obd/monitor` | `obd.reading`, `obd.disconnected` |
+| OBD-II | `GET obd/status`, `GET obd/commands`, `POST obd/scan`, `GET obd/adapters`, `POST/DELETE obd/connection`, `POST obd/command`, `POST obd/raw`, `GET obd/vin`, `GET/DELETE obd/dtc`, `POST/DELETE obd/monitor` | `obd.reading`, `obd.disconnected` |
 | Wi-Fi | `GET wifi`, `POST wifi/access`, `GET wifi/networks`, `GET wifi/current`, `POST/DELETE wifi/connection`, `GET wifi/known`, `DELETE wifi/known?id=`, `GET/PUT wifi/radio`, `GET/POST/DELETE wifi/hotspot`, `GET wifi/hotspot/clients` | `wifi.changed`, `wifi.hotspot` |
 | Discovery | `POST discovery/{mdns,ssdp,wsd}/search`, `POST discovery/{mdns,ssdp,wsd}/browse`, `GET discovery/mdns/resolve`, `GET discovery/wsd/resolve`, `GET discovery/ssdp/description?udn=`, `POST discovery/{mdns,ssdp,wsd}/publications`, `GET discovery/browses`, `DELETE discovery/browses/{id}`, `GET discovery/publications`, `DELETE discovery/publications/{id}` | `discovery.mdns`, `discovery.ssdp`, `discovery.wsd`, `discovery.error`, `discovery.stopped` |
 | Notifications | `GET notifications`, `POST notifications/access`, `POST notifications/send`, `GET notifications/pending`, `DELETE notifications[?scope=]`, `DELETE notifications/{id}`, `GET/PUT notifications/badge`, `GET/POST notifications/channels`, `DELETE notifications/channels/{id}` | `notification.entry`, `notification.received` |
@@ -280,16 +320,31 @@ GET http://192.168.1.15:5780/_bridge/ble/status                     → 403 remo
 | Speech | `GET speech/status`, `POST speech/access`, `POST speech/recognize`, `GET/POST/DELETE speech/listener`, `POST/DELETE speech/speak`, `GET speech/voices?culture=`, `GET speech/cultures` | `speech.partial`, `speech.result`, `speech.keyword`, `speech.ended`, `speech.spoken`, `speech.error` |
 | Contacts | `GET contacts`, `POST contacts/access`, `GET/POST contacts/items`, `GET/PUT/DELETE contacts/items/{id}`, `GET contacts/items/{id}/photo` | |
 | Calendar | `GET calendar`, `POST calendar/access`, `GET calendar/calendars`, `GET/POST calendar/events`, `GET/PUT/DELETE calendar/events/{id}` | |
+| Photos | `GET photos`, `POST photos/access`, `POST photos/pick`, `GET photos/library`, `GET photos/library/{id}/thumbnail`, `POST photos/library/{id}/export` | |
+| Folders | `GET folders`, `POST folders/pick`, `DELETE folders/{root}` | |
 | Tray icon | `GET/POST/DELETE tray`, `GET/PUT/DELETE tray/{id}`, `PUT/DELETE tray/{id}/menu`, `POST tray/{id}/menu/show`, `POST tray/{id}/notification`, `PUT/DELETE tray/{id}/animation` | `tray.click`, `tray.menu` |
 
-```js
-const info = await (await fetch("/_bridge/app/info")).json();
+The routes are the wire protocol. A page doesn't build them by hand: every bridge has a typed client, in C# for
+Blazor and in TypeScript for everything else, generated from one declaration so the two can't drift — see
+[Typed clients](#typed-clients).
 
-const events = new EventSource("/_bridge/events");
-events.addEventListener("gps.reading", e => console.log(JSON.parse(e.data)));
+```csharp
+@inject IAppBridge App
+@inject IGpsBridge Gps
+
+var info = await App.GetInfoAsync();
+await using var readings = await Gps.OnReadingAsync(reading => { position = reading; return Task.CompletedTask; });
 ```
 
-Errors return `{ "code": "...", "message": "..." }`, so pages can switch on `code`.
+```ts
+import { AppBridge, GpsBridge } from "@shinyorg/appdevicebridge";
+
+const info = await new AppBridge().getInfo();
+const stop = new GpsBridge().onReading(reading => console.log(reading.latitude));
+```
+
+Errors return `{ "code": "...", "message": "..." }`. The clients throw `BridgeException` (C#) or `BridgeError`
+(TypeScript) carrying the status and `code`, so pages can switch on either.
 
 **Wi-Fi:** what works depends on the platform. iOS can't scan, and Android can't toggle the radio.
 `GET /_bridge/wifi` lists the platform's capabilities, and any call it lacks returns `501`. Linux
@@ -310,8 +365,8 @@ Android; the Access Wi-Fi Information and Hotspot Configuration entitlements on 
 Essentials, so each head's own build decides what works. A feature a backend lacks returns `501` on its
 own, and the rest keep working. Files are shared by the same `{ root, path }` as the files bridge:
 
-```js
-await fetch("/_bridge/app/share", { method: "POST", body: JSON.stringify({ files: [{ root: "data", path: "photos/cat.jpg" }] }) });
+```ts
+await new AppBridge().share({ files: [{ root: "data", path: "photos/cat.jpg" }] });
 ```
 
 `app.connectivity`, `app.battery` and `app.energysaver` only run while a page is listening. On Android,
@@ -329,7 +384,7 @@ and `ACTIVITY_RECOGNITION` with Google Play Services on Android. Other platforms
   `peripheralUuid` from a scan, or a Wi-Fi `host` and `port`. The host must be a loopback, private or
   link-local IP address.
 - **Reading:** `command` takes a name from `GET obd/commands` (`engineRpm`, `vehicleSpeed`,
-  `coolantTemperature`…) and answers the decoded value with its unit. `raw` sends a read-only request:
+  `coolantTemperature`…) and answers the decoded value with its unit. `POST obd/raw` sends a read-only request:
   modes 01, 02, 03, 05, 06, 07, 09, 0A or 22, or an informational AT command. Commands are serialized,
   because ELM327 is half-duplex.
 - **Trouble codes:** `GET obd/dtc` returns stored, pending and permanent codes. A list is `null` when
@@ -371,13 +426,16 @@ so `myapp://orders/42` becomes `/orders/42`. An https link on a listed host keep
   consumed.
 - **Background:** links never go to `background.js`.
 
-```js
+```ts
+const links = new LinksBridge();
+
 async function openPendingLink() {
-    const response = await fetch("/_bridge/links/pending", { method: "DELETE" });
-    if (response.status === 200) router.push((await response.json()).route);
+    const link = await links.consume();
+    if (link) router.push(link.route);
 }
+
 openPendingLink();
-events.addEventListener("app.link", openPendingLink);
+links.onLink(openPendingLink);
 ```
 
 Platform setup:
@@ -409,10 +467,12 @@ Platform setup:
   `VIEW_PERMISSION_USAGE` activity-alias. MainActivity also needs a filter for
   `androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE`.
 
-```js
-await fetch("/_bridge/health/access", { method: "POST", body: JSON.stringify({ permissions: [{ type: "StepCount", access: "Read" }] }) });
+```ts
+const health = new HealthBridge();
+await health.requestAccess({ permissions: [{ type: "StepCount", access: "Read" }] });
+
 const today = new Date(); today.setHours(0, 0, 0, 0);
-const steps = await (await fetch(`/_bridge/health/samples/StepCount?start=${today.toISOString()}&end=${new Date().toISOString()}&interval=hours`)).json();
+const steps = await health.getSamples("StepCount", today, new Date(), { interval: "Hours" });
 ```
 
 **Speech:** built on Shiny.Speech, which is still a prerelease package.
@@ -421,11 +481,11 @@ const steps = await (await fetch(`/_bridge/health/samples/StepCount?start=${toda
 - **Dictation:** `POST listener` keeps the microphone open and streams `speech.partial` and
   `speech.result` events until you delete it. It also stops when the page's last event stream
   closes, so a page that goes away can't leave the microphone on. `speech.ended` says why it
-  stopped: `stopped`, `page_closed` or `error`.
+  stopped: `Stopped`, `PageClosed` or `Error`.
 - **One microphone:** a recognition and a listener can't run at once. The second gets `409`
   `microphone_busy`.
 - **Speaking:** `speak` waits until the text has been spoken, unless you pass `"wait": false`, which
-  returns `202` and raises `speech.spoken` when done. A new utterance interrupts the current one.
+  returns `204` straight away and raises `speech.spoken` when done. A new utterance interrupts the current one.
   Text is capped at 4,000 characters.
 - **Platforms:** Linux has no OS speech engine, so its endpoints return `501`. To use a cloud
   provider or Whisper there, pass `o => o.RegisterSpeechServices = false` and register your own
@@ -477,6 +537,32 @@ OS-started launch:
 builder.AddAppSupportBridge(startup: o => o.Arguments.Add("--autostart"));
 ```
 
+**Photos:**
+- **Picker:** `POST photos/pick` shows the system photo picker — no permission needed — and copies what the user
+  chose into a file root (`cache` by default) under `photos/`. The answer lists each as a `{ root, path }` the page
+  reads through the files bridge. An empty list means the user cancelled. Every head has a picker.
+- **Library:** browse every photo on the device, newest first: `GET photos/library?offset=&limit=` (200 at most),
+  `GET photos/library/{id}/thumbnail?size=` for a JPEG that fits a square (32–1024 px), and
+  `POST photos/library/{id}/export` to copy the original into a file root. It needs access —
+  `POST photos/access` — and answers `403` without it.
+- **Platforms:** PhotoKit on iOS, Mac Catalyst and macOS; MediaStore on Android; the user's Pictures folder on
+  Windows. Linux has no photo library, so the library endpoints return `501` there.
+- **Platform setup:** `NSPhotoLibraryUsageDescription` on Apple platforms, plus the
+  `com.apple.security.personal-information.photos-library` entitlement where the app is sandboxed.
+  `READ_MEDIA_IMAGES` on Android 13 and later, `READ_EXTERNAL_STORAGE` before.
+
+**Folders:**
+- **Picking:** `POST folders/pick` with `{ "root": "documents" }` shows the platform's folder picker. The folder
+  becomes a file root under that name — `/_bridge/files/documents/…` — and answers `204` if the user cancels.
+  Picking again under the same name replaces the folder. The app's own roots can't be replaced.
+- **Remembered:** picked folders come back as roots every time the app starts, until
+  `DELETE folders/{root}` forgets one. `GET folders` lists them, with `available: false` for one that was
+  moved, deleted or had its access revoked since.
+- **Platforms:** Apple platforms keep a security-scoped bookmark; Android keeps a persisted Storage Access
+  Framework grant; Windows and Linux (GTK's file dialog) keep the path.
+- **Android folders aren't paths.** The files bridge reads and writes them through the Storage Access Framework,
+  but bridges that hand the OS a file path — sharing, transfers, notification images — refuse them.
+
 **Tray icon:** the system tray on Windows, the menu bar on macOS, the status notifier area on Linux —
 desktop only, `501` elsewhere.
 - **Naming an icon:** use `PUT /_bridge/tray/main` rather than `POST /_bridge/tray`. The first call creates
@@ -495,21 +581,99 @@ desktop only, `501` elsewhere.
 - **Lifetime:** icons outlive the page and are removed when the app shuts down, or by
   `DELETE /_bridge/tray/{id}`. `MaxIcons` (4) caps how many exist at once.
 
-```js
-await fetch("/_bridge/tray/main", {
-    method: "PUT",
-    body: JSON.stringify({
-        tooltip: "Field App",
-        templateImage: true,
-        icon: { root: "data", path: "icons/tray.png" },
-        menu: { items: [
-            { id: "open", label: "Open" },
-            { type: "Separator" },
-            { id: "sync", type: "Check", label: "Sync", checked: true }
-        ] }
-    })
+```ts
+await new TrayBridge().put("main", {
+    tooltip: "Field App",
+    templateImage: true,
+    icon: { root: "data", path: "icons/tray.png" },
+    menu: { items: [
+        { id: "open", label: "Open" },
+        { type: "Separator" },
+        { id: "sync", type: "Check", label: "Sync", checked: true }
+    ] }
 });
 ```
+
+### Typed clients
+
+Every bridge ships a `.Client` package: its request and response contracts, and an interface such as
+`ICalendarBridge` whose implementation is generated at build time. The native bridge serializes the same
+contracts, so the page and the device agree on every shape by construction.
+
+```csharp
+// Program.cs
+builder.Services
+    .AddWebAppHostClient()          // transport + host, settings, files, links
+    .AddCalendarBridgeClient()
+    .AddWifiBridgeClient();
+
+// a page
+@inject ICalendarBridge Calendar
+
+var created = await Calendar.CreateEventAsync(new NewCalendarEvent
+{
+    Title = "Standup",
+    Start = DateTimeOffset.Now.AddHours(1),
+    End = DateTimeOffset.Now.AddHours(1.5)
+});
+```
+
+- **Errors** throw `BridgeException` with `StatusCode`, the bridge's `Code` and `IsNotSupported` for `501`.
+- **Events** are methods too: `await using var sub = await Wifi.OnChangedAsync(e => …)`.
+- **Files and binaries:** a method returning `Task<Stream>` or `Task<byte[]>` reads the body raw; a
+  `[BridgeBody("text/plain")]` parameter sends one.
+- **TypeScript:** `clients/typescript` holds the same clients, generated from the same assemblies by
+  `tools/Shiny.AppDeviceBridge.TypeScript` — `new CalendarBridge().createEvent({ title, start, end })`. Required
+  members are required, optional parameters go in an options object with an `AbortSignal`, and events return an
+  unsubscribe function. A test fails when the committed TypeScript falls behind the C# declarations.
+- **Your own endpoints** can still be called untyped through `WebAppBridge.GetAsync<T>(path, typeInfo)` and
+  `SendAsync<TBody, TResult>(…)`, or given a `[BridgeClient]` interface of their own.
+
+### Your own endpoints
+
+Serve your own API beside the web app and the bridges — raw routes, source-generated `[Route]`
+classes or modules, with Shiny.Net.HttpServer's own API, and authentication to go with them:
+
+```csharp
+using Shiny.Net.HttpServer;
+using Shiny.Net.HttpServer.Security;     // AllowAnonymous, RequireAuthorization, AddApiKey
+
+builder
+    .UseWebAppHost(o => { … })
+    .AddWebAppEndpoints(server =>
+    {
+        server.MapOrderEndpoints();                                         // [Route("/api/orders")]
+        server.MapGet("/api/health", ctx => …).AllowAnonymous();
+        server.MapGet("/api/admin", ctx => …).RequireAuthorization("admin");
+        server.MapGet("/api/draft", ctx => …).RequireAuthorization(WebAppPolicies.Session);
+    })
+    .AddWebAppAuthentication(auth => auth.AddApiKey(o => o.AddKey(key, "kiosk", "admin")))
+    .AddWebAppAuthorization(o => o.AddPolicy("admin", p => p.RequireRole("admin")));
+```
+
+- **Authenticated by default.** An endpoint that says nothing needs a caller who authenticated through
+  *some* scheme. The WebView's session is one — the page calls your endpoints with no extra setup —
+  and every scheme from `AddWebAppAuthentication` is another. `AllowAnonymous()` opts an endpoint out;
+  `WebAppPolicies.Session` accepts the WebView and nothing else, however valid another credential is.
+- **Bridges keep their own rules.** They're authorized by the host's guard — the launch cookie on the
+  device, `RemoteAccess.AllowBridge` off it — and are kept out of these policies entirely. A key that
+  opens `/api/admin` opens nothing on the device, and no policy you write can loosen device access.
+- **Reachable from the network** when `RemoteAccess.Enabled` is on, with no allowlist: these are data
+  you chose to publish, and their authorization is the gate. The WebView's session never counts off the
+  device, so a remote caller needs a scheme of its own.
+- **Mapped from the root, served under `BasePath`.** A generated `[Route]` class can only map at the
+  template it was written with, so the host moves everything afterwards — constraints, `[Authorize]`,
+  `[AllowAnonymous]` and all. Anything under the bridge prefix or `_host` is refused at startup.
+- **`AddWebAppAuthorization` can be called as often as you like.** Shiny.Net.HttpServer's own
+  `AddAuthorization` keeps the first call and silently drops the rest; this one applies every call.
+- **Your app's own container is left alone.** Schemes and policies live in a container the host owns,
+  so an app that runs a Shiny.Net.HttpServer of its own keeps its own authentication. Endpoint classes
+  still get their dependencies from your app. The one consequence: a scheme that resolves a dependency
+  *by type* (`AddBasic<UserStore>()`) needs it registered on `auth.Services` too; delegate options
+  such as an API key's `ValidateAsync` can reach your services through `context.RequestServices`.
+
+A path that matches none of your endpoints is the web app's, and without the WebView's session that's
+a `403` — so a caller outside the page can't probe which routes exist.
 
 ### Settings and files
 
@@ -520,21 +684,27 @@ its secure store: Keychain, Android KeyStore or DPAPI. On Linux it's a plain fil
 `encrypted` flag says so. Values can be any JSON and come back exactly as written. Keys are namespaced
 by app id, so the page never sees or clears the native app's own settings.
 
-```js
-await fetch("/_bridge/settings/secure/token", { method: "PUT", body: JSON.stringify(token) });
-const token = await (await fetch("/_bridge/settings/secure/token")).json();
+```csharp
+await Settings.SetAsync(SettingsScope.Secure, "token", token, MyJson.Default.String);
+var saved = await Settings.GetAsync(SettingsScope.Secure, "token", MyJson.Default.String);
 ```
 
 **Files** are confined to named roots: `data` (persistent) and `cache` (the OS may clear it), unless
-you set `FileRoots`. Paths are relative and use forward slashes. A path is refused if it contains
-`..`, `\` or `:`, or passes through a link that leads out of the root. Writes are atomic, parent
+you set `FileRoots` — plus any folder the user picked through the folders bridge. Paths are relative and use
+forward slashes. A path is refused if it contains `..`, `\`, `:`, a control character or anything a file name
+can't hold on some platform (`< > " | ? *`), or passes through a link that leads out of the root. Writes are atomic, parent
 directories are created as needed, and `MaxFileWriteBytes` (256 MB) caps a single file.
 
-```js
-await fetch("/_bridge/files/data/content?path=photos/cat.jpg", { method: "PUT", body: blob });
-const entries = await (await fetch("/_bridge/files/data/list?path=photos")).json();
-await fetch("/_bridge/files/data/move", { method: "POST", body: JSON.stringify({ from: "photos/cat.jpg", to: "photos/tabby.jpg" }) });
+```ts
+const files = new FilesBridge();
+await files.write("data", "photos/cat.jpg", blob);
+const entries = await files.list("data", { path: "photos" });
+await files.move("data", { from: "photos/cat.jpg", to: "photos/tabby.jpg" });
 ```
+
+A bridge that adds roots at runtime — as the folders bridge does — adds a `WebAppFileStore` to the
+`WebAppFileRoots` service. `WebAppFileRoot` is a directory on disk; a store that isn't one implements the same
+operations over whatever it is, and `GetLocalPath` returns null so path-only bridges refuse its files.
 
 ### Writing a bridge
 
@@ -558,6 +728,32 @@ public static MauiAppBuilder AddClipboardBridge(this MauiAppBuilder builder)
 Use source-generated JSON contexts (`JsonTypeInfo`). The packages are trim and AOT clean, and bridges
 should stay that way.
 
+To give it a typed client, declare the API once in a plain `net10.0` project that references
+`Shiny.AppDeviceBridge.Client`. The generator implements the interface, and the same contracts serialize on
+both sides:
+
+```csharp
+[BridgeClient("clipboard", typeof(ClipboardJson))]
+public interface IClipboardBridge
+{
+    [BridgeGet] Task<Clip> GetAsync(CancellationToken cancellationToken = default);
+    [BridgePut] Task SetAsync(Clip clip, CancellationToken cancellationToken = default);
+    [BridgeEvent("clipboard.changed")] Task<IAsyncDisposable> OnChangedAsync(Func<Clip, Task> handler);
+}
+
+public sealed record Clip(string? Text);
+
+[JsonSerializable(typeof(Clip))]
+public partial class ClipboardJson : JsonSerializerContext;
+
+// the page
+builder.Services.AddWebAppHostClient().AddClipboardBridgeClient();
+```
+
+Route tokens (`[BridgeGet("items/{id}")]`) bind parameters by name, a complex parameter on a POST or PUT is the
+JSON body, and everything else is the query string. A declaration the generator can't turn into a request —
+a complex type on a GET, a route token with no parameter — is build error `ADB001`.
+
 ## Calling the web app from native code
 
 Background jobs, GPS readings, geofence transitions and pushes can call into the web app, whether or
@@ -569,22 +765,31 @@ not a page is open.
   zip, inside an embedded JavaScript engine ([Jint](https://github.com/sebastienros/jint)).
 - **Accepted by the page:** the page owns the call. A call is never run in both places.
 
+```csharp
+// in a Blazor page
+await nativeCalls.HandleAsync("job:sync", AppDeviceBridgeJsonContext.Default.JobRun, MyJson.Default.SyncResult, async job =>
+{
+    await SyncAsync();
+    return new SyncResult(RanIn: "page");
+});
+```
+
 ```js
-// in the page
+// in any other page
 import { on } from "/_bridge/invoke/client.js";
 on("job:sync", async ({ name }) => { /* ... */ });
 ```
 
 ```js
 // background.js: a classic script at the root of the zip
-webapphost.on("job:sync", async ({ name }) => {
+appdevicebridge.on("job:sync", async ({ name }) => {
     const token = await (await fetch("/_bridge/settings/secure/token")).json();
     const data = await fetch("https://api.example.com/sync", { headers: { Authorization: `Bearer ${token}` } });
     await fetch("/_bridge/files/data/content?path=sync.json", { method: "PUT", body: await data.text() });
 });
 ```
 
-`background.js` gets `webapphost.on`, `console` and `fetch` with string bodies. Relative URLs go to the
+`background.js` gets `appdevicebridge.on`, `console` and `fetch` with string bodies. Relative URLs go to the
 host's own `/_bridge`, so handlers read and write the same settings and files the page uses. It has
 no DOM, no timers, and keeps no state between calls: each call runs the script's top level again,
 then the handler. It gets `BackgroundScriptTimeout` (25 s) and 64 MB.
@@ -622,7 +827,7 @@ It answers `{ "id": 7 }`. Sending needs no UI, so `background.js` can notify fro
   platform supports: `badge`, `entry`, `received`, `geofences` and `images`.
 - **Ownership:** only notifications the web app sent reach its handlers, unless you set
   `AddNotificationsBridge(o => o.Dispatch = WebAppNotificationDispatch.All)`. The bridge marks its notifications
-  with a `webapphost.source` data key, which the page never sees and can't set.
+  with a `appdevicebridge.source` data key, which the page never sees and can't set.
 - **Taps:** reach `notification.entry` on Android, iOS and Mac Catalyst. Windows and Linux have no tap callback,
   and on the macOS (AppKit) head nothing runs Shiny's startup tasks, so neither handler fires there yet.
 - **Linux:** scheduled notifications only fire while the app runs, and repeating ones don't fire at all in
@@ -631,7 +836,9 @@ It answers `{ "id": 7 }`. Sending needs no UI, so `background.js` can notify fro
   drawable named `notification` for the small icon (without it, `send` returns `400`). Geofence triggers need the
   location usage descriptions.
 
-**Blazor WebAssembly:** handlers registered from the page can be C#, through `WebAppNativeCalls` in Shiny.WebAppHost.Blazor. The
+**Blazor WebAssembly:** handlers registered from the page can be C#, through `WebAppNativeCalls` in Shiny.AppDeviceBridge.Blazor.
+Payloads are the bridges' own contracts — `GpsReading` for `gps`, `PushPayload` for `push.received`,
+`TransferInfo` for `transfer.completed` — read through their JSON contexts. The
 background path can't: Jint doesn't run WebAssembly, and a hidden WebView is exactly what iOS
 suspends. Write the background handler in JavaScript that stores its results through the bridge;
 the Blazor app reads them when it next opens.

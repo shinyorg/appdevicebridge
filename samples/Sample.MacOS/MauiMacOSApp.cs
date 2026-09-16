@@ -1,7 +1,7 @@
 using AppKit;
 using Foundation;
 using Microsoft.Maui.Platforms.MacOS.Platform;
-using Shiny.WebAppHost.Bridge.AppLinks;
+using Shiny.AppDeviceBridge.AppLinks;
 
 namespace Sample.MacOS;
 

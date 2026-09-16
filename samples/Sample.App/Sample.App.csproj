@@ -15,22 +15,24 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Maui/Shiny.WebAppHost.Maui.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.AppLinks/Shiny.WebAppHost.Bridge.AppLinks.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.AppSupport/Shiny.WebAppHost.Bridge.AppSupport.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.BluetoothLE/Shiny.WebAppHost.Bridge.BluetoothLE.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Calendar/Shiny.WebAppHost.Bridge.Calendar.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Contacts/Shiny.WebAppHost.Bridge.Contacts.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Discovery/Shiny.WebAppHost.Bridge.Discovery.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Health/Shiny.WebAppHost.Bridge.Health.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.HttpTransfers/Shiny.WebAppHost.Bridge.HttpTransfers.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Jobs/Shiny.WebAppHost.Bridge.Jobs.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Locations/Shiny.WebAppHost.Bridge.Locations.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Notifications/Shiny.WebAppHost.Bridge.Notifications.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Obd/Shiny.WebAppHost.Bridge.Obd.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Push/Shiny.WebAppHost.Bridge.Push.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Speech/Shiny.WebAppHost.Bridge.Speech.csproj" />
-    <ProjectReference Include="../../src/Shiny.WebAppHost.Bridge.Wifi/Shiny.WebAppHost.Bridge.Wifi.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maui/Shiny.AppDeviceBridge.Maui.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AppLinks/Shiny.AppDeviceBridge.AppLinks.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AppSupport/Shiny.AppDeviceBridge.AppSupport.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.BluetoothLE/Shiny.AppDeviceBridge.BluetoothLE.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Calendar/Shiny.AppDeviceBridge.Calendar.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Contacts/Shiny.AppDeviceBridge.Contacts.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Discovery/Shiny.AppDeviceBridge.Discovery.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Folders/Shiny.AppDeviceBridge.Folders.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Health/Shiny.AppDeviceBridge.Health.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.HttpTransfers/Shiny.AppDeviceBridge.HttpTransfers.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Jobs/Shiny.AppDeviceBridge.Jobs.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Locations/Shiny.AppDeviceBridge.Locations.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Notifications/Shiny.AppDeviceBridge.Notifications.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Obd/Shiny.AppDeviceBridge.Obd.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Photos/Shiny.AppDeviceBridge.Photos.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Push/Shiny.AppDeviceBridge.Push.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Speech/Shiny.AppDeviceBridge.Speech.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wifi/Shiny.AppDeviceBridge.Wifi.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -62,8 +64,8 @@
       <WebAppZip>$(IntermediateOutputPath)webapp.zip</WebAppZip>
     </PropertyGroup>
     <ItemGroup>
-      <WebAppSource Include="$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.razor;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.cs;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.css;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.js;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.html;$(MSBuildThisFileDirectory)../Sample.Blazor/*.csproj;$(MSBuildThisFileDirectory)../../src/Shiny.WebAppHost.Blazor/**/*.cs;$(MSBuildThisFileDirectory)../../src/Shiny.WebAppHost.Blazor/**/*.js"
-                    Exclude="$(MSBuildThisFileDirectory)../Sample.Blazor/bin/**;$(MSBuildThisFileDirectory)../Sample.Blazor/obj/**;$(MSBuildThisFileDirectory)../../src/Shiny.WebAppHost.Blazor/bin/**;$(MSBuildThisFileDirectory)../../src/Shiny.WebAppHost.Blazor/obj/**" />
+      <WebAppSource Include="$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.razor;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.cs;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.css;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.js;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.html;$(MSBuildThisFileDirectory)../Sample.Blazor/*.csproj;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Blazor/**/*.cs;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Blazor/**/*.js"
+                    Exclude="$(MSBuildThisFileDirectory)../Sample.Blazor/bin/**;$(MSBuildThisFileDirectory)../Sample.Blazor/obj/**;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Blazor/bin/**;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Blazor/obj/**" />
     </ItemGroup>
   </Target>
 

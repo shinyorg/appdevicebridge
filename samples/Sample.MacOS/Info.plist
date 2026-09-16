@@ -15,7 +15,7 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_http._tcp</string>
-		<string>_webapphost._tcp</string>
+		<string>_appdevicebridge._tcp</string>
 	</array>
 
 	<key>NSLocationUsageDescription</key>
@@ -32,6 +32,8 @@
 	<string>The sample web app turns what you say into text.</string>
 
 	<!-- Calendar bridge -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>The web app browses your photo library when you ask it to.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>The sample web app lists, adds and removes calendar events.</string>
 	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
@@ -42,7 +44,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>org.shinylib.webapphost.sample</string>
+			<string>org.shinylib.appdevicebridge.sample</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>sample</string>

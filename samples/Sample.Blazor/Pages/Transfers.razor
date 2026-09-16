@@ -1,5 +1,7 @@
 @page "/transfers"
 @inherits BridgePage
+@inject ITransfersBridge TransfersBridge
+@inject IFilesBridge FilesBridge
 
 <h1>Transfers</h1>
 <p class="muted">Background uploads and downloads that keep going when the app is suspended. Completion and failure also reach background.js.</p>
@@ -25,15 +27,15 @@
 <h2>Queue</h2>
 <div class="actions">
     <button @onclick="Refresh">List</button>
-    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("transfers")))'>Cancel all</button>
+    <button @onclick="@(() => Run(() => TransfersBridge.CancelAllAsync(), "Cancelled."))">Cancel all</button>
 </div>
 
 <ul class="list">
     @foreach (var transfer in live.Values.OrderBy(x => x.Id))
     {
         <li>
-            <strong>@transfer.Type</strong> @transfer.Path — @transfer.Status @Percent(transfer)
-            <button @onclick='@(() => Run(() => Bridge.DeleteAsync($"transfers/{transfer.Id}")))'>Cancel</button>
+            <strong>@transfer.Type</strong> @transfer.Path — @transfer.Status @(transfer.PercentComplete is { } p ? p.ToString("P0") : "")
+            <button @onclick="@(() => Run(() => TransfersBridge.CancelAsync(transfer.Id), "Cancelled."))">Cancel</button>
         </li>
     }
 </ul>
@@ -42,6 +44,8 @@
 <pre class="log">@log</pre>
 
 @code {
+    static TransfersJsonContext Json => TransfersJsonContext.Default;
+
     // httpbin echoes what it is sent, and serves bytes of any size: enough to watch progress move.
     string downloadUrl = "https://httpbin.org/bytes/5242880";
     string downloadPath = "downloads/random.bin";
@@ -49,79 +53,50 @@
     string uploadPath = "uploads/hello.txt";
     string log = String.Empty;
 
-    readonly Dictionary<string, Row> live = [];
+    readonly Dictionary<string, TransferInfo> live = [];
 
     protected override async Task OnInitializedAsync()
     {
-        await Listen("transfer.progress", e => Track(e));
-
-        foreach (var name in new[] { "transfer.completed", "transfer.failed", "transfer.cancelled" })
-        {
-            await Listen(name, e =>
-            {
-                log = Prepend(log, $"{DateTime.Now:T}  {name}  {e.GetRawText()}");
-
-                if (Text(e, "id") is { } id)
-                    live.Remove(id);
-            });
-        }
+        await Listen<TransferInfo>(TransfersBridge.OnProgressAsync, e => live[e.Id] = e);
+        await Listen<TransferInfo>(TransfersBridge.OnCompletedAsync, e => Finished("transfer.completed", e));
+        await Listen<TransferInfo>(TransfersBridge.OnFailedAsync, e => Finished("transfer.failed", e));
+        await Listen<TransferInfo>(TransfersBridge.OnCancelledAsync, e => Finished("transfer.cancelled", e));
     }
 
-    Task Download() => Run(async () => Track(await Bridge.PostAsync("transfers", new JsonObject
+    void Finished(string name, TransferInfo transfer)
     {
-        ["type"] = "Download",
-        ["url"] = downloadUrl,
-        ["root"] = "cache",
-        ["path"] = downloadPath
-    })));
+        log = Prepend(log, $"{DateTime.Now:T}  {name}  {Compact(transfer, Json.TransferInfo)}");
+        live.Remove(transfer.Id);
+    }
+
+    Task Download() => Run(async () =>
+        Track(await TransfersBridge.QueueAsync(new TransferRequest(TransferType.Download, downloadUrl, "cache", downloadPath))),
+        Json.TransferInfo);
 
     Task Upload() => Run(async () =>
     {
-        await Bridge.SendAsync(HttpMethod.Put, $"files/data/content?path={Uri.EscapeDataString(uploadPath)}", new StringContent($"Uploaded from Blazor at {DateTime.Now:O}"));
+        await FilesBridge.WriteTextAsync("data", uploadPath, $"Uploaded from Blazor at {DateTime.Now:O}");
 
-        return Track(await Bridge.PostAsync("transfers", new JsonObject
-        {
-            ["type"] = "UploadMultipart",
-            ["url"] = uploadUrl,
-            ["root"] = "data",
-            ["path"] = uploadPath,
-            ["formDataName"] = "file",
-            ["body"] = new JsonObject { ["content"] = """{ "from": "sample" }""", ["contentType"] = "application/json", ["formDataName"] = "meta" }
-        }));
-    });
+        return Track(await TransfersBridge.QueueAsync(new TransferRequest(
+            TransferType.UploadMultipart,
+            uploadUrl,
+            "data",
+            uploadPath,
+            FormDataName: "file",
+            Body: new TransferBody("""{ "from": "sample" }""", "application/json", "meta")
+        )));
+    }, Json.TransferInfo);
 
     Task Refresh() => Run(async () =>
     {
-        var result = await Bridge.GetAsync("transfers");
+        var result = await TransfersBridge.GetTransfersAsync();
+        live.Clear();
 
-        if (result is { } list && list.TryGetProperty("transfers", out var transfers))
-        {
-            live.Clear();
-
-            foreach (var transfer in transfers.EnumerateArray())
-                Track(transfer);
-        }
+        foreach (var transfer in result.Transfers)
+            Track(transfer);
 
         return result;
-    });
+    }, Json.TransferList);
 
-    JsonElement? Track(JsonElement? element)
-    {
-        if (element is { ValueKind: JsonValueKind.Object } e && Text(e, "id") is { } id)
-        {
-            live[id] = new Row(
-                id,
-                Text(e, "type") ?? "?",
-                Text(e, "path") ?? String.Empty,
-                Text(e, "status") ?? "?",
-                e.TryGetProperty("percentComplete", out var p) && p.ValueKind == JsonValueKind.Number ? p.GetDouble() : null
-            );
-        }
-
-        return element;
-    }
-
-    static string Percent(Row row) => row.PercentComplete is { } p ? $"{p:P0}" : String.Empty;
-
-    sealed record Row(string Id, string Type, string Path, string Status, double? PercentComplete);
+    TransferInfo Track(TransferInfo transfer) => live[transfer.Id] = transfer;
 }

@@ -7,7 +7,7 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <Authors>aritchie;ShinyLib</Authors>
-    <Product>Shiny.WebAppHost</Product>
+    <Product>Shiny.AppDeviceBridge</Product>
 
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/shinyorg/webapphost</RepositoryUrl>
@@ -21,7 +21,7 @@
 
     <!-- Nerdbank's default cache mode adds its PrivateP2PCaching project to every project graph, and dotnet watch
          refuses a graph where two projects share it ("An item with the same key has already been added") — which
-         breaks hot reload for Sample.Blazor and Shiny.WebAppHost.Blazor. Computing the version in each project
+         breaks hot reload for Sample.Blazor and Shiny.AppDeviceBridge.Blazor. Computing the version in each project
          instead costs a little build time and nothing else. -->
     <NBGV_CacheMode>None</NBGV_CacheMode>
   </PropertyGroup>

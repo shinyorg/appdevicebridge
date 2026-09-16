@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge</RootNamespace>
+    <Description>The update protocol shared by Shiny.AppDeviceBridge.Maui and Shiny.AppDeviceBridge.AspNetCore — release contracts, version ordering, and the ECDSA release signature both sides agree on.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+</Project>

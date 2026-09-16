@@ -1,7 +1,11 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Microsoft.JSInterop;
-using Shiny.WebAppHost.Blazor;
+using Shiny.AppDeviceBridge.Blazor;
+using Shiny.AppDeviceBridge.Client;
+using Shiny.AppDeviceBridge.HttpTransfers.Client;
+using Shiny.AppDeviceBridge.Locations.Client;
+using Shiny.AppDeviceBridge.Notifications.Client;
+using Shiny.AppDeviceBridge.Push.Client;
+using Shiny.AppDeviceBridge.TrayIcon.Client;
 
 namespace Sample.Blazor;
 
@@ -27,24 +31,24 @@ public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls)
 
         try
         {
-            await nativeCalls.HandleAsync("job:sync", async payload =>
+            await nativeCalls.HandleAsync("job:sync", AppDeviceBridgeJsonContext.Default.JobRun, SampleJson.Default.JobResult, async job =>
             {
-                this.Record("job:sync", payload);
+                this.Record("job:sync", job.Name);
                 await Task.Delay(250);    // stands in for real work
-                return new JsonObject { ["ranIn"] = "page" };
+                return new JobResult(RanIn: "page");
             });
 
-            await nativeCalls.HandleAsync("gps", payload => this.Recorded("gps", payload));
-            await nativeCalls.HandleAsync("geofence", payload => this.Recorded("geofence", payload));
-            await nativeCalls.HandleAsync("motion", payload => this.Recorded("motion", payload));
-            await nativeCalls.HandleAsync("push.received", payload => this.Recorded("push.received", payload));
-            await nativeCalls.HandleAsync("push.entry", payload => this.Recorded("push.entry", payload));
-            await nativeCalls.HandleAsync("notification.entry", payload => this.Recorded("notification.entry", payload));
-            await nativeCalls.HandleAsync("notification.received", payload => this.Recorded("notification.received", payload));
-            await nativeCalls.HandleAsync("tray.click", payload => this.Recorded("tray.click", payload));
-            await nativeCalls.HandleAsync("tray.menu", payload => this.Recorded("tray.menu", payload));
-            await nativeCalls.HandleAsync("transfer.completed", payload => this.Recorded("transfer.completed", payload));
-            await nativeCalls.HandleAsync("transfer.failed", payload => this.Recorded("transfer.failed", payload));
+            await this.Record("gps", LocationsJsonContext.Default.GpsReading, x => $"{x.Latitude:0.0000}, {x.Longitude:0.0000}");
+            await this.Record("geofence", LocationsJsonContext.Default.GeofenceStatus, x => $"{x.Identifier} {x.State}");
+            await this.Record("motion", LocationsJsonContext.Default.MotionActivity, x => $"{x.Activity} ({x.Confidence})");
+            await this.Record("push.received", PushJsonContext.Default.PushPayload, x => x.Title ?? x.Message ?? "(data only)");
+            await this.Record("push.entry", PushJsonContext.Default.PushPayload, x => x.Title ?? x.Message ?? "(data only)");
+            await this.Record("notification.entry", NotificationsJsonContext.Default.NotificationEvent, x => $"{x.Id} {x.Action ?? x.Title}");
+            await this.Record("notification.received", NotificationsJsonContext.Default.NotificationEvent, x => $"{x.Id} {x.Title}");
+            await this.Record("tray.click", TrayJsonContext.Default.TrayClick, x => $"{x.Id} {x.Button}");
+            await this.Record("tray.menu", TrayJsonContext.Default.TrayMenuSelection, x => $"{x.Id} {x.ItemId}");
+            await this.Record("transfer.completed", TransfersJsonContext.Default.TransferInfo, x => $"{x.Type} {x.Path}");
+            await this.Record("transfer.failed", TransfersJsonContext.Default.TransferInfo, x => $"{x.Type} {x.Path}: {x.Error}");
         }
         catch (JSException ex)
         {
@@ -53,15 +57,16 @@ public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls)
         }
     }
 
-    Task Recorded(string name, JsonElement payload)
-    {
-        this.Record(name, payload);
-        return Task.CompletedTask;
-    }
+    Task<IAsyncDisposable> Record<T>(string name, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> payload, Func<T, string> describe)
+        => nativeCalls.HandleAsync(name, payload, x =>
+        {
+            this.Record(name, describe(x));
+            return Task.CompletedTask;
+        });
 
-    void Record(string name, JsonElement payload)
+    void Record(string name, string detail)
     {
-        this.log.Insert(0, $"{DateTime.Now:T}  {name}  {payload.GetRawText()}");
+        this.log.Insert(0, $"{DateTime.Now:T}  {name}  {detail}");
 
         if (this.log.Count > 50)
             this.log.RemoveAt(this.log.Count - 1);

@@ -1,0 +1,28 @@
+{
+    "solution": {
+        "path": "Shiny.AppDeviceBridge.slnx",
+        "projects": [
+            "src/Shiny.AppDeviceBridge.AspNetCore/Shiny.AppDeviceBridge.AspNetCore.csproj",
+            "src/Shiny.AppDeviceBridge.Blazor/Shiny.AppDeviceBridge.Blazor.csproj",
+            "src/Shiny.AppDeviceBridge.AppLinks/Shiny.AppDeviceBridge.AppLinks.csproj",
+            "src/Shiny.AppDeviceBridge.AppSupport/Shiny.AppDeviceBridge.AppSupport.csproj",
+            "src/Shiny.AppDeviceBridge.BluetoothLE/Shiny.AppDeviceBridge.BluetoothLE.csproj",
+            "src/Shiny.AppDeviceBridge.Calendar/Shiny.AppDeviceBridge.Calendar.csproj",
+            "src/Shiny.AppDeviceBridge.Contacts/Shiny.AppDeviceBridge.Contacts.csproj",
+            "src/Shiny.AppDeviceBridge.Discovery/Shiny.AppDeviceBridge.Discovery.csproj",
+            "src/Shiny.AppDeviceBridge.Health/Shiny.AppDeviceBridge.Health.csproj",
+            "src/Shiny.AppDeviceBridge.HttpTransfers/Shiny.AppDeviceBridge.HttpTransfers.csproj",
+            "src/Shiny.AppDeviceBridge.Jobs/Shiny.AppDeviceBridge.Jobs.csproj",
+            "src/Shiny.AppDeviceBridge.Locations/Shiny.AppDeviceBridge.Locations.csproj",
+            "src/Shiny.AppDeviceBridge.Notifications/Shiny.AppDeviceBridge.Notifications.csproj",
+            "src/Shiny.AppDeviceBridge.Obd/Shiny.AppDeviceBridge.Obd.csproj",
+            "src/Shiny.AppDeviceBridge.Push/Shiny.AppDeviceBridge.Push.csproj",
+            "src/Shiny.AppDeviceBridge.Speech/Shiny.AppDeviceBridge.Speech.csproj",
+            "src/Shiny.AppDeviceBridge.TrayIcon/Shiny.AppDeviceBridge.TrayIcon.csproj",
+            "src/Shiny.AppDeviceBridge.Wifi/Shiny.AppDeviceBridge.Wifi.csproj",
+            "src/Shiny.AppDeviceBridge.Core/Shiny.AppDeviceBridge.Core.csproj",
+            "src/Shiny.AppDeviceBridge.Maui/Shiny.AppDeviceBridge.Maui.csproj",
+            "src/Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj"
+        ]
+    }
+}

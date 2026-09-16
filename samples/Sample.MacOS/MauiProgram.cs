@@ -1,6 +1,6 @@
 using Microsoft.Maui.Platforms.MacOS.Essentials;
 using Microsoft.Maui.Platforms.MacOS.Hosting;
-using Shiny.WebAppHost.Bridge.TrayIcon;
+using Shiny.AppDeviceBridge.TrayIcon;
 
 namespace Sample.MacOS;
 

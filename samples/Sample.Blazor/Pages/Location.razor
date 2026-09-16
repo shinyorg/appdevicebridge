@@ -1,5 +1,8 @@
 @page "/location"
 @inherits BridgePage
+@inject IGpsBridge GpsBridge
+@inject IGeofencesBridge GeofencesBridge
+@inject IMotionBridge MotionBridge
 
 <h1>Location</h1>
 
@@ -7,14 +10,14 @@
 <div class="actions">
     <button @onclick="Current">Current position</button>
     <button @onclick="StartListening">Listen (background)</button>
-    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("gps/listener")))'>Stop</button>
+    <button @onclick="@(() => Run(() => GpsBridge.StopListenerAsync(), "Stopped."))">Stop</button>
 </div>
 
 <h2>Geofences</h2>
 <div class="actions">
     <button @onclick="WatchHere">Watch 200 m around me</button>
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("geofences/regions")))'>Regions</button>
-    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("geofences/regions")))'>Clear</button>
+    <button @onclick="@(() => Run(() => GeofencesBridge.GetRegionsAsync(), Json.IReadOnlyListGeofenceRegion))">Regions</button>
+    <button @onclick="@(() => Run(() => GeofencesBridge.StopAllMonitoringAsync(), "Cleared."))">Clear</button>
 </div>
 
 <h2>Motion activity</h2>
@@ -22,60 +25,58 @@
 <div class="actions">
     <button @onclick="CurrentActivity">Current activity</button>
     <button @onclick="ListenForActivity">Listen</button>
-    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("motion/listener")))'>Stop</button>
+    <button @onclick="@(() => Run(() => MotionBridge.StopListenerAsync(), "Stopped."))">Stop</button>
 </div>
 
 <Output Value="@Output" Error="@Error" />
 
 @code {
+    static LocationsJsonContext Json => LocationsJsonContext.Default;
+
+    // Standard background mode: readings keep arriving with the app in the background, where they go to the gps
+    // handler — this page's if it is open, background.js's if not.
+    static readonly GpsListenerSettings Background = new(GpsBackgroundMode.Standard);
+
     protected override async Task OnInitializedAsync()
     {
-        await Listen("gps.reading", e => Output = ((JsonElement?)e).ToIndentedJson());
-        await Listen("motion.activity", e => Output = ((JsonElement?)e).ToIndentedJson());
+        await Listen<GpsReading>(GpsBridge.OnReadingAsync, e => Output = Compact(e, Json.GpsReading));
+        await Listen<MotionActivity>(MotionBridge.OnActivityAsync, e => Output = Compact(e, Json.MotionActivity));
     }
 
     Task CurrentActivity() => Run(async () =>
     {
-        await Bridge.PostAsync("motion/access");
-        return await Bridge.GetAsync("motion/current");
-    });
+        await MotionBridge.RequestAccessAsync();
+        return await MotionBridge.GetCurrentAsync();
+    }, Json.MotionActivity);
 
     Task ListenForActivity() => Run(async () =>
     {
-        await Bridge.PostAsync("motion/access");
-        await Bridge.PostAsync("motion/listener");
-        return await Bridge.GetAsync("motion/listener");
-    });
+        await MotionBridge.RequestAccessAsync();
+        await MotionBridge.StartListenerAsync();
+        return await MotionBridge.GetListenerAsync();
+    }, Json.MotionListener);
 
     Task Current() => Run(async () =>
     {
-        await Bridge.PostAsync("gps/access");
-        return await Bridge.GetAsync("gps/current");
-    });
+        await GpsBridge.RequestAccessAsync(new GpsListenerSettings());
+        return await GpsBridge.GetCurrentPositionAsync();
+    }, Json.GpsReading);
 
-    // Standard background mode: readings keep arriving with the app in the background, where they go to the
-    // gps handler — this page's if it is open, background.js's if not.
     Task StartListening() => Run(async () =>
     {
-        await Bridge.PostAsync("gps/access", new JsonObject { ["backgroundMode"] = "Standard" });
-        return await Bridge.PostAsync("gps/listener", new JsonObject { ["backgroundMode"] = "Standard" });
-    });
+        await GpsBridge.RequestAccessAsync(Background);
+        await GpsBridge.StartListenerAsync(Background);
+        return await GpsBridge.GetListenerAsync();
+    }, Json.GpsListenerSettings);
 
     Task WatchHere() => Run(async () =>
     {
-        await Bridge.PostAsync("gps/access");
-        await Bridge.PostAsync("geofences/access");
+        await GpsBridge.RequestAccessAsync(new GpsListenerSettings());
+        await GeofencesBridge.RequestAccessAsync();
 
-        var here = await Bridge.GetAsync("gps/current") ?? throw new InvalidOperationException("No position yet.");
+        var here = await GpsBridge.GetCurrentPositionAsync() ?? throw new InvalidOperationException("No position yet.");
+        await GeofencesBridge.StartMonitoringAsync(new GeofenceRegion("sample-here", here.Latitude, here.Longitude, 200));
 
-        await Bridge.PostAsync("geofences/regions", new JsonObject
-        {
-            ["identifier"] = "sample-here",
-            ["latitude"] = here.GetProperty("latitude").GetDouble(),
-            ["longitude"] = here.GetProperty("longitude").GetDouble(),
-            ["radiusMeters"] = 200
-        });
-
-        return await Bridge.GetAsync("geofences/regions");
-    });
+        return await GeofencesBridge.GetRegionsAsync();
+    }, Json.IReadOnlyListGeofenceRegion);
 }

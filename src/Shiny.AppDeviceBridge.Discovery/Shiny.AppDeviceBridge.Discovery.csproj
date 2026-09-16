@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net10.0 only: AddMdns, AddSsdp and AddWsDiscovery have one signature on every target and need no Shiny
+         host, so each head's own platform build of Shiny.Net.Discovery is what runs. UseMaui is only for
+         MauiAppBuilder. -->
+    <UseMaui>true</UseMaui>
+    <SingleProject>false</SingleProject>
+    <RootNamespace>Shiny.AppDeviceBridge.Discovery</RootNamespace>
+    <Description>Local network discovery for a Shiny.AppDeviceBridge web app, backed by Shiny.Net.Discovery — mDNS/DNS-SD (Bonjour), SSDP/UPnP and WS-Discovery (ONVIF): one-shot searches, live browsing streamed to the page as events, resolving, and publishing. One call: builder.AddDiscoveryBridge().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Shiny.Net.Discovery" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Discovery.Client/Shiny.AppDeviceBridge.Discovery.Client.csproj" />
+  </ItemGroup>
+
+</Project>

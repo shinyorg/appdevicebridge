@@ -1,21 +1,22 @@
 @page "/discovery"
 @inherits BridgePage
+@inject IDiscoveryBridge DiscoveryBridge
 
 <h1>Discovery</h1>
 
 <h2>mDNS / Bonjour</h2>
 <div class="form">
     <input @bind="serviceType" placeholder="_http._tcp" />
-    <button @onclick="SearchMdns">Search</button>
-    <button @onclick="BrowseMdns">Browse</button>
+    <button @onclick="@(() => Run(() => DiscoveryBridge.SearchMdnsAsync(new MdnsSearchRequest(serviceType, ScanMs: 4000)), Json.IReadOnlyListMdnsService))">Search</button>
+    <button @onclick="@(() => Run(() => DiscoveryBridge.BrowseMdnsAsync(new MdnsSearchRequest(serviceType)), Json.DiscoveryBrowse))">Browse</button>
     <button @onclick="PublishSelf">Advertise this app</button>
 </div>
 
 <h2>SSDP and WS-Discovery</h2>
 <div class="actions">
-    <button @onclick='@(() => Run(() => Bridge.PostAsync("discovery/ssdp/search", new JsonObject { ["searchTarget"] = "ssdp:all" })))'>UPnP devices</button>
+    <button @onclick="@(() => Run(() => DiscoveryBridge.SearchSsdpAsync(new SsdpSearchRequest("ssdp:all")), Json.IReadOnlyListSsdpDevice))">UPnP devices</button>
     <button @onclick="OnvifCameras">ONVIF cameras</button>
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("discovery/publications")))'>Publications</button>
+    <button @onclick="@(() => Run(() => DiscoveryBridge.GetPublicationsAsync(), Json.IReadOnlyListDiscoveryPublication))">Publications</button>
     <button @onclick="StopBrowsing">Stop browsing</button>
 </div>
 
@@ -23,41 +24,31 @@
 <pre class="log">@log</pre>
 
 @code {
+    static DiscoveryJsonContext Json => DiscoveryJsonContext.Default;
+
     string serviceType = "_http._tcp";
     string log = String.Empty;
 
-    protected override Task OnInitializedAsync() => Listen("discovery.mdns", e =>
-    {
-        var service = e.GetProperty("service");
-        log = Prepend(log, $"{Text(e, "status")}  {Text(service, "fullName")}  {service.GetProperty("port").GetInt32()}");
-    });
-
-    Task SearchMdns() => Run(() => Bridge.PostAsync("discovery/mdns/search", new JsonObject { ["serviceType"] = serviceType, ["scanMs"] = 4000 }));
-
-    Task BrowseMdns() => Run(() => Bridge.PostAsync("discovery/mdns/browse", new JsonObject { ["serviceType"] = serviceType }));
+    protected override Task OnInitializedAsync() => Listen<MdnsBrowseResult>(DiscoveryBridge.OnMdnsAsync, e =>
+        log = Prepend(log, $"{e.Status}  {e.Service.FullName}  {e.Service.Port}"));
 
     // iOS only lets the app advertise and browse types listed in NSBonjourServices; the sample lists this one.
-    Task PublishSelf() => Run(() => Bridge.PostAsync("discovery/mdns/publications", new JsonObject
-    {
-        ["instanceName"] = "WebAppHost Sample",
-        ["serviceType"] = "_webapphost._tcp",
-        ["port"] = 5780,
-        ["txtRecords"] = new JsonObject { ["app"] = "sample" }
-    }));
+    Task PublishSelf() => Run(() => DiscoveryBridge.PublishMdnsAsync(new MdnsPublishRequest(
+        "AppDeviceBridge Sample",
+        "_appdevicebridge._tcp",
+        5780,
+        TxtRecords: new Dictionary<string, string> { ["app"] = "sample" }
+    )), Json.DiscoveryPublication);
 
-    Task OnvifCameras() => Run(() => Bridge.PostAsync("discovery/wsd/search", new JsonObject
-    {
-        ["types"] = new JsonArray(new JsonObject { ["name"] = "NetworkVideoTransmitter", ["namespace"] = "http://www.onvif.org/ver10/network/wsdl" })
-    }));
+    Task OnvifCameras() => Run(() => DiscoveryBridge.SearchWsdAsync(new WsdSearchRequest(
+        Types: [new WsdQualifiedName("NetworkVideoTransmitter", "http://www.onvif.org/ver10/network/wsdl")]
+    )), Json.IReadOnlyListWsdTarget);
 
     Task StopBrowsing() => Run(async () =>
     {
-        if (await Bridge.GetAsync("discovery/browses") is { } browses)
-        {
-            foreach (var browse in browses.EnumerateArray())
-                await Bridge.DeleteAsync($"discovery/browses/{Text(browse, "id")}");
-        }
+        foreach (var browse in await DiscoveryBridge.GetBrowsesAsync())
+            await DiscoveryBridge.StopBrowseAsync(browse.Id);
 
-        return await Bridge.GetAsync("discovery/browses");
-    });
+        return await DiscoveryBridge.GetBrowsesAsync();
+    }, Json.IReadOnlyListDiscoveryBrowse);
 }

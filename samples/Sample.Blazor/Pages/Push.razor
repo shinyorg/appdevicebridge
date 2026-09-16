@@ -1,24 +1,31 @@
 @page "/push"
 @inherits BridgePage
+@inject IPushBridge PushBridge
 
 <h1>Push</h1>
 <p class="muted">Needs the platform's push setup — APNs entitlements on Apple platforms, google-services.json on Android — before registration can succeed.</p>
 
 <div class="actions">
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("push")))'>Status and token</button>
-    <button @onclick='@(() => Run(() => Bridge.PostAsync("push/registration")))'>Register</button>
-    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("push/registration")))'>Unregister</button>
+    <button @onclick="@(() => Run(() => PushBridge.GetStatusAsync(), Json.PushStatus))">Status and token</button>
+    <button @onclick="@(() => Run(() => PushBridge.RegisterAsync(), Json.PushStatus))">Register</button>
+    <button @onclick="@(() => Run(() => PushBridge.UnregisterAsync(), "Unregistered."))">Unregister</button>
 </div>
 
 <Output Value="@Output" Error="@Error" />
 <pre class="log">@log</pre>
 
 @code {
+    static PushJsonContext Json => PushJsonContext.Default;
+
     string log = String.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        foreach (var name in new[] { "push.token", "push.unregistered", "push.received", "push.entry" })
-            await Listen(name, e => log = Prepend(log, $"{DateTime.Now:T}  {name}  {e.GetRawText()}"));
+        await Listen<PushTokenEvent>(PushBridge.OnTokenAsync, e => Log("push.token", Compact(e, Json.PushTokenEvent)));
+        await Listen<PushTokenEvent>(PushBridge.OnUnregisteredAsync, e => Log("push.unregistered", Compact(e, Json.PushTokenEvent)));
+        await Listen<PushPayload>(PushBridge.OnReceivedAsync, e => Log("push.received", Compact(e, Json.PushPayload)));
+        await Listen<PushPayload>(PushBridge.OnEntryAsync, e => Log("push.entry", Compact(e, Json.PushPayload)));
     }
+
+    void Log(string name, string payload) => log = Prepend(log, $"{DateTime.Now:T}  {name}  {payload}");
 }

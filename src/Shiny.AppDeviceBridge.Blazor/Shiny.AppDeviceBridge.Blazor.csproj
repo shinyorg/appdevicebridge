@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Blazor</RootNamespace>
+    <Description>Blazor WebAssembly transport for a web app hosted by Shiny.AppDeviceBridge — what every typed bridge client (Shiny.AppDeviceBridge.*.Client) sends through, plus native events and native calls (background jobs, GPS, geofences, push) handled in C# while the page is open.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Client/Shiny.AppDeviceBridge.Client.csproj" />
+  </ItemGroup>
+
+</Project>

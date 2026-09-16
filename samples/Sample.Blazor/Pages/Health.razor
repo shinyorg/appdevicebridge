@@ -1,55 +1,53 @@
 @page "/health"
 @inherits BridgePage
+@inject IHealthBridge HealthBridge
 
 <h1>Health</h1>
 <p class="muted">HealthKit on iOS, Health Connect on Android. Needs the HealthKit entitlement, or Health Connect installed with the health permissions declared.</p>
 
 <div class="actions">
-    <button @onclick='@(() => Run(() => Bridge.GetAsync("health")))'>Status</button>
+    <button @onclick="@(() => Run(() => HealthBridge.GetStatusAsync(), Json.HealthStatus))">Status</button>
     <button @onclick="RequestAccess">Request steps and heart rate</button>
     <button @onclick="StepsToday">Steps today, by hour</button>
     <button @onclick="HeartRateWeek">Heart rate, last 7 days</button>
 </div>
 
 <div class="actions">
-    <button @onclick="StartWatching">Watch steps</button>
-    <button @onclick='@(() => Run(() => Bridge.DeleteAsync("health/listeners/StepCount")))'>Stop</button>
+    <button @onclick="@(() => Run(() => HealthBridge.StartListeningAsync(HealthDataType.StepCount, new()), Json.HealthListener))">Watch steps</button>
+    <button @onclick="@(() => Run(() => HealthBridge.StopListeningAsync(HealthDataType.StepCount), "Stopped."))">Stop</button>
 </div>
 
 <Output Value="@Output" Error="@Error" />
 <pre class="log">@log</pre>
 
 @code {
+    static HealthJsonContext Json => HealthJsonContext.Default;
+
     string log = String.Empty;
 
     protected override async Task OnInitializedAsync()
     {
-        foreach (var name in new[] { "health.reading", "health.stopped" })
-            await Listen(name, e => log = Prepend(log, $"{DateTime.Now:T}  {name}  {e.GetRawText()}"));
+        await Listen<HealthReading>(HealthBridge.OnReadingAsync, e => Log("health.reading", Compact(e, Json.HealthReading)));
+        await Listen<HealthListenerStopped>(HealthBridge.OnStoppedAsync, e => Log("health.stopped", Compact(e, Json.HealthListenerStopped)));
     }
 
-    Task RequestAccess() => Run(() => Bridge.PostAsync("health/access", new JsonObject
-    {
-        ["permissions"] = new JsonArray(
-            new JsonObject { ["type"] = "StepCount", ["access"] = "Read" },
-            new JsonObject { ["type"] = "HeartRate", ["access"] = "Read" }
-        )
-    }));
+    void Log(string name, string payload) => log = Prepend(log, $"{DateTime.Now:T}  {name}  {payload}");
+
+    Task RequestAccess() => Run(() => HealthBridge.RequestAccessAsync(new HealthAccessRequest(
+    [
+        new HealthPermission(HealthDataType.StepCount),
+        new HealthPermission(HealthDataType.HeartRate)
+    ])), Json.HealthAccessResults);
 
     Task StepsToday()
     {
         var now = DateTimeOffset.Now;
-        return Run(() => Bridge.GetAsync(Samples("StepCount", new DateTimeOffset(now.Date, now.Offset), now, "hours")));
+        return Run(() => HealthBridge.GetSamplesAsync(HealthDataType.StepCount, new DateTimeOffset(now.Date, now.Offset), now, HealthInterval.Hours), Json.HealthSamples);
     }
 
     Task HeartRateWeek()
     {
         var now = DateTimeOffset.Now;
-        return Run(() => Bridge.GetAsync(Samples("HeartRate", now.AddDays(-7), now, "days")));
+        return Run(() => HealthBridge.GetSamplesAsync(HealthDataType.HeartRate, now.AddDays(-7), now), Json.HealthSamples);
     }
-
-    Task StartWatching() => Run(() => Bridge.PostAsync("health/listeners/StepCount"));
-
-    static string Samples(string type, DateTimeOffset start, DateTimeOffset end, string interval)
-        => $"health/samples/{type}?start={Uri.EscapeDataString(start.ToString("O"))}&end={Uri.EscapeDataString(end.ToString("O"))}&interval={interval}";
 }

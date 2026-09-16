@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>Shiny.AppDeviceBridge.Tests</RootNamespace>
+
+    <!-- xunit v3 runs on Microsoft.Testing.Platform: the test assembly is its own runner. -->
+    <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Microsoft.Testing.Extensions.TrxReport" />
+    <PackageReference Include="Microsoft.AspNetCore.TestHost" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+  </ItemGroup>
+
+  <!--
+    A web app zipped into the test assembly, exactly as a real app embeds its own: it is what proves an app
+    can ship with nothing but an embedded build — no update server, no manifest, no signing key.
+  -->
+  <Target Name="EmbedBaseline" BeforeTargets="AssignTargetPaths">
+    <PropertyGroup>
+      <BaselineZip>$(IntermediateOutputPath)baseline.zip</BaselineZip>
+    </PropertyGroup>
+    <ZipDirectory SourceDirectory="$(MSBuildThisFileDirectory)baseline" DestinationFile="$(BaselineZip)" Overwrite="true" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(BaselineZip)" LogicalName="Shiny.AppDeviceBridge.Tests.baseline.zip" Visible="false" />
+    </ItemGroup>
+  </Target>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Core/Shiny.AppDeviceBridge.Core.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AspNetCore/Shiny.AppDeviceBridge.AspNetCore.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Blazor/Shiny.AppDeviceBridge.Blazor.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Client/Shiny.AppDeviceBridge.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Calendar.Client/Shiny.AppDeviceBridge.Calendar.Client.csproj" />
+    <ProjectReference Include="../../tools/Shiny.AppDeviceBridge.TypeScript/Shiny.AppDeviceBridge.TypeScript.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Folders/Shiny.AppDeviceBridge.Folders.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Photos/Shiny.AppDeviceBridge.Photos.csproj" />
+    <!-- As an analyzer, for the test-only [BridgeClient] interface; and as an assembly, to run it against bad declarations. -->
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Client.SourceGenerators/Shiny.AppDeviceBridge.Client.SourceGenerators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
+  </ItemGroup>
+
+  <!-- The page-side script, run under Jint by BlazorInteropTests: the file that ships, not a copy of it. -->
+  <ItemGroup>
+    <None Include="../../src/Shiny.AppDeviceBridge.Blazor/wwwroot/appdevicebridge.js" Link="appdevicebridge.js" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
