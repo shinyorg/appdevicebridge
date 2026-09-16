@@ -83,8 +83,9 @@ public sealed class WebAppHost : IAsyncDisposable
 
         this.serverOptions = new HttpServerOptions
         {
-            // Loopback, always. Nothing here is meant for the network.
-            Address = IPAddress.Loopback,
+            // Loopback unless the app opened it. Even then the guard keeps every bridge on this device
+            // until RemoteAccess names it.
+            Address = options.RemoteAccess.Enabled ? options.RemoteAccess.Address : IPAddress.Loopback,
             Port = options.Port
         };
 
@@ -112,6 +113,25 @@ public sealed class WebAppHost : IAsyncDisposable
 
         foreach (var bridge in this.bridges)
             bridge.Map(new WebAppBridgeRoutes(this.server, bridge.Name, events));
+
+        this.WarnAboutUnknownRemoteBridges();
+    }
+
+    /// <summary>
+    /// A name in the remote allowlist that matches no bridge opens nothing, and a typo would otherwise be
+    /// silent. Logged rather than thrown, because bridges legitimately vary by platform — the tray exists on
+    /// desktop and nowhere else.
+    /// </summary>
+    void WarnAboutUnknownRemoteBridges()
+    {
+        var allowlist = this.options.RemoteAccess.Bridges;
+        if (allowlist.Count == 0)
+            return;
+
+        HashSet<string> known = new(this.bridges.Select(x => x.Name), StringComparer.OrdinalIgnoreCase) { "host", "events" };
+
+        foreach (var name in allowlist.Where(x => !known.Contains(x)))
+            this.logger.LogWarning("RemoteAccess allows the bridge '{Bridge}', but no bridge by that name is registered", name);
     }
 
     public WebAppUpdater Updater { get; }
@@ -475,6 +495,14 @@ public sealed class WebAppHost : IAsyncDisposable
     {
         var request = context.Request;
 
+        // Where the connection came from decides which set of rules applies. Everything that is not this
+        // device is "remote", including a machine on the same LAN and a null address we cannot vouch for.
+        if (!IsLocal(context.Connection.RemoteIpAddress))
+        {
+            await this.GuardRemoteAsync(context, next);
+            return;
+        }
+
         if (!this.IsOwnHost(request.Host))
         {
             // 421 Misdirected Request: the connection reached this server under a name that is not its own.
@@ -532,6 +560,115 @@ public sealed class WebAppHost : IAsyncDisposable
 
         await this.staticFiles.InvokeAsync(context, next);
     }
+
+    /// <summary>
+    /// A request from another machine. It has no session — the launch token is handed to this device's WebView
+    /// and never leaves it — so the allowlist is the whole of the authorization: a bridge answers only if the
+    /// app named it, and everything else is refused.
+    /// </summary>
+    async ValueTask GuardRemoteAsync(HttpContext context, RequestDelegate next)
+    {
+        var access = this.options.RemoteAccess;
+        var request = context.Request;
+
+        // Belt and braces: with RemoteAccess off the listener is on loopback and this is unreachable.
+        if (!access.Enabled)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
+        // An IP literal by default, so a hostile site that points its own name at this device arrives under
+        // that name and is turned away instead of reading the response as its own origin.
+        if (this.origin is not { } current || !access.IsAllowedHost(request.Host, current.Port))
+        {
+            context.Response.StatusCode = 421;
+            return;
+        }
+
+        if (request.Path == WebAppSession.PingPath)
+        {
+            context.Response.StatusCode = StatusCodes.Status204NoContent;
+            return;
+        }
+
+        // The session belongs to this device's WebView; handing a launch token to the network would undo the
+        // point of having one.
+        if (request.Path == WebAppSession.StartPath)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
+        if (access.Authorize is { } authorize && !authorize(context))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return;
+        }
+
+        if (WebAppRemoteAccessOptions.BridgeName(request.Path) is { } bridge)
+        {
+            if (!access.IsBridgeAllowed(bridge))
+            {
+                await WebAppBridgeResults.Error(
+                    context,
+                    StatusCodes.Status403Forbidden,
+                    "remote_denied",
+                    $"The '{bridge}' bridge is only available on the device running this app."
+                );
+                return;
+            }
+
+            // A browser reaching this from another origin would be a cross-site call with no cookie to stop
+            // it, so an Origin that is not this server's own is refused. Clients that are not browsers send
+            // none and are unaffected.
+            var requestOrigin = request.Headers["Origin"];
+            if (!StringValues.IsNullOrEmpty(requestOrigin) && !IsSameOrigin(requestOrigin.ToString(), request.Host))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return;
+            }
+
+            try
+            {
+                await next(context);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException && !context.Response.HasStarted)
+            {
+                this.logger.LogError(ex, "Remote bridge call {Method} {Path} failed", request.Method, request.Path);
+                await WebAppBridgeResults.Error(context, StatusCodes.Status500InternalServerError, "bridge_failed", "The native call failed.");
+            }
+
+            return;
+        }
+
+        if (!access.ServeWebApp)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+
+        // Always the installed build, never the dev server: that proxy exists so this device's WebView can
+        // reach a machine on the developer's desk, and is not something to relay for the network.
+        await this.staticFiles.InvokeAsync(context, next);
+    }
+
+    /// <summary>Loopback, in either address family and through an IPv4-mapped IPv6 address.</summary>
+    internal static bool IsLocal(IPAddress? address)
+    {
+        if (address is null)
+            return false;
+
+        if (address.IsIPv4MappedToIPv6)
+            address = address.MapToIPv4();
+
+        return IPAddress.IsLoopback(address);
+    }
+
+    static bool IsSameOrigin(string value, string? host)
+        => Uri.TryCreate(value, UriKind.Absolute, out var candidate)
+           && candidate.Scheme == Uri.UriSchemeHttp
+           && String.Equals($"{candidate.Host}:{candidate.Port}", host, StringComparison.OrdinalIgnoreCase);
 
     void BeginSession(HttpContext context)
     {

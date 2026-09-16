@@ -158,7 +158,28 @@ public sealed class WebAppHostOptions
     /// <summary>Supplies the handler for update checks and downloads — for certificate pinning, a proxy, or tests.</summary>
     public Func<HttpMessageHandler>? HttpMessageHandlerFactory { get; set; }
 
-    public WebAppHostOptions UseBaseline(Assembly assembly, string resourceName, string version)
+    /// <summary>
+    /// Whether, and how far, the server is open to other machines. Loopback only until you say otherwise, and
+    /// every bridge stays loopback-only even then until it is named. See <see cref="WebAppRemoteAccessOptions"/>.
+    /// </summary>
+    public WebAppRemoteAccessOptions RemoteAccess { get; } = new();
+
+    /// <summary>
+    /// The web app to serve, as a zip compiled into <paramref name="assembly"/>. This alone is a complete
+    /// setup — with no <see cref="UpdateServer"/> there is no check, no manifest and no signing key, and the
+    /// embedded build is simply what the app serves.
+    /// <code>
+    /// o.AppId = "field-app";
+    /// o.UseBaseline(typeof(App).Assembly, "MyApp.webapp.zip");
+    /// </code>
+    /// </summary>
+    /// <param name="assembly">The assembly the zip is compiled into.</param>
+    /// <param name="resourceName">The resource's manifest name — its <c>LogicalName</c> when one is set.</param>
+    /// <param name="version">
+    /// What the embedded build is called. Only ordering against downloads needs it, so it defaults to
+    /// <c>1.0.0</c>; set it once you have an <see cref="UpdateServer"/> to compare against.
+    /// </param>
+    public WebAppHostOptions UseBaseline(Assembly assembly, string resourceName, string version = "1.0.0")
     {
         ArgumentNullException.ThrowIfNull(assembly);
         ArgumentException.ThrowIfNullOrWhiteSpace(resourceName);
@@ -225,6 +246,15 @@ public sealed class WebAppHostOptions
 
         if (this.Port is < 0 or > 65535)
             throw new InvalidOperationException($"WebAppHostOptions.Port {this.Port} is out of range.");
+
+        foreach (var name in this.RemoteAccess.Bridges)
+        {
+            if (!WebAppProtocol.IsValidAppId(name))
+                throw new InvalidOperationException($"RemoteAccess bridge name '{name}' is not valid.");
+        }
+
+        if (this.RemoteAccess is { Enabled: false } remote && (remote.Bridges.Count > 0 || remote.ServeWebApp))
+            throw new InvalidOperationException("RemoteAccess names bridges or serves the web app, but RemoteAccess.Enabled is false — nothing off this device can reach the server.");
     }
 
     static string DetectPlatform()

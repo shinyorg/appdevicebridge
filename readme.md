@@ -85,6 +85,18 @@ public class App : Application
 }
 ```
 
+Updates are optional. Without an `UpdateServer` nothing is checked, downloaded or signed, and the app
+simply serves the zip compiled into it — which is a complete setup on its own:
+
+```csharp
+o.AppId = "field-app";
+o.UseBaseline(typeof(App).Assembly, "webapp.zip");   // version defaults to 1.0.0
+```
+
+There is no manifest, no signing key and no network at any point; the install directory is never even
+created. Add `UpdateServer` and `PublicKey` later and the embedded build becomes the floor that
+downloads are compared against, which is when the `version` argument starts to matter.
+
 Each bridge extension also registers the Shiny service behind it, and calls `UseShiny()` if nothing
 has yet. Don't add `AddGps()`, `AddGeofencing()` or `AddBluetoothLE()` yourself. Where a platform has
 no implementation, that bridge's endpoints return `501` and `GET /_bridge/host` reports it as
@@ -119,6 +131,7 @@ Plus the usage descriptions and permissions for whichever bridges you add.
 | `Channel` | stable | Follow a prerelease channel such as `beta`. |
 | `BlockOnRequiredUpdateFailure` | `false` | By default, a required download that fails midway is treated as offline. |
 | `ApplyOptionalUpdatesImmediately` | `false` | Swap to an optional update and reload as soon as it lands. |
+| `RemoteAccess.Enabled` | `false` | Bind past loopback. Every bridge still stays on the device until named — see [Serving the network](#serving-the-network). |
 
 ### Camera, microphone and location in the page
 
@@ -207,6 +220,43 @@ Binding to loopback keeps other machines out, but not other apps: on Android any
 - **Releases.** A release must pass five checks before it's served: signature, app id, a version
   newer than the installed one, host compatibility, then size and hash. An archive without its entry
   document is refused.
+- **Anything not from this device** is held to a second, stricter set of rules, and by default there is
+  nothing for it to reach. See below.
+
+### Serving the network
+
+The server is loopback-only until you say otherwise, and saying otherwise does not open the bridges —
+they're raw device access, and a caller on the network has no session and no launch token. Each one is
+published by name:
+
+```csharp
+o.RemoteAccess.Enabled = true;                          // bind past loopback
+o.RemoteAccess.AllowBridge("files", "settings");        // and only these, remotely
+o.RemoteAccess.ServeWebApp = true;                      // optional: the app's own pages too
+```
+
+```
+GET http://192.168.1.15:5780/_bridge/files/data/list?path=exports   → 200
+GET http://192.168.1.15:5780/_bridge/ble/status                     → 403 remote_denied
+```
+
+- **The allowlist is the authorization.** There's no credential. Anything that can reach the port can
+  call the bridges you name, and an allowed bridge is fully reachable — every route, every method,
+  writes included. Name only what you'd put on an unauthenticated HTTP endpoint.
+  `RemoteAccess.Authorize` is the hook for a check of your own; return `false` and the request gets `401`.
+  Nothing on this device goes through it, so the WebView is unaffected.
+- **The session never leaves the device.** `/_host/start` answers `403` over the network, so a remote
+  caller can't trade a token for the cookie even holding one.
+- **Host headers must be an IP address**, or a name in `RemoteAccess.AllowedHosts`. That's what stops
+  DNS rebinding: a hostile site pointing its own name at the device arrives under that name and gets
+  `421`. Add `AllowHost("kiosk.local")` for an mDNS name you control.
+- **A browser can't drive it cross-origin.** A remote bridge call carrying an `Origin` that isn't the
+  request's own is refused. Clients that aren't browsers send none and are unaffected.
+- **The dev server is never relayed.** Remote callers get the installed build, never the proxy to
+  `dotnet watch`.
+- Nothing here is compiled differently in Debug. If you want it open while testing, set it yourself
+  under your app's own `#if DEBUG` — `#if DEBUG` inside the package would be the package's build,
+  not yours.
 
 ## Bridges
 

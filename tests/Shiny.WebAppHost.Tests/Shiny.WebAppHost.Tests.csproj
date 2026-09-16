@@ -22,6 +22,20 @@
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
   </ItemGroup>
 
+  <!--
+    A web app zipped into the test assembly, exactly as a real app embeds its own: it is what proves an app
+    can ship with nothing but an embedded build — no update server, no manifest, no signing key.
+  -->
+  <Target Name="EmbedBaseline" BeforeTargets="AssignTargetPaths">
+    <PropertyGroup>
+      <BaselineZip>$(IntermediateOutputPath)baseline.zip</BaselineZip>
+    </PropertyGroup>
+    <ZipDirectory SourceDirectory="$(MSBuildThisFileDirectory)baseline" DestinationFile="$(BaselineZip)" Overwrite="true" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(BaselineZip)" LogicalName="Shiny.WebAppHost.Tests.baseline.zip" Visible="false" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <ProjectReference Include="../../src/Shiny.WebAppHost.Core/Shiny.WebAppHost.Core.csproj" />
     <ProjectReference Include="../../src/Shiny.WebAppHost/Shiny.WebAppHost.csproj" />
