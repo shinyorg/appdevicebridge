@@ -95,6 +95,13 @@ dev server.
 
 ## Troubleshooting
 
+- **`shot` says `could not create image from window`** while `status` is all green: the Mac's screen is locked
+  (`ioreg -n Root -d1 -a | grep -A1 CGSSessionScreenIsLocked`). Nothing can be captured or clicked until it is
+  unlocked; drive the bridges with `curl` instead — a Debug build answers any caller.
+- **`up` fails with `dev server did not start`** and `devserver.log` ends in `Failed to start the EventStream` then
+  `PAL_SEHException`: `dotnet watch` could not start its file watcher. Build and `open` the app without it; the
+  embedded build is served.
+
 - **`_LSOpenURLsWithCompletionHandler() failed with error -600`** came from `open` running while the previous instance
   was still exiting. `up` now waits for it to exit.
 - **`could not create image from rect`** came from the old rectangle capture during a display change. `shot` now

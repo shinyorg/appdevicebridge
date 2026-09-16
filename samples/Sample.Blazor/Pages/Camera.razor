@@ -1,0 +1,49 @@
+@page "/camera"
+@inherits BridgePage
+@inject IRpiCameraBridge CameraBridge
+
+<h1>Pi camera</h1>
+<p class="muted">A Raspberry Pi camera through libcamera. Anywhere else, Status says why there is none and everything else answers <code>501</code>.</p>
+
+<div class="actions">
+    <button @onclick="@(() => Run(() => CameraBridge.GetStatusAsync(), Json.RpiCameraStatus))">Status</button>
+    <button @onclick="Snapshot">Snapshot</button>
+    <button @onclick="@(() => Run(() => CameraBridge.CaptureAsync(new RpiCameraCapture("data", $"photos/{DateTime.Now:yyyyMMdd-HHmmss}.jpg")), Json.FileEntry))">Capture to data/photos</button>
+    <button @onclick="@(() => streaming = !streaming)">@(streaming ? "Stop watching" : "Watch live")</button>
+    <button @onclick="@(() => Run(() => CameraBridge.GetControlsAsync(), Json.IReadOnlyListRpiCameraControlInfo))">Controls</button>
+    <button @onclick="@(() => Run(() => CameraBridge.SetControlsAsync(new RpiCameraControlsInput([new(RpiCameraControl.Brightness, brightness)])), Json.IReadOnlyListRpiCameraControlInfo))">Set brightness</button>
+</div>
+
+<div class="form">
+    <label>Brightness <input type="range" min="-1" max="1" step="0.1" @bind="brightness" /> @brightness</label>
+</div>
+
+@if (streaming)
+{
+    @* The stream is multipart MJPEG, which an img plays as it arrives. Removing the img ends the request and frees the camera. *@
+    <img class="preview" src="_bridge/rpicamera/stream?fps=10" alt="Live camera" />
+}
+
+@if (snapshot is not null)
+{
+    <h2>Snapshot</h2>
+    <img class="preview" src="@snapshot" />
+}
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    static RpiCameraJsonContext Json => RpiCameraJsonContext.Default;
+
+    bool streaming;
+    double brightness;
+    string? snapshot;
+
+    Task Snapshot() => Run(async () =>
+    {
+        await using var jpeg = await CameraBridge.SnapshotAsync(quality: 80);
+        using var buffer = new MemoryStream();
+        await jpeg.CopyToAsync(buffer);
+        snapshot = "data:image/jpeg;base64," + Convert.ToBase64String(buffer.ToArray());
+    }, "Snapshot taken.");
+}

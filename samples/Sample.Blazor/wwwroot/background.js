@@ -33,6 +33,16 @@ appdevicebridge.on("tray.menu", async ({ id, itemId, checked }) => {
     await log(`tray ${id}: ${itemId}${checked === null || checked === undefined ? "" : ` = ${checked}`}`);
 });
 
+// Quick entry opens over other applications from its hotkey, usually with the app's own window closed.
+appdevicebridge.on("quickentry.submitted", async ({ text }) => {
+    await fetch("/_bridge/quickentry/prompt", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isBusy: false, response: `background.js heard "${text}".` })
+    });
+    await log(`quick entry: ${text}`);
+});
+
 appdevicebridge.on("transfer.completed", async ({ id, type, root, path }) => {
     await log(`transfer ${id} (${type}) completed: ${root}/${path}`);
 });

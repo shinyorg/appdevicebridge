@@ -13,11 +13,10 @@ public class BaselineTests
     [Fact]
     public async Task ServesAnEmbeddedZipWithNoUpdateServer()
     {
+        await using var app = new TestApp();
         var options = new WebAppHostOptions
         {
-            AppId = TestApp.AppId,
-            InstallDirectory = Path.Combine(Path.GetTempPath(), "appdevicebridge-tests", Guid.NewGuid().ToString("n")),
-            Port = 0
+            InstallDirectory = Path.Combine(Path.GetTempPath(), "appdevicebridge-tests", Guid.NewGuid().ToString("n"))
         };
 
         options.UseBaseline(typeof(BaselineTests).Assembly, Resource);
@@ -26,7 +25,7 @@ public class BaselineTests
         Assert.Null(options.PublicKey);
         Assert.Equal("1.0.0", options.Baseline!.Version);
 
-        await using var host = new WebAppHost(options, new WebAppSession(), new WebAppEventHub(), []);
+        await using var host = app.CreateHost(options);
         var start = await host.StartAsync();
 
         using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() });
@@ -46,7 +45,7 @@ public class BaselineTests
     [Fact]
     public void ABaselineIsEnoughOnItsOwn()
     {
-        var options = new WebAppHostOptions { AppId = TestApp.AppId };
+        var options = new WebAppHostOptions();
 
         var nothing = Assert.Throws<InvalidOperationException>(options.Validate);
         Assert.Contains("Set a Baseline", nothing.Message);

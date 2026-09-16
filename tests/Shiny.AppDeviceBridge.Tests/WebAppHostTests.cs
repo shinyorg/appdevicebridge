@@ -19,7 +19,8 @@ public class WebAppHostTests
         using (var stranger = new HttpClient())
         {
             Assert.Equal(HttpStatusCode.Forbidden, (await stranger.GetAsync(origin)).StatusCode);
-            Assert.Equal(HttpStatusCode.Forbidden, (await stranger.GetAsync(new Uri(origin, "/_bridge/echo/ping"))).StatusCode);
+            // Refused by the bridge policy: anonymous, so 401 rather than the page's 403.
+            Assert.Equal(HttpStatusCode.Unauthorized, (await stranger.GetAsync(new Uri(origin, "/_bridge/echo/ping"))).StatusCode);
             Assert.Equal(HttpStatusCode.Forbidden, (await stranger.GetAsync(new Uri(origin, "/_host/start?token=guess"))).StatusCode);
         }
 

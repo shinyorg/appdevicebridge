@@ -41,19 +41,62 @@ sealed class TestApp : IAsyncDisposable
         await this.server.StartAsync();
     }
 
+    readonly List<AppDeviceBridgeServer> servers = [];
+
     /// <summary>Options pointing at the TestServer. Each client gets its own handler, since the updater disposes the one it is given.</summary>
     public WebAppHostOptions Options(Func<HttpMessageHandler>? handler = null) => new()
     {
-        AppId = AppId,
         UpdateServer = new Uri("http://localhost/webapps"),
         PublicKey = this.PublicKey,
         InstallDirectory = this.InstallDirectory,
-        Port = 0,
         HttpMessageHandlerFactory = handler ?? (() => this.server!.GetTestServer().CreateHandler())
     };
 
+    /// <summary>
+    /// Bridge server options for a release build: any port, data beside the installs, and debug's any-caller default off
+    /// so the tests see the rules an app ships with.
+    /// </summary>
+    public AppDeviceBridgeOptions BridgeOptions(Action<AppDeviceBridgeOptions>? configure = null)
+    {
+        var options = new AppDeviceBridgeOptions
+        {
+            AppId = AppId,
+            DataDirectory = this.InstallDirectory,
+            IsDebug = false
+        };
+        options.Server.Port = 0;
+        configure?.Invoke(options);
+        return options;
+    }
+
     public WebAppHost CreateHost(WebAppHostOptions? options = null, params IWebAppBridge[] bridges)
-        => new(options ?? this.Options(), new WebAppSession(), new WebAppEventHub(), bridges);
+        => this.CreateHost(options, null, null, bridges);
+
+    /// <summary>A server with the host as its extension, wired the way <c>AddWebAppHost</c> wires them. Disposed with the app.</summary>
+    public WebAppHost CreateHost(
+        WebAppHostOptions? options,
+        AppDeviceBridgeOptions? bridgeOptions,
+        WebAppEventHub? events,
+        IEnumerable<IWebAppBridge> bridges,
+        IServiceProvider? services = null,
+        WebAppSession? session = null
+    )
+    {
+        WebAppHost? host = null;
+        var server = new AppDeviceBridgeServer(
+            bridgeOptions ?? this.BridgeOptions(),
+            bridges,
+            events ?? new WebAppEventHub(),
+            () => [host!],
+            services
+        );
+
+        lock (this.servers)
+            this.servers.Add(server);
+
+        host = new WebAppHost(options ?? this.Options(), server, session ?? new WebAppSession());
+        return host;
+    }
 
     public string Sign(WebAppRelease release)
     {
@@ -88,6 +131,9 @@ sealed class TestApp : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        foreach (var bridgeServer in this.servers)
+            await bridgeServer.DisposeAsync();
+
         if (this.server is not null)
             await this.server.DisposeAsync();
 

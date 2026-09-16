@@ -7,9 +7,10 @@ published Claude Code skill in `skills/`, and the public documentation site in a
 AppDeviceBridge hosts a web app — typically Blazor WebAssembly — inside a native .NET MAUI app, serves it
 from a loopback HTTP server built on Shiny.Net.HttpServer, updates it over the air from a signed release
 server, and gives the page device access through **bridges**: HTTP endpoints under a guarded prefix, one
-package each (`Shiny.AppDeviceBridge.Wifi`, `.BluetoothLE`, `.Notifications`, `.TrayIcon`, …). The host
-is `Shiny.AppDeviceBridge`; `Shiny.AppDeviceBridge.Core` holds the protocol contracts,
-`Shiny.AppDeviceBridge.Maui` the MAUI integration, `Shiny.AppDeviceBridge.Blazor` the page-side client,
+package each (`Shiny.AppDeviceBridge.Wifi`, `.BluetoothLE`, `.Notifications`, `.Desktop`, …). The bridge
+server is `Shiny.AppDeviceBridge`; `Shiny.AppDeviceBridge.Core` holds the protocol contracts,
+`Shiny.AppDeviceBridge.Maui` starts the server in a MAUI app, `Shiny.AppDeviceBridge.WebView` hosts the web app
+(WebView, updates, dev server, launch session, background.js), `Shiny.AppDeviceBridge.Blazor` the page-side client,
 and `Shiny.AppDeviceBridge.AspNetCore` the release server.
 
 Every bridge also has a `Shiny.AppDeviceBridge.{Bridge}.Client` package: its contracts and a `[BridgeClient]`
@@ -38,14 +39,19 @@ change unless there's a reason not to.
      dotnet/maui-labs), Windows and Linux (GTK4, via maui-labs). A bridge either works on a platform or
      answers `501` there — state which platforms a change covers in its release note, and never let an
      unsupported platform fail in a way other than `501`.
-   - **Security lives in the host's guard.** Bridges are device access: they stay behind the session cookie
-     on the device and the `RemoteAccess` allowlist off it, and are kept out of the authorization policies
-     that govern an app's own endpoints. A change that loosens either is a security change — call it out.
+   - **Security lives in the bridge policy.** Bridges are device access: every bridge route requires
+     `AppDeviceBridgePolicies.Bridges`, which by default admits callers on this device only (any caller in a
+     debug build), plus the launch session when the WebView host is registered. It is kept apart from the
+     policies that govern an app's own endpoints. A change that loosens the default policy, the host-name check or
+     the session is a security change — call it out.
    - **Always run the tests and ensure coverage after every feature/bugfix prompt** — a change is not done
      until the suite is green *and* the new/changed behavior has a test proving it. Run the **full** suite
      (`dotnet test tests/Shiny.AppDeviceBridge.Tests/Shiny.AppDeviceBridge.Tests.csproj`), not a filtered
      subset. Some tests reach this machine's LAN address to exercise remote access and skip when there is
      none — say so if they skipped rather than reporting them as passing.
+   - `native/shinyrpi-camera` is the C shim behind `Shiny.AppDeviceBridge.RpiCamera`. MSBuild never builds it (it links
+     libcamera's C++ ABI); build it on a Pi or with its arm64 `Dockerfile`. Changing its header means bumping
+     `SHINYRPI_CAMERA_ABI_VERSION` and `NativeMethods.ExpectedAbiVersion` together and updating the layout tests.
    - The trim/AOT analyzers are on for everything that ships. A change that introduces reflection or an
      unannotated dynamic dependency is a regression, not a warning to suppress.
    - **When behavior is visible in the app, see it in the app.** The `run-appdevicebridge` project skill

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -25,7 +26,7 @@ public class InvocationTests
         """;
 
     /// <summary>A host whose invoker is wired the way AddWebAppHost wires it, with in-memory settings.</summary>
-    static async Task<(WebAppHost Host, WebAppInvoker Invoker, WebAppEventHub Events)> CreateAsync(TestApp app, WebAppHostOptions options)
+    static async Task<(WebAppHost Host, WebAppInvoker Invoker, WebAppEventHub Events)> CreateAsync(TestApp app, WebAppHostOptions options, AppDeviceBridgeOptions? bridgeOptions = null)
     {
         app.Store.Add("1.0.0", TestApp.Zip("1.0.0", backgroundScript: BackgroundScript));
         await app.StartReleaseServerAsync();
@@ -34,13 +35,15 @@ public class InvocationTests
         await using (var first = app.CreateHost())
             await first.StartAsync();
 
+        bridgeOptions ??= app.BridgeOptions();
         var events = new WebAppEventHub();
         WebAppHost host = null!;
-        var invoker = new WebAppInvoker(options, events, () => host);
+        var script = new WebAppScriptEngine(options, () => host, NullLogger.Instance);
+        var invoker = new WebAppInvoker(bridgeOptions, events, () => script);
 
-        host = new WebAppHost(
+        host = app.CreateHost(
             options,
-            new WebAppSession(),
+            bridgeOptions,
             events,
             [invoker, new WebAppSettingsBridge(new MemoryKeyValueStore(), new MemoryKeyValueStore(), TestApp.AppId)]
         );
@@ -117,10 +120,9 @@ public class InvocationTests
     public async Task UnresponsivePageFallsBackToScriptAndCannotRunItLate()
     {
         await using var app = new TestApp();
-        var options = app.Options();
-        options.PageAcceptTimeout = TimeSpan.FromMilliseconds(300);
+        var bridgeOptions = app.BridgeOptions(o => o.PageAcceptTimeout = TimeSpan.FromMilliseconds(300));
 
-        var (host, invoker, events) = await CreateAsync(app, options);
+        var (host, invoker, events) = await CreateAsync(app, app.Options(), bridgeOptions);
         await using var _ = host;
 
         await using var page = await FakePage.OpenAsync(host, events, "page-or-script");

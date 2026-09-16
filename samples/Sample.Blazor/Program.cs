@@ -4,10 +4,11 @@ using Sample.Blazor;
 using Shiny.AppDeviceBridge.Blazor;
 using Shiny.AppDeviceBridge.Calendar.Client;
 using Shiny.AppDeviceBridge.Photos.Client;
+using Shiny.AppDeviceBridge.RpiCamera.Client;
 using Shiny.AppDeviceBridge.Folders.Client;
 using Shiny.AppDeviceBridge.Obd.Client;
 using Shiny.AppDeviceBridge.Notifications.Client;
-using Shiny.AppDeviceBridge.TrayIcon.Client;
+using Shiny.AppDeviceBridge.Desktop.Client;
 using Shiny.AppDeviceBridge.AppSupport.Client;
 using Shiny.AppDeviceBridge.Discovery.Client;
 using Shiny.AppDeviceBridge.HttpTransfers.Client;
@@ -27,10 +28,12 @@ builder.Services
     .AddWebAppHostClient()
     .AddCalendarBridgeClient()
     .AddPhotosBridgeClient()
+    .AddRpiCameraBridgeClient()
     .AddFoldersBridgeClient()
     .AddObdBridgeClient()
     .AddNotificationsBridgeClient()
     .AddTrayBridgeClient()
+    .AddQuickEntryBridgeClient()
     .AddAppBridgeClient()
     .AddDiscoveryBridgeClient()
     .AddTransfersBridgeClient()

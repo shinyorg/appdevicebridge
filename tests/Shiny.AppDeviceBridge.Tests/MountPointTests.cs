@@ -14,9 +14,10 @@ public class MountPointTests
         await app.StartReleaseServerAsync();
 
         var options = app.Options();
-        options.BasePath = "/kiosk";
+        var bridge = app.BridgeOptions();
+        bridge.BasePath = "/kiosk";
 
-        await using var host = new WebAppHost(options, new WebAppSession(), new WebAppEventHub(), [new EchoBridge()]);
+        await using var host = app.CreateHost(options, bridge, null, [new EchoBridge()]);
         var start = await host.StartAsync();
 
         Assert.StartsWith("/kiosk/_host/start", start.PathAndQuery);
@@ -41,9 +42,10 @@ public class MountPointTests
         await app.StartReleaseServerAsync();
 
         var options = app.Options();
-        options.BasePath = "/kiosk";
+        var bridge = app.BridgeOptions();
+        bridge.BasePath = "/kiosk";
 
-        await using var host = new WebAppHost(options, new WebAppSession(), new WebAppEventHub(), []);
+        await using var host = app.CreateHost(options, bridge, null, []);
         var start = await host.StartAsync();
 
         using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() });
@@ -63,10 +65,12 @@ public class MountPointTests
     [InlineData("just text", "")]
     public async Task RewritesOrInsertsTheBaseTag(string html, string expectedBefore)
     {
-        var options = new WebAppHostOptions { AppId = TestApp.AppId, BasePath = "/kiosk", Port = 0 };
+        await using var app = new TestApp();
+        var options = new WebAppHostOptions();
         options.UseBaseline(typeof(MountPointTests).Assembly, "Shiny.AppDeviceBridge.Tests.baseline.zip");
+        var bridge = app.BridgeOptions(o => o.BasePath = "/kiosk");
 
-        await using var host = new WebAppHost(options, new WebAppSession(), new WebAppEventHub(), []);
+        await using var host = app.CreateHost(options, bridge, null, []);
         var rewritten = host.RewriteBaseHref(html);
 
         Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(rewritten, "<base", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Count);
@@ -81,9 +85,10 @@ public class MountPointTests
         await app.StartReleaseServerAsync();
 
         var options = app.Options();
-        options.BridgePrefix = "/_native";
+        var bridge = app.BridgeOptions();
+        bridge.BridgePrefix = "/_native";
 
-        await using var host = new WebAppHost(options, new WebAppSession(), new WebAppEventHub(), [new EchoBridge()]);
+        await using var host = app.CreateHost(options, bridge, null, [new EchoBridge()]);
         var start = await host.StartAsync();
 
         using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() });
@@ -106,10 +111,11 @@ public class MountPointTests
         await app.StartReleaseServerAsync();
 
         var options = app.Options();
-        options.BasePath = "/kiosk";
-        options.BridgePrefix = "/_native";
+        var bridge = app.BridgeOptions();
+        bridge.BasePath = "/kiosk";
+        bridge.BridgePrefix = "/_native";
 
-        await using var host = new WebAppHost(options, new WebAppSession(), new WebAppEventHub(), []);
+        await using var host = app.CreateHost(options, bridge, null, []);
         var start = await host.StartAsync();
 
         using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() });
@@ -129,13 +135,14 @@ public class MountPointTests
         await app.StartReleaseServerAsync();
 
         var options = app.Options();
-        options.BasePath = "/kiosk";
-        options.BridgePrefix = "/_native";
+        var bridge = app.BridgeOptions();
+        bridge.BasePath = "/kiosk";
+        bridge.BridgePrefix = "/_native";
 
         var events = new WebAppEventHub();
-        var invoker = new WebAppInvoker(options, events, () => null!);
+        var invoker = new WebAppInvoker(bridge, events);
 
-        await using var host = new WebAppHost(options, new WebAppSession(), events, [invoker]);
+        await using var host = app.CreateHost(options, bridge, events, [invoker]);
         var start = await host.StartAsync();
 
         using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() });
@@ -156,9 +163,10 @@ public class MountPointTests
         await app.StartReleaseServerAsync();
 
         var options = app.Options();
-        options.BasePath = "/kiosk";
+        var bridge = app.BridgeOptions();
+        bridge.BasePath = "/kiosk";
 
-        await using var host = new WebAppHost(options, new WebAppSession(), new WebAppEventHub(), []);
+        await using var host = app.CreateHost(options, bridge, null, []);
         await host.StartAsync();
 
         using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer(), AllowAutoRedirect = false });
@@ -197,7 +205,7 @@ public class WebAppPathsTests
     [Fact]
     public void StripsTheBaseOffARequest()
     {
-        var paths = WebAppPaths.From(new WebAppHostOptions { BasePath = "/kiosk" });
+        var paths = WebAppPaths.From(new AppDeviceBridgeOptions { BasePath = "/kiosk" });
 
         Assert.True(paths.TryStripBase("/kiosk/app.js", out var relative));
         Assert.Equal("/app.js", relative);
@@ -212,7 +220,7 @@ public class WebAppPathsTests
     [Fact]
     public void LeavesEverythingAloneAtTheRoot()
     {
-        var paths = WebAppPaths.From(new WebAppHostOptions());
+        var paths = WebAppPaths.From(new AppDeviceBridgeOptions());
 
         Assert.Equal(String.Empty, paths.Base);
         Assert.Equal("/", paths.BaseWithSlash);
@@ -232,8 +240,7 @@ public class WebAppPathsTests
     [InlineData("/a b", "is not valid")]
     public void RefusesABridgePrefixThatWouldBreakTheHost(string prefix, string expected)
     {
-        var options = new WebAppHostOptions { AppId = "demo", BridgePrefix = prefix };
-        options.UseBaseline(typeof(WebAppPathsTests).Assembly, "Shiny.AppDeviceBridge.Tests.baseline.zip");
+        var options = new AppDeviceBridgeOptions { AppId = "demo", BridgePrefix = prefix };
 
         Assert.Contains(expected, Assert.Throws<InvalidOperationException>(options.Validate).Message);
     }

@@ -44,7 +44,7 @@ public class FoldersAndPhotosTests
     public async Task Without_a_folder_picker_the_bridge_says_so()
     {
         await using var app = new TestApp();
-        var options = app.Options();
+        var options = app.BridgeOptions();
         var (host, webView) = await StartAsync(app, new FoldersBridge(new WebAppFileRoots(options), options));
         await using var _ = host;
         using var __ = webView;
@@ -63,7 +63,7 @@ public class FoldersAndPhotosTests
     public async Task Photos_refuse_what_they_cannot_do_before_showing_anything()
     {
         await using var app = new TestApp();
-        var options = app.Options();
+        var options = app.BridgeOptions();
         var (host, webView) = await StartAsync(app, new PhotosBridge(new WebAppFileRoots(options), options));
         await using var _ = host;
         using var __ = webView;

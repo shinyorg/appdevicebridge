@@ -114,7 +114,7 @@ public sealed class WebAppLinks(WebAppLinkOptions options)
     /// Called once, when the host builds the first URL for the WebView. Returns the route of a link that arrived
     /// before then, when <see cref="WebAppLinkOptions.NavigateOnColdStart"/> is on.
     /// </summary>
-    internal string? TakeStartRoute()
+    public string? TakeStartRoute()
     {
         lock (this.gate)
         {
@@ -203,7 +203,7 @@ public sealed class WebAppLinksBridge : IWebAppBridge, IDisposable
 
     public bool IsSupported => true;
 
-    internal WebAppLinks Links => this.links;
+    public WebAppLinks Links => this.links;
 
     public void Map(WebAppBridgeRoutes routes) => routes
         .MapGet("/pending", ctx => Respond(ctx, this.links.Pending))

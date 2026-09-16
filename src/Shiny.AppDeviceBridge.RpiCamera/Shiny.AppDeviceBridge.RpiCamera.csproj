@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.RpiCamera</RootNamespace>
+    <Description>Raspberry Pi cameras for Shiny.AppDeviceBridge: a binding to libcamera through a small C shim (native/shinyrpi-camera) — frames from the capture pipeline with no rpicam-apps process to launch — and a bridge serving cameras, JPEG snapshots, captures into a file root, sensor controls and a shared live MJPEG stream. Plain net10.0 with no MAUI, so it runs on a headless Pi. Requires libshinyrpi_camera.so built against the device's libcamera. One call: services.AddRpiCameraBridge().</Description>
+
+    <!-- Frame data is a pointer into a memory-mapped capture buffer; copying it out is the entire hot path and there is
+         no safe way to express it. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.RpiCamera.Client/Shiny.AppDeviceBridge.RpiCamera.Client.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The struct layouts are the half of the ABI contract that lives on this side. Nothing can check them against the
+         C header at build time, so the tests pin the sizes. -->
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <!--
+    The native shim is not built by MSBuild. It links against libcamera's C++ ABI, so it has to be compiled against the
+    exact libcamera the device runs, which a macOS or Windows build machine does not have. See
+    native/shinyrpi-camera/README.md. When a build has already produced one, it is picked up here so `dotnet run` on a
+    Pi works without a publish step.
+  -->
+  <ItemGroup>
+    <None Include="../../native/shinyrpi-camera/build/libshinyrpi_camera.so"
+          Condition="Exists('../../native/shinyrpi-camera/build/libshinyrpi_camera.so')"
+          CopyToOutputDirectory="PreserveNewest"
+          Link="libshinyrpi_camera.so" />
+  </ItemGroup>
+
+</Project>

@@ -1,12 +1,23 @@
 ---
 name: shiny-appdevicebridge
-description: Generate code using Shiny.AppDeviceBridge, which hosts a web app (Blazor WebAssembly, React, Vue, any static build) inside a .NET MAUI app on Android, iOS, Mac Catalyst, Windows and the maui-labs macOS and Linux heads — served from a loopback HTTP server, updated over the air from a signed release server, and given device access through bridges with typed C# and TypeScript clients
+description: Generate code using Shiny.AppDeviceBridge, a configurable device bridge server that also hosts a web app (Blazor WebAssembly, React, Vue, any static build) inside a .NET MAUI app on Android, iOS, Mac Catalyst, Windows and the maui-labs macOS and Linux heads — served from a loopback HTTP server, updated over the air from a signed release server, and given device access through bridges with typed C# and TypeScript clients
 auto_invoke: true
 triggers:
   - Shiny.AppDeviceBridge
   - AppDeviceBridge
+  - UseAppDeviceBridge
+  - AddAppDeviceBridge
+  - AppDeviceBridgeOptions
+  - AppDeviceBridgeServer
+  - AppDeviceBridgePolicies
+  - AuthorizeBridges
+  - AllowAnyCallerInDebug
+  - BridgeCallers
+  - IAppDeviceBridgeServerExtension
+  - IWebAppBackgroundInvoker
   - UseWebAppHost
   - AddWebAppHost
+  - Shiny.AppDeviceBridge.WebView
   - WebAppHost
   - WebAppHostView
   - WebAppHostPage
@@ -57,6 +68,18 @@ triggers:
   - IPhotosBridge
   - IFoldersBridge
   - ITrayBridge
+  - IQuickEntryBridge
+  - IRpiCameraBridge
+  - AddRpiCameraBridge
+  - Shiny.AppDeviceBridge.RpiCamera
+  - Raspberry Pi camera
+  - libcamera
+  - MJPEG stream
+  - AddTrayIconBridge
+  - AddQuickEntryBridge
+  - Shiny.AppDeviceBridge.Desktop
+  - quick entry
+  - global hotkey
   - WebAppFileRoots
   - WebAppFileStore
   - WebAppFileRoot
@@ -65,11 +88,8 @@ triggers:
   - photo picker
   - folder picker
   - background.js
-  - AddWebAppEndpoints
-  - AddWebAppAuthentication
-  - AddWebAppAuthorization
+  - ConfigureServer
   - WebAppPolicies
-  - RemoteAccess
   - "@shinyorg/appdevicebridge"
   - hybrid web app
   - over-the-air web app updates
@@ -84,10 +104,14 @@ calls device features from that web app, updates it over the air, or writes a br
 
 ## The shape of it
 
-- The MAUI app runs `WebAppHost`: a loopback Shiny.Net.HttpServer serving the web app straight from a zip — the
-  baseline embedded in the app, or a signed download.
-- A `WebAppHostView` / `WebAppHostPage` shows it. The WebView trades a one-time launch token for an HttpOnly
-  cookie; nothing else on the device can call the bridges.
+- `Shiny.AppDeviceBridge` is the **bridge server**: a Shiny.Net.HttpServer configured through
+  `AppDeviceBridgeOptions` (`UseAppDeviceBridge` in MAUI) — `Server` is a full `HttpServerOptions`,
+  `ConfigureServer` adds middleware and endpoints, and every bridge route requires the
+  `AppDeviceBridgePolicies.Bridges` policy.
+- `Shiny.AppDeviceBridge.WebView` adds the **web app host** (`UseWebAppHost`): the web app served straight from a
+  zip (the baseline or a signed download), shown in `WebAppHostView` / `WebAppHostPage`. The WebView trades a
+  one-time launch token for an HttpOnly cookie, which the host adds to the bridge policy.
+- The server works without the WebView: bridges only, for callers the policy admits.
 - **Bridges** are HTTP endpoints under `/_bridge/{name}` (the prefix is configurable) plus one Server-Sent
   Events stream. One package per bridge, one extension method each.
 - **Every bridge has a typed client.** Never generate `fetch("/_bridge/…")` or JSON-object bodies in page code;
@@ -98,9 +122,9 @@ calls device features from that web app, updates it over the air, or writes a br
 ```csharp
 builder
     .UseMauiApp<App>()
+    .UseAppDeviceBridge(o => o.AppId = "field-app")         // the server: Server, BasePath, ConfigureServer, AuthorizeBridges
     .UseWebAppHost(o =>
     {
-        o.AppId = "field-app";
         o.UseBaseline(typeof(App).Assembly, "webapp.zip");      // offline, no update server needed
         // o.UpdateServer = new Uri("https://api.example.com/webapps");
         // o.PublicKey = "-----BEGIN PUBLIC KEY-----…";
@@ -145,12 +169,32 @@ public class App : Application
 | `.Calendar` | `AddCalendarBridge()` | `ICalendarBridge` |
 | `.Photos` | `AddPhotosBridge()` | `IPhotosBridge` |
 | `.Folders` | `AddFoldersBridge()` | `IFoldersBridge` |
-| `.TrayIcon` | `AddTrayIconBridge()` | `ITrayBridge` |
+| `.Desktop` | `AddTrayIconBridge()`, `AddQuickEntryBridge(o => o.HotKey = "Ctrl+Alt+Space")` | `Shiny.AppDeviceBridge.Desktop.Client`: `ITrayBridge`, `IQuickEntryBridge` (desktop only; `501` on mobile) |
+| `.RpiCamera` | `services.AddRpiCameraBridge(o => …)` (an `IServiceCollection`, for headless Pis) | `IRpiCameraBridge` — snapshots, captures into a file root, controls; live MJPEG at `rpicamera/stream` for an `<img>` (Linux + native shim only) |
 | `.Jobs` | `AddWebAppJob(name, configure)` | native call `job:{name}` with `JobRun` |
 
 Client packages are `Shiny.AppDeviceBridge.{Bridge}.Client`, registered with `Add{Name}BridgeClient()` — the
 name from the interface: `IAppBridge` → `AddAppBridgeClient()`, `ITransfersBridge` → `AddTransfersBridgeClient()`,
-`ITrayBridge` → `AddTrayBridgeClient()`.
+`ITrayBridge` → `AddTrayBridgeClient()`, `IQuickEntryBridge` → `AddQuickEntryBridgeClient()`. The desktop bridges share
+`Shiny.AppDeviceBridge.Desktop.Client`.
+
+## Quick entry
+
+A prompt window over other applications. The page configures it and answers submissions; the answer also goes to
+`background.js` when no page is open, so register the handler as a native call, not only an event:
+
+```csharp
+await quickEntry.SetPromptAsync(new QuickEntryPromptInput(Placeholder: "Ask…", Suggestions: [new("Sync now", Value: "sync")]));
+
+await nativeCalls.HandleAsync("quickentry.submitted", QuickEntryJsonContext.Default.QuickEntrySubmission, async s =>
+{
+    await quickEntry.SetPromptAsync(new QuickEntryPromptInput(IsBusy: true));
+    await quickEntry.SetPromptAsync(new QuickEntryPromptInput(IsBusy: false, Response: await AnswerAsync(s.Text)));
+});
+```
+
+Null properties on `QuickEntryPromptInput` / `QuickEntryOptionsInput` leave values unchanged; `Response: ""` clears the
+response and `HotKey: ""` removes the hotkey.
 
 ## A Blazor page
 
@@ -300,10 +344,15 @@ for storage that is not a directory; paths reach it pre-checked by `WebAppFilePa
 
 ## Security — do not loosen
 
-- Bridges are device access: the session cookie on the device, `RemoteAccess.AllowBridge(...)` off it. Never
-  suggest disabling the guard.
-- The app's own endpoints go through `AddWebAppEndpoints`, `AddWebAppAuthentication`, `AddWebAppAuthorization`;
-  they are authenticated by default, and `WebAppPolicies.Session` accepts only the WebView.
+- Bridges are device access. The default policy admits callers on this device only (plus the WebView's session
+  with the WebView host). **Debug builds admit any caller** (`AllowAnyCallerInDebug`, on by default) — say so when
+  a user binds `Server.Address` past loopback.
+- To open bridges to others, generate `o.AuthorizeBridges(p => …)` with a real credential from
+  `o.AddAuthentication(...)`, keeping `BridgeCallers.IsOnDevice(ctx.HttpContext)` for the device. Never a policy
+  that allows everyone in release.
+- The app's own endpoints go through `o.ConfigureServer((server, services) => …)`, `o.AddAuthentication`,
+  `o.AddAuthorization`; they are authenticated by default, and `WebAppPolicies.Session` accepts only the WebView.
+  Bridge policy and endpoint policies are separate.
 - Update downloads are ECDSA P-256 signed; keep `PublicKey` compiled into the app.
 
 ## Trim and AOT

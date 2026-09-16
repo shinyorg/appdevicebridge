@@ -38,7 +38,7 @@ public sealed class WebAppSettingsBridge : IWebAppBridge
     readonly string prefix;
     readonly Lock gate = new();
 
-    public WebAppSettingsBridge(IServiceProvider services, WebAppHostOptions options)
+    public WebAppSettingsBridge(IServiceProvider services, AppDeviceBridgeOptions options)
         : this(
             // Lazy: the secure store opens the Keychain or the Android KeyStore, which nothing should pay
             // for until the page actually asks.

@@ -30,7 +30,16 @@ public sealed record WebAppInvocationResult(
 {
     public bool Handled => this.Target != WebAppInvocationTarget.None;
 
-    internal static WebAppInvocationResult NotHandled { get; } = new(WebAppInvocationTarget.None, false);
+    public static WebAppInvocationResult NotHandled { get; } = new(WebAppInvocationTarget.None, false);
+}
+
+/// <summary>
+/// Takes a native call when no page can: the WebView host runs the web app's background.js. Without one registered, a
+/// call no page takes is reported as not handled.
+/// </summary>
+public interface IWebAppBackgroundInvoker
+{
+    Task<WebAppInvocationResult> InvokeAsync(string handler, string payloadJson, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -41,10 +50,10 @@ public sealed record WebAppInvocationResult(
 /// </code>
 /// <para>
 /// <b>The page first</b>, when it is open, listening, and has declared a handler for the name. The call goes
-/// out on the event stream; the page must accept it within <see cref="WebAppHostOptions.PageAcceptTimeout"/>
-/// and then post its result. <b>Otherwise background.js</b> runs it in an embedded JavaScript engine — which
-/// is also what happens when the page does not accept in time, since a WebView that is present but suspended
-/// by the OS looks just like a listening one until it fails to answer.
+/// out on the event stream; the page must accept it within <see cref="AppDeviceBridgeOptions.PageAcceptTimeout"/>
+/// and then post its result. <b>Otherwise</b> the <see cref="IWebAppBackgroundInvoker"/> takes it — background.js,
+/// with the WebView host — which is also what happens when the page does not accept in time, since a WebView that is
+/// present but suspended by the OS looks just like a listening one until it fails to answer.
 /// </para>
 /// <para>
 /// The acceptance step is what keeps a call from running twice. Once the host gives up on the page the call
@@ -63,26 +72,27 @@ public sealed class WebAppInvoker : IWebAppBridge
 {
     public const string InvokeEventName = "host.invoke";
 
-    readonly WebAppHostOptions options;
+    readonly AppDeviceBridgeOptions options;
     readonly WebAppEventHub events;
-    readonly WebAppScriptEngine engine;
+    readonly Func<IWebAppBackgroundInvoker?> background;
     readonly ILogger logger;
     readonly Lock gate = new();
     readonly ConcurrentDictionary<string, PendingInvocation> pending = new(StringComparer.Ordinal);
     HashSet<string> pageHandlers = new(StringComparer.Ordinal);
 
-    public WebAppInvoker(IServiceProvider services, WebAppHostOptions options, WebAppEventHub events, ILoggerFactory? loggerFactory = null)
-        : this(options, events, () => services.GetRequiredService<WebAppHost>(), loggerFactory)
+    /// <param name="background">
+    /// What takes a call the page cannot — background.js, with the WebView host. Resolved per call, and lazily, because
+    /// it commonly depends on the server that maps this bridge.
+    /// </param>
+    public WebAppInvoker(AppDeviceBridgeOptions options, WebAppEventHub events, Func<IWebAppBackgroundInvoker?>? background = null, ILoggerFactory? loggerFactory = null)
     {
-    }
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(events);
 
-    /// <summary>The host is resolved lazily: it maps this bridge's routes, so it cannot exist first.</summary>
-    internal WebAppInvoker(WebAppHostOptions options, WebAppEventHub events, Func<WebAppHost> host, ILoggerFactory? loggerFactory = null)
-    {
         this.options = options;
         this.events = events;
+        this.background = background ?? (() => null);
         this.logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<WebAppInvoker>();
-        this.engine = new WebAppScriptEngine(options, host, this.logger);
 
         events.SubscribersChanged += this.OnSubscribersChanged;
     }
@@ -123,7 +133,9 @@ public sealed class WebAppInvoker : IWebAppBridge
             && await this.InvokePageAsync(handler, payloadJson, cancellationToken).ConfigureAwait(false) is { } fromPage)
             return fromPage;
 
-        return await this.engine.InvokeAsync(handler, payloadJson, cancellationToken).ConfigureAwait(false);
+        return this.background() is { } fallback
+            ? await fallback.InvokeAsync(handler, payloadJson, cancellationToken).ConfigureAwait(false)
+            : WebAppInvocationResult.NotHandled;
     }
 
     bool IsPageHandling(string handler)

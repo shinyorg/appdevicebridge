@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maui/Shiny.AppDeviceBridge.Maui.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.WebView/Shiny.AppDeviceBridge.WebView.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AppLinks/Shiny.AppDeviceBridge.AppLinks.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AppSupport/Shiny.AppDeviceBridge.AppSupport.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.BluetoothLE/Shiny.AppDeviceBridge.BluetoothLE.csproj" />
@@ -31,6 +31,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Obd/Shiny.AppDeviceBridge.Obd.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Photos/Shiny.AppDeviceBridge.Photos.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Push/Shiny.AppDeviceBridge.Push.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.RpiCamera/Shiny.AppDeviceBridge.RpiCamera.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Speech/Shiny.AppDeviceBridge.Speech.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wifi/Shiny.AppDeviceBridge.Wifi.csproj" />
   </ItemGroup>

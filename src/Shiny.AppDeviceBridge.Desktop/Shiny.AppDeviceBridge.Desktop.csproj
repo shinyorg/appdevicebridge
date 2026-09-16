@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net10.0 only: UseTrayIcon has the same signature on every target, so each head's own platform build
+         of Shiny.Maui.Controls.Desktop supplies the factory — NSStatusItem on the macOS AppKit and Mac
+         Catalyst builds, Shell_NotifyIcon on Windows, ayatana-appindicator on the plain net10.0 one. -->
+    <UseMaui>true</UseMaui>
+    <SingleProject>false</SingleProject>
+    <RootNamespace>Shiny.AppDeviceBridge.Desktop</RootNamespace>
+    <Description>Desktop bridges for a Shiny.AppDeviceBridge app, backed by Shiny.Maui.Controls.Desktop: system tray and menu bar icons the page owns (menus, badges, notifications, animation), and quick entry — a prompt window that opens over other applications from a global hotkey, with suggestions, a response area and a screen-edge glow. What the user does goes to the page, or to background.js with the window closed. Desktop only: macOS (AppKit and Catalyst), Windows and Linux. builder.AddTrayIconBridge().AddQuickEntryBridge().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Shiny.Maui.Controls.Desktop" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Desktop.Client/Shiny.AppDeviceBridge.Desktop.Client.csproj" />
+  </ItemGroup>
+
+</Project>

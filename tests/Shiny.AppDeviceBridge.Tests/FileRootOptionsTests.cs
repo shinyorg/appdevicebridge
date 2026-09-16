@@ -7,7 +7,7 @@ public class FileRootOptionsTests
     [Fact]
     public void DefaultsToDataAndCache()
     {
-        var options = new WebAppHostOptions { AppId = "demo", InstallDirectory = Scratch };
+        var options = new AppDeviceBridgeOptions { AppId = "demo", DataDirectory = Scratch };
 
         var roots = options.ResolveFileRoots();
 
@@ -18,7 +18,7 @@ public class FileRootOptionsTests
     [Fact]
     public void ConfiguredRootsReplaceTheDefaults()
     {
-        var options = new WebAppHostOptions { AppId = "demo", InstallDirectory = Scratch };
+        var options = new AppDeviceBridgeOptions { AppId = "demo", DataDirectory = Scratch };
         options.FileRoots["media"] = Path.Combine(Scratch, "media") + Path.DirectorySeparatorChar;
 
         var root = Assert.Single(options.ResolveFileRoots());

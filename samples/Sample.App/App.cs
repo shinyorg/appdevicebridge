@@ -1,4 +1,4 @@
-using Shiny.AppDeviceBridge.Maui;
+using Shiny.AppDeviceBridge.WebView;
 
 namespace Sample;
 

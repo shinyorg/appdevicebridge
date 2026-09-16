@@ -71,7 +71,7 @@ public class EventAndInstallTests
         await app.StartReleaseServerAsync();
 
         var events = new WebAppEventHub();
-        await using var host = new WebAppHost(app.Options(), new WebAppSession(), events, []);
+        await using var host = app.CreateHost(app.Options(), null, events, []);
         var start = await host.StartAsync();
 
         using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() });

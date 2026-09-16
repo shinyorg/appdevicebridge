@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Desktop.Client</RootNamespace>
+    <Description>Typed clients and contracts for the Shiny.AppDeviceBridge desktop bridges — tray and menu bar icons (badges, menus, notifications, animations, click events) and quick entry, a prompt window that opens over other applications from a global hotkey — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddTrayBridgeClient() and services.AddQuickEntryBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

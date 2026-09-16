@@ -4,7 +4,7 @@ using System.Diagnostics.CodeAnalysis;
 namespace Shiny.AppDeviceBridge;
 
 /// <summary>
-/// Every file root the page can use: the ones the app configured (<see cref="WebAppHostOptions.FileRoots"/>, or
+/// Every file root the page can use: the ones the app configured (<see cref="AppDeviceBridgeOptions.FileRoots"/>, or
 /// <c>data</c> and <c>cache</c>), and any a bridge adds while the app runs — a folder the user picked, for one.
 /// <para>
 /// Bridges that take a file from the page — to share it, upload it, attach it — resolve it here by the same
@@ -16,7 +16,7 @@ public sealed class WebAppFileRoots
     readonly ConcurrentDictionary<string, WebAppFileStore> roots = new(StringComparer.OrdinalIgnoreCase);
     readonly HashSet<string> configured = new(StringComparer.OrdinalIgnoreCase);
 
-    public WebAppFileRoots(WebAppHostOptions options)
+    public WebAppFileRoots(AppDeviceBridgeOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         this.Enabled = options.EnableFiles;
@@ -28,7 +28,7 @@ public sealed class WebAppFileRoots
         }
     }
 
-    /// <summary>Whether the page has file roots at all — <see cref="WebAppHostOptions.EnableFiles"/>.</summary>
+    /// <summary>Whether the page has file roots at all — <see cref="AppDeviceBridgeOptions.EnableFiles"/>.</summary>
     public bool Enabled { get; }
 
     /// <summary>Every root, by name.</summary>

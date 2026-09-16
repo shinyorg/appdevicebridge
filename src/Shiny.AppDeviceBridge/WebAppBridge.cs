@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Shiny.Net.HttpServer;
 using Shiny.Net.HttpServer.Security;
 
@@ -11,9 +12,8 @@ namespace Shiny.AppDeviceBridge;
 /// <summary>
 /// A group of native endpoints the page can call, mounted under <c>/_bridge/{Name}</c>.
 /// <para>
-/// Every bridge route sits behind the session guard: a request without the launch cookie, from a
-/// foreign <c>Host</c> or a foreign <c>Origin</c>, never reaches it. A bridge only has to validate its
-/// own input.
+/// Every bridge route requires <see cref="AppDeviceBridgePolicies.Bridges"/>: a caller the policy refuses never
+/// reaches it. A bridge only has to validate its own input.
 /// </para>
 /// <code>
 /// public sealed class ClipboardBridge(IClipboard clipboard) : IWebAppBridge
@@ -46,10 +46,9 @@ public interface IWebAppBridge
 /// <summary>
 /// Maps a bridge's routes under its prefix.
 /// <para>
-/// Every route is marked anonymous to the endpoint authorization policies. That is not a relaxation: bridges are
-/// authorized before routing by the host's own guard — the launch cookie on this device, the remote allowlist
-/// off it — and are kept out of the policies your own endpoints use, so a policy written for those can never
-/// loosen or tighten device access.
+/// Every route requires <see cref="AppDeviceBridgePolicies.Bridges"/> — only callers on this device by default — and
+/// nothing else: the fallback policy your own endpoints get does not apply to bridges, so a policy written for those
+/// can never loosen or tighten device access.
 /// </para>
 /// </summary>
 public sealed class WebAppBridgeRoutes
@@ -78,25 +77,25 @@ public sealed class WebAppBridgeRoutes
 
     public WebAppBridgeRoutes MapGet(string pattern, RequestDelegate handler)
     {
-        this.server.MapGet(this.Combine(pattern), handler).AllowAnonymous();
+        this.server.MapGet(this.Combine(pattern), handler).RequireAuthorization(AppDeviceBridgePolicies.Bridges);
         return this;
     }
 
     public WebAppBridgeRoutes MapPost(string pattern, RequestDelegate handler)
     {
-        this.server.MapPost(this.Combine(pattern), handler).AllowAnonymous();
+        this.server.MapPost(this.Combine(pattern), handler).RequireAuthorization(AppDeviceBridgePolicies.Bridges);
         return this;
     }
 
     public WebAppBridgeRoutes MapPut(string pattern, RequestDelegate handler)
     {
-        this.server.MapPut(this.Combine(pattern), handler).AllowAnonymous();
+        this.server.MapPut(this.Combine(pattern), handler).RequireAuthorization(AppDeviceBridgePolicies.Bridges);
         return this;
     }
 
     public WebAppBridgeRoutes MapDelete(string pattern, RequestDelegate handler)
     {
-        this.server.MapDelete(this.Combine(pattern), handler).AllowAnonymous();
+        this.server.MapDelete(this.Combine(pattern), handler).RequireAuthorization(AppDeviceBridgePolicies.Bridges);
         return this;
     }
 
@@ -141,59 +140,81 @@ public static class WebAppBridgeResults
         => context.Request.ReadJsonAsync(typeInfo, context.RequestAborted);
 }
 
-public static class WebAppHostServiceCollectionExtensions
+public static class AppDeviceBridgeServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="WebAppHost"/>. The loopback server it runs is its own instance, not the
-    /// container's <c>HttpServer</c>, so an app that also serves something with Shiny.Net.HttpServer
-    /// keeps its own server untouched.
+    /// Registers the bridge server with the built-in settings, files and native-call bridges. Call it as often as you
+    /// like — every call configures the same <see cref="AppDeviceBridgeOptions"/>, which are validated when the server is
+    /// created. Bridge packages add their bridges with an extension of their own.
     /// <code>
-    /// services.AddWebAppHost(o =>
+    /// services.AddAppDeviceBridge(o =>
     /// {
     ///     o.AppId = "field-app";
-    ///     o.UpdateServer = new Uri("https://api.example.com/webapps");
-    ///     o.PublicKey = """-----BEGIN PUBLIC KEY-----…""";
-    ///     o.UseBaseline(typeof(App).Assembly, "webapp.zip", "1.0.0");
+    ///     o.Server.Address = IPAddress.Any;
+    ///     o.AllowedHosts.Add("kiosk.local");
+    ///     o.AddAuthentication(auth => auth.AddApiKey(k => k.AddKey(key, "kiosk")));
+    ///     o.AuthorizeBridges(p => p.RequireAssertion(ctx => BridgeCallers.IsOnDevice(ctx.HttpContext) || ctx.User.Identity?.IsAuthenticated == true));
     /// });
     /// </code>
+    /// <para>
+    /// The server is its own instance, not the container's <c>HttpServer</c>, so an app that also serves something with
+    /// Shiny.Net.HttpServer keeps its own server untouched.
+    /// </para>
     /// </summary>
-    public static IServiceCollection AddWebAppHost(this IServiceCollection services, Action<WebAppHostOptions> configure)
+    public static IServiceCollection AddAppDeviceBridge(this IServiceCollection services, Action<AppDeviceBridgeOptions>? configure = null)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configure);
 
-        var options = new WebAppHostOptions();
-        configure(options);
-        options.Validate();
+        var options = GetOrAddOptions(services);
+        configure?.Invoke(options);
 
-        services.TryAddSingleton(options);
-        services.TryAddSingleton<WebAppSession>();
+        if (services.Any(x => x.ServiceType == typeof(AppDeviceBridgeServer)))
+            return services;
+
         services.TryAddSingleton<WebAppEventHub>();
-        services.TryAddSingleton<WebAppHost>();
+        services.TryAddSingleton<WebAppFileRoots>();
+        services.TryAddSingleton(sp => new AppDeviceBridgeServer(
+            sp.GetRequiredService<AppDeviceBridgeOptions>(),
+            sp.GetServices<IWebAppBridge>(),
+            sp.GetRequiredService<WebAppEventHub>(),
+            () => sp.GetServices<IAppDeviceBridgeServerExtension>(),
+            sp,
+            sp.GetService<ILoggerFactory>()
+        ));
 
         // One instance serving two roles: the bridge the page answers calls through, and the service native
         // delegates call into.
-        services.TryAddSingleton<WebAppInvoker>();
+        services.TryAddSingleton(sp => new WebAppInvoker(
+            sp.GetRequiredService<AppDeviceBridgeOptions>(),
+            sp.GetRequiredService<WebAppEventHub>(),
+            () => sp.GetService<IWebAppBackgroundInvoker>(),
+            sp.GetService<ILoggerFactory>()
+        ));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IWebAppBridge, WebAppInvoker>(sp => sp.GetRequiredService<WebAppInvoker>()));
 
-        if (options.EnableSettings)
-        {
-            services.AddShinyStores();
-            global::Shiny.Json.AddContext(WebAppStoreJsonContext.Default);
-            services.AddWebAppBridge<WebAppSettingsBridge>();
-        }
-
-        services.TryAddSingleton<WebAppFileRoots>();
-
-        if (options.EnableFiles)
-            services.AddWebAppBridge<WebAppFilesBridge>();
+        // Registered either way and left unmapped when switched off, so a later configure call can still change its mind.
+        services.AddShinyStores();
+        global::Shiny.Json.AddContext(WebAppStoreJsonContext.Default);
+        services.AddWebAppBridge<WebAppSettingsBridge>();
+        services.AddWebAppBridge<WebAppFilesBridge>();
 
         return services;
     }
 
+    /// <summary>The one options instance every <see cref="AddAppDeviceBridge"/> call configures.</summary>
+    static AppDeviceBridgeOptions GetOrAddOptions(IServiceCollection services)
+    {
+        if (services.FirstOrDefault(x => x.ServiceType == typeof(AppDeviceBridgeOptions))?.ImplementationInstance is AppDeviceBridgeOptions existing)
+            return existing;
+
+        var options = new AppDeviceBridgeOptions();
+        services.AddSingleton(options);
+        return options;
+    }
+
     /// <summary>
-    /// Registers a bridge. Its routes are mapped when the host is created, so the order relative to
-    /// <see cref="AddWebAppHost"/> does not matter, and adding the same bridge twice is harmless.
+    /// Registers a bridge. Its routes are mapped when the server is built, so the order relative to
+    /// <see cref="AddAppDeviceBridge"/> does not matter, and adding the same bridge twice is harmless.
     /// Bridge packages wrap this in an extension of their own that also registers the native service.
     /// </summary>
     public static IServiceCollection AddWebAppBridge<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TBridge>(
@@ -202,8 +223,8 @@ public static class WebAppHostServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // Registered here as well as in AddWebAppHost: services a bridge registers alongside itself —
-        // a geofence delegate, say — publish through the hub, whichever call came first.
+        // Registered here as well: services a bridge registers alongside itself — a geofence delegate, say — publish
+        // through the hub, whichever call came first.
         services.TryAddSingleton<WebAppEventHub>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IWebAppBridge, TBridge>());
 

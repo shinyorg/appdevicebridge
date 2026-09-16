@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>Shiny.AppDeviceBridge</RootNamespace>
-    <Description>Runs a zipped web app (Blazor, React, anything static) from a loopback Shiny.Net.HttpServer — keeps it up to date from a Shiny.AppDeviceBridge.AspNetCore server, verifies every download against a signature before serving it, and exposes native services to the page through authenticated bridge endpoints. No MAUI dependency; Shiny.AppDeviceBridge.Maui adds the WebView.</Description>
+    <Description>The bridge server: native device services as HTTP endpoints on a fully configurable Shiny.Net.HttpServer, callable from a web page, a script or another app. Bridges answer callers on this device only by default (any caller in a debug build), and who may call them is an authorization policy you can replace. No MAUI dependency; Shiny.AppDeviceBridge.WebView adds a WebView host with over-the-air updates.</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,9 +12,6 @@
          still gets its platform store: Keychain, Android KeyStore, DPAPI, or a file on Linux. -->
     <PackageReference Include="Shiny.Extensions.Stores" />
 
-    <!-- Runs background.js when a native call arrives with no page to take it. A pure .NET interpreter:
-         no JIT, no native engine to ship per platform, and allowed on iOS. -->
-    <PackageReference Include="Jint" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 

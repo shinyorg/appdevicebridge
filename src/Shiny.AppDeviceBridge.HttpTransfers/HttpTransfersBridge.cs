@@ -155,7 +155,7 @@ public sealed class HttpTransfersBridge : IWebAppBridge, IDisposable
     readonly WebAppTransferScope scope;
     readonly ConcurrentDictionary<string, (long Ticks, HttpTransferState Status)> lastProgress = new();
 
-    public HttpTransfersBridge(IServiceProvider services, WebAppHostOptions hostOptions, WebAppFileRoots roots, WebAppEventHub events)
+    public HttpTransfersBridge(IServiceProvider services, AppDeviceBridgeOptions hostOptions, WebAppFileRoots roots, WebAppEventHub events)
     {
         this.manager = services.GetOptionalService<IHttpTransferManager>();
         this.options = services.GetOptionalService<WebAppTransferOptions>() ?? new WebAppTransferOptions();
@@ -499,7 +499,7 @@ public sealed class HttpTransfersBridge : IWebAppBridge, IDisposable
 /// is none. Transfers the native app queued are ignored. Subclass to decide per transfer.
 /// </summary>
 public partial class WebAppTransferDelegate(
-    WebAppHostOptions hostOptions,
+    AppDeviceBridgeOptions hostOptions,
     WebAppFileRoots roots,
     WebAppTransferOptions options,
     WebAppEventHub events,
@@ -631,7 +631,7 @@ sealed class WebAppTransferScope
     readonly string prefix;
     readonly WebAppFileRoots fileRoots;
 
-    public WebAppTransferScope(WebAppHostOptions options, WebAppFileRoots roots)
+    public WebAppTransferScope(AppDeviceBridgeOptions options, WebAppFileRoots roots)
     {
         // Not ':' — Shiny's file repository names files after identifiers, and Windows refuses the colon.
         this.prefix = $"webapp-{options.AppId}-";

@@ -5,7 +5,7 @@ using Shiny.AppDeviceBridge.HttpTransfers.Client;
 using Shiny.AppDeviceBridge.Locations.Client;
 using Shiny.AppDeviceBridge.Notifications.Client;
 using Shiny.AppDeviceBridge.Push.Client;
-using Shiny.AppDeviceBridge.TrayIcon.Client;
+using Shiny.AppDeviceBridge.Desktop.Client;
 
 namespace Sample.Blazor;
 
@@ -13,7 +13,7 @@ namespace Sample.Blazor;
 /// The page's side of background work. While the app is open these handle the native calls; when it is not,
 /// wwwroot/background.js handles the same names.
 /// </summary>
-public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls)
+public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls, IQuickEntryBridge quickEntry)
 {
     readonly List<string> log = [];
     bool started;
@@ -47,6 +47,18 @@ public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls)
             await this.Record("notification.received", NotificationsJsonContext.Default.NotificationEvent, x => $"{x.Id} {x.Title}");
             await this.Record("tray.click", TrayJsonContext.Default.TrayClick, x => $"{x.Id} {x.Button}");
             await this.Record("tray.menu", TrayJsonContext.Default.TrayMenuSelection, x => $"{x.Id} {x.ItemId}");
+            // The page answers quick entry while it is open; background.js answers with the window closed.
+            await nativeCalls.HandleAsync("quickentry.submitted", QuickEntryJsonContext.Default.QuickEntrySubmission, async submission =>
+            {
+                this.Record("quickentry.submitted", submission.Text);
+                await quickEntry.SetPromptAsync(new QuickEntryPromptInput(IsBusy: true, BusyText: "Thinking…"));
+                await Task.Delay(600);    // stands in for real work
+                await quickEntry.SetPromptAsync(new QuickEntryPromptInput(
+                    IsBusy: false,
+                    Response: $"The page heard \"{submission.Text}\"{(submission.Suggestion is { Value: { } value } ? $" (suggestion {value})" : "")}."
+                ));
+            });
+
             await this.Record("transfer.completed", TransfersJsonContext.Default.TransferInfo, x => $"{x.Type} {x.Path}");
             await this.Record("transfer.failed", TransfersJsonContext.Default.TransferInfo, x => $"{x.Type} {x.Path}: {x.Error}");
         }

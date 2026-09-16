@@ -1,5 +1,5 @@
 #if WINDOWS
-using Shiny.AppDeviceBridge.TrayIcon;
+using Shiny.AppDeviceBridge.Desktop;
 #endif
 
 namespace Sample.Maui;

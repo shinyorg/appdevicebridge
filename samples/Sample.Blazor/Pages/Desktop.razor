@@ -2,9 +2,10 @@
 @inherits BridgePage
 @inject IAppBridge AppBridge
 @inject ITrayBridge TrayBridge
+@inject IQuickEntryBridge QuickEntry
 
 <h1>Desktop</h1>
-<p class="muted">Launch at login and the system tray. Both answer <code>501</code> on Android and iOS.</p>
+<p class="muted">Launch at login, the system tray and quick entry. All answer <code>501</code> on Android and iOS.</p>
 
 <h2>Launch at login</h2>
 <div class="actions">
@@ -32,11 +33,30 @@
 <h2>Clicks</h2>
 <pre>@(clicks.Length == 0 ? "Click the tray icon or pick something from its menu." : clicks)</pre>
 
+<h2>Quick entry</h2>
+<p class="muted">A prompt that opens over other applications. Press <kbd>Ctrl+Alt+Space</kbd> anywhere, or use the buttons. Submissions are answered by the page while it is open and by <code>background.js</code> when it is not.</p>
+<div class="form">
+    <input @bind="placeholder" placeholder="Placeholder" />
+</div>
+<div class="actions">
+    <button @onclick="@(() => Run(() => QuickEntry.GetStatusAsync(), QuickJson.QuickEntryStatus))">Status</button>
+    <button @onclick="Configure">Set prompt and suggestions</button>
+    <button @onclick="@(() => Run(() => QuickEntry.ShowAsync(), QuickJson.QuickEntryStatus))">Show</button>
+    <button @onclick="@(() => Run(() => QuickEntry.HideAsync(), QuickJson.QuickEntryStatus))">Hide</button>
+    <button @onclick="@(() => Run(() => QuickEntry.ConfigureAsync(new QuickEntryOptionsInput(Placement: QuickEntryPlacement.BottomCenter)), QuickJson.QuickEntryStatus))">Move to bottom</button>
+    <button @onclick="@(() => Run(() => QuickEntry.PulseGlowAsync(new QuickEntryPulse(1500)), "Pulsed."))">Pulse glow</button>
+    <button @onclick="@(() => Run(() => QuickEntry.ResetPromptAsync(), QuickJson.QuickEntryPrompt))">Reset</button>
+</div>
+
+<h2>Quick entry activity</h2>
+<pre>@(entries.Length == 0 ? "Open quick entry and submit something." : entries)</pre>
+
 <Output Value="@Output" Error="@Error" />
 
 @code {
     static TrayJsonContext Json => TrayJsonContext.Default;
     static AppJsonContext AppJson => AppJsonContext.Default;
+    static QuickEntryJsonContext QuickJson => QuickEntryJsonContext.Default;
 
     // PUT rather than POST, so a hot reload adopts the icon it made last time instead of adding another.
     const string TrayId = "main";
@@ -48,11 +68,18 @@
     string tooltip = "AppDeviceBridge Sample";
     string badge = String.Empty;
     string clicks = String.Empty;
+    string placeholder = "Ask the sample anything…";
+    string entries = String.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         await Listen<TrayClick>(TrayBridge.OnClickAsync, e => clicks = Prepend(clicks, $"{DateTime.Now:T}  click  {Compact(e, Json.TrayClick)}"));
         await Listen<TrayMenuSelection>(TrayBridge.OnMenuAsync, e => clicks = Prepend(clicks, $"{DateTime.Now:T}  menu   {Compact(e, Json.TrayMenuSelection)}"));
+
+        await Listen<QuickEntrySubmission>(QuickEntry.OnSubmittedAsync, e => entries = Prepend(entries, $"{DateTime.Now:T}  submitted  {Compact(e, QuickJson.QuickEntrySubmission)}"));
+        await Listen<QuickEntryPromptEvent>(QuickEntry.OnCancelledAsync, e => entries = Prepend(entries, $"{DateTime.Now:T}  cancelled  {e.Text}"));
+        await Listen<QuickEntryStatus>(QuickEntry.OnOpenedAsync, _ => entries = Prepend(entries, $"{DateTime.Now:T}  opened"));
+        await Listen<QuickEntryStatus>(QuickEntry.OnClosedAsync, _ => entries = Prepend(entries, $"{DateTime.Now:T}  closed"));
     }
 
     Task Show() => Run(() => TrayBridge.PutAsync(TrayId, new TrayIconInput(
@@ -72,6 +99,17 @@
             ])
         ])
     )), Json.TrayIconInfo);
+
+    Task Configure() => Run(() => QuickEntry.SetPromptAsync(new QuickEntryPromptInput(
+        Placeholder: placeholder,
+        Response: String.Empty,
+        Suggestions:
+        [
+            new QuickEntrySuggestion("What's the battery level?", "Answered by the page", "🔋", Value: "battery"),
+            new QuickEntrySuggestion("Sync now", "Runs the sync job", "🔄", Value: "sync"),
+            new QuickEntrySuggestion("Open the app", Glyph: "🪟", Value: "open")
+        ]
+    )), QuickJson.QuickEntryPrompt);
 
     // Only what is set changes, and an empty string clears a value.
     Task Update() => Run(() => TrayBridge.PutAsync(TrayId, new TrayIconInput(Tooltip: tooltip, Badge: badge)), Json.TrayIconInfo);

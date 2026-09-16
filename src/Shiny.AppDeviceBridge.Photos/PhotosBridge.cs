@@ -42,7 +42,7 @@ public static class PhotosBridgeExtensions
 /// POST   /_bridge/photos/library/{id}/export            { "root": "cache" }
 /// </code>
 /// </summary>
-public sealed class PhotosBridge(WebAppFileRoots roots, WebAppHostOptions options) : IWebAppBridge
+public sealed class PhotosBridge(WebAppFileRoots roots, AppDeviceBridgeOptions options) : IWebAppBridge
 {
     const int MaxPick = 50;
     const int MaxPage = 200;

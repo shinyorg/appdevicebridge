@@ -13,7 +13,7 @@
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.Maui</RootNamespace>
-    <Description>Shows a Shiny.AppDeviceBridge web app in a .NET MAUI WebView — progress while a required update downloads, a restart of the loopback server when the app resumes, and opt-in camera, microphone and geolocation for the page. Works on Android, iOS, Mac Catalyst, Windows, and the maui-labs macOS (AppKit) and Linux (GTK4) backends.</Description>
+    <Description>Runs the Shiny.AppDeviceBridge server in a .NET MAUI app: starts it with the app, restarts it on resume when the OS took its socket, and fills in the host version. Works on Android, iOS, Mac Catalyst, Windows, and the maui-labs macOS (AppKit) and Linux (GTK4) backends. Add Shiny.AppDeviceBridge.WebView to show a web app.</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>

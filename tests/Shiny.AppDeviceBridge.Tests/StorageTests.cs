@@ -67,19 +67,19 @@ public class WebAppFileRootTests
     [Fact]
     public void FileRootsDefaultToDataAndCache()
     {
-        var options = new WebAppHostOptions { AppId = "demo", InstallDirectory = Path.Combine(Path.GetTempPath(), "appdevicebridge-tests", "install") };
+        var options = new AppDeviceBridgeOptions { AppId = "demo", DataDirectory = Path.Combine(Path.GetTempPath(), "appdevicebridge-tests", "install") };
 
         var roots = options.ResolveFileRoots();
 
         Assert.Equal(["data", "cache"], roots.Select(x => x.Name));
-        Assert.Equal(Path.Combine(options.InstallDirectory, "files"), roots[0].FullPath);
+        Assert.Equal(Path.Combine(options.DataDirectory, "files"), roots[0].FullPath);
     }
 
     [Fact]
     public void ConfiguredFileRootsReplaceTheDefaultsAndStayConfined()
     {
         var scratch = Path.Combine(Path.GetTempPath(), "appdevicebridge-tests", Guid.NewGuid().ToString("n"));
-        var options = new WebAppHostOptions { AppId = "demo" };
+        var options = new AppDeviceBridgeOptions { AppId = "demo" };
         options.FileRoots["photos"] = scratch;
 
         var root = Assert.Single(options.ResolveFileRoots());
@@ -92,9 +92,9 @@ public class WebAppFileRootTests
 
 public class WebAppFileRootsTests
 {
-    static WebAppHostOptions Options(bool enableFiles = true)
+    static AppDeviceBridgeOptions Options(bool enableFiles = true)
     {
-        var options = new WebAppHostOptions { AppId = "demo", EnableFiles = enableFiles };
+        var options = new AppDeviceBridgeOptions { AppId = "demo", EnableFiles = enableFiles };
         options.FileRoots["data"] = Path.Combine(Path.GetTempPath(), "appdevicebridge-tests", "roots", "data");
         return options;
     }
@@ -125,12 +125,12 @@ public class WebAppFileRootsTests
 
 public class StorageBridgeTests
 {
-    static async Task<(WebAppHost Host, HttpClient WebView)> StartAsync(TestApp app, WebAppHostOptions options, params IWebAppBridge[] bridges)
+    static async Task<(WebAppHost Host, HttpClient WebView)> StartAsync(TestApp app, AppDeviceBridgeOptions options, params IWebAppBridge[] bridges)
     {
         app.Store.Add("1.0.0", TestApp.Zip("1.0.0"));
         await app.StartReleaseServerAsync();
 
-        var host = app.CreateHost(options, bridges);
+        var host = app.CreateHost(app.Options(), options, null, bridges);
         var start = await host.StartAsync();
 
         var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() }) { BaseAddress = host.Origin };
@@ -149,7 +149,7 @@ public class StorageBridgeTests
         // A value the native app owns. The page must neither see it nor clear it.
         local.Set("native-setting", "keep me");
 
-        var (host, webView) = await StartAsync(app, app.Options(), new WebAppSettingsBridge(local, secure, TestApp.AppId));
+        var (host, webView) = await StartAsync(app, app.BridgeOptions(), new WebAppSettingsBridge(local, secure, TestApp.AppId));
         await using var _ = host;
         using var __ = webView;
 
@@ -184,7 +184,7 @@ public class StorageBridgeTests
     public async Task FilesCoverTheLifecycle()
     {
         await using var app = new TestApp();
-        var options = app.Options();
+        var options = app.BridgeOptions();
 
         var (host, webView) = await StartAsync(app, options, new WebAppFilesBridge(new WebAppFileRoots(options), options));
         await using var _ = host;
@@ -254,7 +254,7 @@ public class StorageBridgeTests
     public async Task FilesRefuseWritesOverTheLimit()
     {
         await using var app = new TestApp();
-        var options = app.Options();
+        var options = app.BridgeOptions();
         options.MaxFileWriteBytes = 10;
 
         var (host, webView) = await StartAsync(app, options, new WebAppFilesBridge(new WebAppFileRoots(options), options));

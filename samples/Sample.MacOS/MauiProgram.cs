@@ -1,6 +1,6 @@
 using Microsoft.Maui.Platforms.MacOS.Essentials;
 using Microsoft.Maui.Platforms.MacOS.Hosting;
-using Shiny.AppDeviceBridge.TrayIcon;
+using Shiny.AppDeviceBridge.Desktop;
 
 namespace Sample.MacOS;
 
@@ -12,8 +12,9 @@ public static class MauiProgram
         .AddMacOSEssentials()
         .ConfigureSample()
 
-        // Desktop only, so each desktop head adds it rather than Sample.App: the bridge's dependency has no
+        // Desktop only, so each desktop head adds them rather than Sample.App: the bridges' dependency has no
         // Android or iOS build worth dragging into those heads.
         .AddTrayIconBridge()
+        .AddQuickEntryBridge(o => o.HotKey = "Ctrl+Alt+Space")
         .Build();
 }

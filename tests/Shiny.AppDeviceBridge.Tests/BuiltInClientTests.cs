@@ -37,7 +37,7 @@ public class BuiltInClientTests
     [Fact]
     public async Task FilesRoundTripTextAndReportConflictsAsBridgeExceptions()
     {
-        await using var fixture = await HostFixture.StartAsync(app => [FilesBridge(app.Options())]);
+        await using var fixture = await HostFixture.StartAsync(app => [FilesBridge(app.BridgeOptions())]);
         var files = new FilesBridgeClient(fixture.Transport);
 
         Assert.Equal(["cache", "data"], await files.GetRootsAsync());
@@ -81,7 +81,7 @@ public class BuiltInClientTests
     [Fact]
     public async Task HostDescribesItselfAndItsBridges()
     {
-        await using var fixture = await HostFixture.StartAsync(app => [FilesBridge(app.Options())]);
+        await using var fixture = await HostFixture.StartAsync(app => [FilesBridge(app.BridgeOptions())]);
         var info = await new HostBridgeClient(fixture.Transport).GetInfoAsync();
 
         Assert.Equal(TestApp.AppId, info.AppId);
@@ -94,7 +94,7 @@ public class BuiltInClientTests
         WebAppFileRoots? registry = null;
         await using var fixture = await HostFixture.StartAsync(app =>
         {
-            var options = app.Options();
+            var options = app.BridgeOptions();
             registry = new WebAppFileRoots(options);
             return [new WebAppFilesBridge(registry, options)];
         });
@@ -123,7 +123,7 @@ public class BuiltInClientTests
     public async Task The_apps_own_roots_cannot_be_replaced_or_removed()
     {
         await using var app = new TestApp();
-        var registry = new WebAppFileRoots(app.Options());
+        var registry = new WebAppFileRoots(app.BridgeOptions());
 
         Assert.Throws<InvalidOperationException>(() => registry.Add(new MemoryFileStore("data")));
         Assert.False(registry.Remove("data"));
@@ -138,7 +138,7 @@ public class BuiltInClientTests
     public void Paths_mean_the_same_on_every_platform(string path)
         => Assert.Null(WebAppFilePath.Normalize(path));
 
-    static WebAppFilesBridge FilesBridge(WebAppHostOptions options) => new(new WebAppFileRoots(options), options);
+    static WebAppFilesBridge FilesBridge(AppDeviceBridgeOptions options) => new(new WebAppFileRoots(options), options);
 
     /// <summary>A store with no disk behind it, as a picked Android folder has none.</summary>
     sealed class MemoryFileStore(string name) : WebAppFileStore(name)
@@ -180,21 +180,22 @@ public class BuiltInClientTests
     }
 
     /// <summary>A host with the WebView's session, and the page's transport over it.</summary>
-    sealed class HostFixture(TestApp app, WebAppHost host, HttpClient webView) : IAsyncDisposable
+    internal sealed class HostFixture(TestApp app, WebAppHost host, HttpClient webView) : IAsyncDisposable
     {
         public IBridgeTransport Transport { get; } = new HttpTransport(webView);
 
-        public static async Task<HostFixture> StartAsync(Func<TestApp, IWebAppBridge[]> bridges, WebAppEventHub? events = null)
+        public static async Task<HostFixture> StartAsync(Func<TestApp, IWebAppBridge[]> bridges, WebAppEventHub? events = null, Action<HttpClient>? onStarted = null)
         {
             var app = new TestApp();
             app.Store.Add("1.0.0", TestApp.Zip("1.0.0"));
             await app.StartReleaseServerAsync();
 
-            var host = new WebAppHost(app.Options(), new WebAppSession(), events ?? new WebAppEventHub(), bridges(app));
+            var host = app.CreateHost(app.Options(), null, events, bridges(app));
             var start = await host.StartAsync();
 
             var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() }) { BaseAddress = host.Origin };
             await webView.GetStringAsync(start);
+            onStarted?.Invoke(webView);
 
             return new HostFixture(app, host, webView);
         }
@@ -208,7 +209,7 @@ public class BuiltInClientTests
     }
 
     /// <summary>What <c>BlazorBridgeTransport</c> does, minus the WebAssembly: relative paths under the bridge prefix.</summary>
-    sealed class HttpTransport(HttpClient http) : IBridgeTransport
+    internal sealed class HttpTransport(HttpClient http) : IBridgeTransport
     {
         public Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {

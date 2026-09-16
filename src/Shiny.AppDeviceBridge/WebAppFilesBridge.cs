@@ -5,7 +5,7 @@ namespace Shiny.AppDeviceBridge;
 
 /// <summary>
 /// <c>/_bridge/files</c> — the page's own files, confined to named roots (see
-/// <see cref="WebAppHostOptions.FileRoots"/>). Paths are relative to the root, use forward slashes, and
+/// <see cref="AppDeviceBridgeOptions.FileRoots"/>). Paths are relative to the root, use forward slashes, and
 /// travel in the <c>path</c> query parameter.
 /// <code>
 /// GET    /_bridge/files                                  the roots
@@ -24,7 +24,7 @@ namespace Shiny.AppDeviceBridge;
 /// come from <see cref="WebAppFileRoots"/>, so a folder a bridge added at runtime is served the same way.
 /// </para>
 /// </summary>
-public sealed class WebAppFilesBridge(WebAppFileRoots roots, WebAppHostOptions options) : IWebAppBridge
+public sealed class WebAppFilesBridge(WebAppFileRoots roots, AppDeviceBridgeOptions options) : IWebAppBridge
 {
     public string Name => "files";
 

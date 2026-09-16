@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Cleared: src/Directory.Build.props sets the single target. -->
+    <TargetFramework></TargetFramework>
+
+    <!-- Multi-targeted for the WebView permission handling, which is platform code. Plain net10.0 stays for the
+         maui-labs GTK4 head, which has no platform TFM; the AppKit head picks net10.0-macos. -->
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
+    <UseMaui>true</UseMaui>
+    <SingleProject>false</SingleProject>
+    <RootNamespace>Shiny.AppDeviceBridge.WebView</RootNamespace>
+    <Description>Hosts a zipped web app (Blazor, React, anything static) in a .NET MAUI WebView, served from the Shiny.AppDeviceBridge server: kept up to date from a Shiny.AppDeviceBridge.AspNetCore release server with every download verified against a signature, a bundled baseline for offline first launch, a dev server proxy for hot reload, a launch session that keeps the bridges to the app's own page, and background.js for native calls when no page is open.</Description>
+
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-macos'))">14.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+
+    <!-- Runs background.js when a native call arrives with no page to take it. A pure .NET interpreter:
+         no JIT, no native engine to ship per platform, and allowed on iOS. -->
+    <PackageReference Include="Jint" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Maui/Shiny.AppDeviceBridge.Maui.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+</Project>

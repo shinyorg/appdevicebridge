@@ -401,3 +401,7 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# CMake output for the native Raspberry Pi camera shim. Never committed: the binary is tied to the exact libcamera it
+# was built against, so it is built on the device or in native/shinyrpi-camera/Dockerfile.
+native/shinyrpi-camera/build/

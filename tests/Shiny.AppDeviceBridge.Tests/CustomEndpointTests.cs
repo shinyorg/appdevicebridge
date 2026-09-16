@@ -62,7 +62,7 @@ public class CustomEndpointTests
 
     /// <summary>Two sets of rules, deliberately: a credential for the app's endpoints is not device access.</summary>
     [Fact]
-    public async Task LeavesBridgesBehindTheirOwnGuard()
+    public async Task LeavesBridgesBehindTheirOwnPolicy()
     {
         await using var fixture = await Fixture.StartAsync();
 
@@ -71,6 +71,9 @@ public class CustomEndpointTests
 
         // And an API key good enough for /api/admin opens nothing on the device.
         Assert.Equal(HttpStatusCode.Forbidden, (await fixture.GetAsync("/_bridge/echo/ping", key: AdminKey)).StatusCode);
+
+        // Nor does a policy of the app's own that happens to share the fallback's opinion.
+        Assert.NotEqual(HttpStatusCode.NoContent, (await fixture.GetAsync("/_bridge/echo/ping", key: ReaderKey)).StatusCode);
     }
 
     [Fact]
@@ -129,7 +132,7 @@ public class CustomEndpointTests
     }
 
     /// <summary>
-    /// The host's security lives in a container of its own. Shiny.Net.HttpServer registers an HttpServer and a
+    /// The server's security lives in a container of its own. Shiny.Net.HttpServer registers an HttpServer and a
     /// first-wins AuthorizationOptions when asked for auth; doing that in the app's container would change an app
     /// that runs its own server.
     /// </summary>
@@ -150,10 +153,10 @@ public class CustomEndpointTests
         var lan = FindLanAddress();
         Assert.SkipWhen(lan is null, "No non-loopback IPv4 address on this machine, so a remote request cannot be made.");
 
-        await using var fixture = await Fixture.StartAsync(o => o.RemoteAccess.Enabled = true);
+        await using var fixture = await Fixture.StartAsync(o => o.Server.Address = IPAddress.Any);
         var remote = new Uri($"http://{lan}:{fixture.Host.Origin!.Port}");
 
-        // No allowlist for these: their authorization is the gate.
+        // Their authorization is the gate.
         Assert.Equal(HttpStatusCode.Unauthorized, (await fixture.GetAsync(new Uri(remote, "/api/orders"))).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await fixture.GetAsync(new Uri(remote, "/api/orders"), key: ReaderKey)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await fixture.GetAsync(new Uri(remote, "/api/health"))).StatusCode);
@@ -186,26 +189,26 @@ public class CustomEndpointTests
         {
             services.AddSingleton<GeneratedOrderStore>();
             services.AddScoped<GeneratedOrders>();
-
-            services.AddWebAppEndpoints(map ?? (server =>
-            {
-                server.MapGet("/api/orders", ctx => ctx.Response.WriteAsync($"orders for {ctx.User?.Identity?.Name}"));
-                server.MapGet("/api/health", ctx => ctx.Response.WriteAsync("ok")).AllowAnonymous();
-                server.MapGet("/api/admin", ctx => ctx.Response.WriteAsync("admin")).RequireAuthorization("admin");
-                server.MapGet("/api/page-only", ctx => ctx.Response.WriteAsync("page")).RequireAuthorization(WebAppPolicies.Session);
-                server.MapGeneratedOrders();
-            }));
-
-            services.AddWebAppAuthentication(auth => auth.AddApiKey(o => o
-                .AddKey(ReaderKey, "reader")
-                .AddKey(AdminKey, "admin", "admin")
-            ));
-
-            services.AddWebAppAuthorization(o => o.AddPolicy("unused", p => p.RequireRole("nobody")));
-            services.AddWebAppAuthorization(o => o.AddPolicy("admin", p => p.RequireRole("admin")));
+            services.AddAppDeviceBridge(o => Configure(o, map));
         }
 
-        public static async Task<Fixture> StartAsync(Action<WebAppHostOptions>? configure = null, Action<HttpServer>? map = null)
+        static void Configure(AppDeviceBridgeOptions options, Action<HttpServer>? map) => options
+            .ConfigureServer((server, _) => (map ?? (http =>
+            {
+                http.MapGet("/api/orders", ctx => ctx.Response.WriteAsync($"orders for {ctx.User?.Identity?.Name}"));
+                http.MapGet("/api/health", ctx => ctx.Response.WriteAsync("ok")).AllowAnonymous();
+                http.MapGet("/api/admin", ctx => ctx.Response.WriteAsync("admin")).RequireAuthorization("admin");
+                http.MapGet("/api/page-only", ctx => ctx.Response.WriteAsync("page")).RequireAuthorization(WebAppPolicies.Session);
+                http.MapGeneratedOrders();
+            }))(server))
+            .AddAuthentication(auth => auth.AddApiKey(o => o
+                .AddKey(ReaderKey, "reader")
+                .AddKey(AdminKey, "admin", "admin")
+            ))
+            .AddAuthorization(o => o.AddPolicy("unused", p => p.RequireRole("nobody")))
+            .AddAuthorization(o => o.AddPolicy("admin", p => p.RequireRole("admin")));
+
+        public static async Task<Fixture> StartAsync(Action<AppDeviceBridgeOptions>? configure = null, Action<HttpServer>? map = null)
         {
             var fixture = new Fixture { app = new TestApp() };
 
@@ -214,15 +217,24 @@ public class CustomEndpointTests
                 fixture.app.Store.Add("1.0.0", TestApp.Zip("1.0.0"));
                 await fixture.app.StartReleaseServerAsync();
 
-                var options = fixture.app.Options();
-                configure?.Invoke(options);
-
                 var services = new ServiceCollection();
-                Register(services, map);
+                services.AddSingleton<GeneratedOrderStore>();
+                services.AddScoped<GeneratedOrders>();
                 fixture.services = services.BuildServiceProvider();
 
                 fixture.Session = new WebAppSession();
-                fixture.Host = new WebAppHost(options, fixture.Session, new WebAppEventHub(), [new EchoBridge()], services: fixture.services);
+                fixture.Host = fixture.app.CreateHost(
+                    fixture.app.Options(),
+                    fixture.app.BridgeOptions(o =>
+                    {
+                        Configure(o, map);
+                        configure?.Invoke(o);
+                    }),
+                    null,
+                    [new EchoBridge()],
+                    fixture.services,
+                    fixture.Session
+                );
 
                 var start = await fixture.Host.StartAsync();
                 using var webView = new HttpClient(new HttpClientHandler { CookieContainer = fixture.cookies });

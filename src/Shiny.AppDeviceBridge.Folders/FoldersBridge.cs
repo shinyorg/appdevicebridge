@@ -51,10 +51,10 @@ public sealed class FoldersBridge : IWebAppBridge
     readonly FolderMemory memory;
     readonly SemaphoreSlim picker = new(1, 1);
 
-    public FoldersBridge(WebAppFileRoots roots, WebAppHostOptions options)
+    public FoldersBridge(WebAppFileRoots roots, AppDeviceBridgeOptions options)
     {
         this.roots = roots;
-        this.memory = new FolderMemory(Path.Combine(options.ResolveInstallDirectory(), "folders.json"));
+        this.memory = new FolderMemory(Path.Combine(options.ResolveDataDirectory(), "folders.json"));
 
         // Back as roots before the page asks for them. One that no longer opens stays listed as unavailable, so the page
         // can tell the user and offer to pick it again.

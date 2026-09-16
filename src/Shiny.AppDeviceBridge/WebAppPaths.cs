@@ -4,7 +4,7 @@ namespace Shiny.AppDeviceBridge;
 
 /// <summary>
 /// Where everything sits under the server's origin, resolved once from
-/// <see cref="WebAppHostOptions.BasePath"/> and <see cref="WebAppHostOptions.BridgePrefix"/>.
+/// <see cref="AppDeviceBridgeOptions.BasePath"/> and <see cref="AppDeviceBridgeOptions.BridgePrefix"/>.
 /// <code>
 /// o.BasePath = "/kiosk";          //  http://127.0.0.1:5780/kiosk/
 /// o.BridgePrefix = "/_native";    //  http://127.0.0.1:5780/kiosk/_native/app/info
@@ -52,7 +52,7 @@ public sealed class WebAppPaths
     /// <summary>What a page fetches to learn the other two. See <see cref="WebAppPathsResponse"/>.</summary>
     public string Config { get; }
 
-    public static WebAppPaths From(WebAppHostOptions options)
+    public static WebAppPaths From(AppDeviceBridgeOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         return new WebAppPaths(Normalize(options.BasePath), Normalize(options.BridgePrefix));

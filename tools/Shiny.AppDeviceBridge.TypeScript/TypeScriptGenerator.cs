@@ -233,12 +233,15 @@ public static partial class TypeScriptGenerator
             var path = attribute.Name.Trim('/') + (route.Pattern.Trim('/') is { Length: > 0 } p ? "/" + p : "");
             var hasSignal = false;
 
+            // The trailing bag of optional arguments is "options" unless a parameter already has that name.
+            var bag = parameters.Any(x => x.Name == "options") ? "requestOptions" : "options";
+
             foreach (var parameter in parameters)
             {
                 var kind = Classify(parameter, route);
                 var name = parameter.Name!;
                 var optional = parameter.HasDefaultValue && kind != ParameterKind.Cancellation;
-                var access = optional ? $"options?.{name}" : name;
+                var access = optional ? $"{bag}?.{name}" : name;
 
                 switch (kind)
                 {
@@ -276,10 +279,10 @@ public static partial class TypeScriptGenerator
                 options.Add("signal?: AbortSignal");
 
             if (options.Count > 0)
-                signature.Add($"options?: {{ {String.Join("; ", options)} }}");
+                signature.Add($"{bag}?: {{ {String.Join("; ", options)} }}");
 
             var target = "`" + path + "`" + (queryParts.Count > 0 ? $" + query({{ {String.Join(", ", queryParts)} }})" : "");
-            var init = String.Join(", ", new[] { content, hasSignal ? "signal: options?.signal" : null }.Where(x => x is not null));
+            var init = String.Join(", ", new[] { content, hasSignal ? $"signal: {bag}?.signal" : null }.Where(x => x is not null));
             var initText = init.Length > 0 ? $", {{ {init} }}" : "";
             var result = Result(method);
 
