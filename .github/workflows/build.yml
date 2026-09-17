@@ -38,6 +38,11 @@ jobs:
     - name: Build
       run: dotnet build Build.slnf /restore -m -property:Configuration=Release -property:PublicRelease=true
 
+    # Before anything is published. Debug, so the test build doesn't pack every referenced project a second time. The
+    # summary line reports how many were skipped: the remote-caller tests skip on a runner without a LAN address.
+    - name: Test
+      run: dotnet test tests/Shiny.AppDeviceBridge.Tests/Shiny.AppDeviceBridge.Tests.csproj -property:Configuration=Debug
+
     - name: Post NuGet Artifacts
       uses: actions/upload-artifact@v7
       with:
