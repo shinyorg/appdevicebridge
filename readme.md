@@ -461,6 +461,9 @@ follow the bridge policy, and a tunneled caller never counts as local.
   cookie authenticates nothing when replayed from another machine.
 - **The dev server is never relayed.** Remote callers get the installed build, never the proxy to
   `dotnet watch`.
+- **Mind the body limit.** `MaxFileWriteBytes` (256 MB) raises the server's request body limit for every route, since the
+  server checks it before routing. Once the server is reachable from the network, that includes your own endpoints and
+  anonymous callers. Lower it when the bridges don't need large files, and check sizes in your own upload endpoints.
 - **Open a bridge remotely with a policy.** Use `AuthorizeBridges` with a credential, as above. A route-level
   allowlist is one assertion away: `ctx.HttpContext.Request.Path.StartsWithSegments("/_bridge/files")`.
 
