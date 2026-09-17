@@ -27,7 +27,7 @@ static partial class PhotoLibrary
         IReadOnlyList<LibraryPhoto> page =
         [
             .. new DirectoryInfo(Pictures)
-                .EnumerateFiles("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReparsePoint })
+                .EnumerateFiles("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = System.IO.FileAttributes.Hidden | System.IO.FileAttributes.System | System.IO.FileAttributes.ReparsePoint })
                 .Where(x => Extensions.Contains(x.Extension))
                 .OrderByDescending(x => x.CreationTimeUtc)
                 .Skip(offset)
