@@ -45,11 +45,12 @@ public static partial class TypeScriptGenerator
             }
         }
 
+        // LF everywhere: AppendLine writes CRLF on Windows, and the committed files must be byte-identical wherever the tool runs.
         var files = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (var module in modules.Values)
-            files[module.Name + ".ts"] = Emit(module, modules);
+            files[module.Name + ".ts"] = Emit(module, modules).ReplaceLineEndings("\n");
 
-        files["index.ts"] = EmitIndex(modules.Values);
+        files["index.ts"] = EmitIndex(modules.Values).ReplaceLineEndings("\n");
         return files;
     }
 

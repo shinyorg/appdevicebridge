@@ -71,8 +71,20 @@ sealed class WebAppInstallStore(string rootDirectory, ILogger logger)
         return Path.Combine(this.PendingDirectory, Guid.NewGuid().ToString("n") + ".download");
     }
 
-    /// <summary>Moves a verified download into place and makes it the installed build.</summary>
+    readonly Lock commitLock = new();
+
+    /// <summary>
+    /// Moves a verified download into place and makes it the installed build. One at a time: two installs committing at once
+    /// — a background update and one the page asked for — would each move a file onto the same state file, and Windows
+    /// refuses the second move while the first holds it.
+    /// </summary>
     public WebAppPackage Commit(string pendingPath, WebAppRelease release)
+    {
+        lock (this.commitLock)
+            return this.CommitCore(pendingPath, release);
+    }
+
+    WebAppPackage CommitCore(string pendingPath, WebAppRelease release)
     {
         Directory.CreateDirectory(this.ReleasesDirectory);
 
@@ -88,8 +100,7 @@ sealed class WebAppInstallStore(string rootDirectory, ILogger logger)
             File.Move(pendingPath, target, overwrite: true);
 
         var state = new InstallState(release.Version, sha, release.Size, release.MinimumHostVersion, DateTimeOffset.UtcNow);
-        // A temp file of its own: two installs committing at once — a background update and one the page asked for —
-        // would otherwise move each other's file away mid-write. The last to commit wins, as it would anyway.
+        // A temp file of its own, so a crash mid-write never leaves a half-written state file behind. The last to commit wins.
         var temp = $"{this.StatePath}.{Guid.NewGuid():n}.tmp";
 
         File.WriteAllBytes(temp, JsonSerializer.SerializeToUtf8Bytes(state, ClientJsonContext.Default.InstallState));

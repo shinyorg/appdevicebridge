@@ -1,0 +1,2 @@
+# Generated TypeScript clients are compared byte-for-byte against the generator in a test.
+clients/typescript/src/*.ts text eol=lf
