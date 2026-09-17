@@ -190,11 +190,11 @@ public static partial class TypeScriptGenerator
             var helpers = new[] { "browserTransport", "call", "callBlob", "callVoid", "dateText", "query", "segment" }
                 .Where(helper => Regex.IsMatch(generated, $@"\b{helper}(<|\()"));
 
-            text.AppendLine($"import {{ type BridgeTransport, {String.Join(", ", helpers)} }} from \"./core\";");
+            text.AppendLine($"import {{ type BridgeTransport, {String.Join(", ", helpers)} }} from \"./core.js\";");
         }
 
         foreach (var (from, names) in imports)
-            text.AppendLine($"import type {{ {String.Join(", ", names)} }} from \"./{from}\";");
+            text.AppendLine($"import type {{ {String.Join(", ", names)} }} from \"./{from}.js\";");
 
         text.Append(body);
         return text.ToString();
@@ -320,9 +320,9 @@ public static partial class TypeScriptGenerator
 
         var text = new StringBuilder();
         text.AppendFormat(Header, "every bridge client");
-        text.AppendLine("export * from \"./core\";");
+        text.AppendLine("export * from \"./core.js\";");
         foreach (var module in modules)
-            text.AppendLine($"export * from \"./{module.Name}\";");
+            text.AppendLine($"export * from \"./{module.Name}.js\";");
 
         return text.ToString();
     }
