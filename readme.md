@@ -122,7 +122,8 @@ Embed the baseline zip with a `LogicalName`:
 ```
 
 The zip can hold the files at its root or under `wwwroot/`. A zipped Blazor publish works either way,
-and its precompressed `.br`/`.gz` files are served as they are.
+and its precompressed `.br`/`.gz` files are served as they are. Only the entry document is sent with `Cache-Control: no-cache`,
+so an update is never hidden behind a cached `index.html`; every other file carries no cache header from the host.
 
 ### Platform setup
 

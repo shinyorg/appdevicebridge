@@ -90,9 +90,13 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
             RequestPath = server.Paths.Base,
             ServePrecompressedFiles = true,
 
-            // Revalidate everything. The same URL serves different bytes after an update, and the
-            // ETag — derived from each entry's CRC — makes a revalidation over loopback nearly free.
-            OnPrepareResponse = x => x.HttpContext.Response.Headers["Cache-Control"] = "no-cache"
+            // Only the entry document, whose URL never changes across updates: a cached copy would keep
+            // loading the old build. Every other file's caching is the app's to decide.
+            OnPrepareResponse = x =>
+            {
+                if (String.Equals(x.File.Name, options.EntryDocument, StringComparison.OrdinalIgnoreCase))
+                    x.HttpContext.Response.Headers["Cache-Control"] = "no-cache";
+            }
         });
     }
 

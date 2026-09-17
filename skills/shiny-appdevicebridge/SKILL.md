@@ -150,6 +150,7 @@ calls device features from that web app, updates it over the air, or writes a br
 - `Shiny.AppDeviceBridge.WebView` adds the **web app host** (`UseWebAppHost`): the web app served straight from a
   zip (the baseline or a signed download), shown in `WebAppHostView` / `WebAppHostPage`. The WebView trades a
   one-time launch token for an HttpOnly cookie, which the host adds to the bridge policy.
+  Only the entry document gets `Cache-Control: no-cache`; the host sets no cache header on any other file.
 - The server works without the WebView: bridges only, for callers the policy admits.
 - **Bridges** are HTTP endpoints under `/_bridge/{name}` (the prefix is configurable) plus one Server-Sent
   Events stream. One package per bridge, one extension method each.

@@ -8,6 +8,8 @@ on:
     - dev
     - preview
     - v*
+    paths-ignore:
+      - 'skills/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

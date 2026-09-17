@@ -56,6 +56,31 @@ public class WebAppHostTests
     }
 
     [Fact]
+    public async Task OnlyTheEntryDocumentIsMarkedNoCache()
+    {
+        await using var app = new TestApp();
+        app.Store.Add("1.0.0", TestApp.Zip("1.0.0"));
+        await app.StartReleaseServerAsync();
+        await using var host = app.CreateHost();
+
+        var start = await host.StartAsync();
+        var origin = host.Origin!;
+
+        using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() });
+        await webView.GetStringAsync(start);
+
+        foreach (var path in new[] { "/", "/index.html", "/client/side/route" })
+        {
+            using var entry = await webView.GetAsync(new Uri(origin, path));
+            Assert.True(entry.Headers.CacheControl?.NoCache, path);
+        }
+
+        using var asset = await webView.GetAsync(new Uri(origin, "/app.js"));
+        Assert.Equal(HttpStatusCode.OK, asset.StatusCode);
+        Assert.Null(asset.Headers.CacheControl);
+    }
+
+    [Fact]
     public async Task FailsWhenThereIsNothingToServe()
     {
         await using var app = new TestApp();
