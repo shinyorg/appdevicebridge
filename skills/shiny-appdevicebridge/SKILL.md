@@ -102,6 +102,17 @@ triggers:
   - Raspberry Pi camera
   - libcamera
   - MJPEG stream
+  - RpiCameraStreamer
+  - StreamToAsync
+  - RpiCameraStreamSettings
+  - RpiCameraStreamStatistics
+  - RpiCameraStreamEnd
+  - RpiCameraFrameStream
+  - RpiCameraFrameHeader
+  - RpiCameraStreamFrame
+  - ReadFramesAsync
+  - camera over L2CAP
+  - camera over Bluetooth LE
   - AddTrayIconBridge
   - AddQuickEntryBridge
   - Shiny.AppDeviceBridge.Desktop
@@ -245,7 +256,7 @@ public class App : Application
 | `.Camera` | `AddCameraBridge(o => …)` | `ICameraBridge` — this device's camera driven from a page anywhere; viewfinder MJPEG at `camera/preview` for an `<img>` (not Linux) |
 | `.Folders` | `AddFoldersBridge()` — also registers `FolderRoots` for folders the app adds by path | `IFoldersBridge` |
 | `.Desktop` | `AddTrayIconBridge()`, `AddQuickEntryBridge(o => o.HotKey = "Ctrl+Alt+Space")` | `Shiny.AppDeviceBridge.Desktop.Client`: `ITrayBridge`, `IQuickEntryBridge` (desktop only; `501` on mobile) |
-| `.RpiCamera` | `http.AddRpiCameraBridge(o => …)` (the server's builder, for headless Pis) | `IRpiCameraBridge` — snapshots, captures into a file root, controls; live MJPEG at `rpicamera/stream` for an `<img>` (Linux + native shim only) |
+| `.RpiCamera` | `http.AddRpiCameraBridge(o => …)` (the server's builder, for headless Pis) | `IRpiCameraBridge` — snapshots, captures into a file root, controls; live MJPEG at `rpicamera/stream` for an `<img>`; `ICameraService.StreamToAsync(stream)` for a pipe with no HTTP, read with `ReadFramesAsync` (Linux + native shim only) |
 | `.Jobs` | `AddWebAppJob(name, configure)` | native call `job:{name}` with `JobRun` |
 | `.Tunnel` | `http.AddAppDeviceBridgeTunnel(o => o.Host = QuickTunnelHost.Pinggy)` | none — the app opens and closes it (`AppDeviceBridgeTunnel.StartAsync(token)` / `StopAsync()`) from its own UI or endpoints |
 
@@ -384,6 +395,36 @@ await camera.UpdateSettingsAsync(new CameraSettingsInput(VideoMode: true, Zoom: 
 - The viewfinder is `<img src="_bridge/camera/preview?t={ticks}">` — always a changing query.
 - An app with its own camera screen: `CameraBridgeView` on the page, `o.PresentWhenOpened = false`, navigate from
   `CameraBridgeSession.OpenRequested` and set `e.Handled = true`. Custom filing: register `ICameraCaptureStore` first.
+
+## Pi camera into a Stream (L2CAP)
+
+A page watches a Pi camera with `<img src="_bridge/rpicamera/stream">`. A pipe with no HTTP around it, a Bluetooth LE
+L2CAP channel above all, uses `ICameraService.StreamToAsync` (namespace `Shiny.AppDeviceBridge.RpiCamera`) on the device and
+`ReadFramesAsync` (namespace `Shiny.AppDeviceBridge.RpiCamera.Client`) on the viewer. It is not a bridge route, so there is no `501`:
+off Linux, or without the native shim, it throws `CameraUnavailableException`.
+
+```csharp
+// Pi (Shiny.BluetoothLE.Hosting 5.6.5+): ICameraService comes from AddRpiCameraBridge(); send ticket.Psm + ticket.Token to the phone
+var ticket = await broker.Reserve("camera", TimeSpan.FromSeconds(30), (channel, ct) =>
+    camera.StreamToAsync(channel, new RpiCameraStreamSettings { MaxFps = 8 }, cancellationToken: ct));
+
+// Phone (Shiny.BluetoothLE 5.6.5+)
+await using var channel = await peripheral.OpenL2CapTicketChannel(psm, token);
+await foreach (var frame in channel.ReadFramesAsync(ct))   // RpiCameraStreamFrame: Jpeg, Sequence, Width, Height, TimestampMs
+    Show(frame.Jpeg);
+```
+
+- Call `StreamToAsync` once the viewer has connected (in the broker handler), never ahead of it: it opens the camera
+  session on start and releases it on return.
+- `RpiCameraStreamSettings` defaults: 640×480, `Quality` 60, `MaxFps` 10, `MaxDuration` 5 minutes. Keep them low for
+  BLE; frames over `MaxFps` are dropped before encoding and counted in `RpiCameraStreamStatistics.FramesDropped`.
+- It returns `RpiCameraStreamEnd.CameraStopped` or `MaxDurationReached`; cancellation throws `OperationCanceledException`,
+  a viewer that left throws `IOException`. It never disposes the destination.
+- `ReadFramesAsync` ends cleanly when the stream closes between frames; mid-frame is `EndOfStreamException`, a bad
+  header `InvalidDataException`. A gap in `Sequence` is dropped frames, not an error.
+- Wire format (`RpiCameraFrameStream`): 28-byte little-endian header `[length u32][sequence u32][width u32][height u32][fourcc u32 "MJPG"][timestampMs i64]`
+  then the JPEG; `WriteFrameAsync`, `WriteHeader`, `TryReadHeader`, `MaxFrameBytes` (8 MB).
+- It holds the camera outside the bridge: `GET rpicamera` doesn't list it and `DELETE rpicamera/streams` doesn't stop it.
 
 ## Writing a bridge with a typed client
 

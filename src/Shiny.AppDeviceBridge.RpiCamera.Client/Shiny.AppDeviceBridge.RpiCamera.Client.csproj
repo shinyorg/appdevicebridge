@@ -4,7 +4,7 @@
 
   <PropertyGroup>
     <RootNamespace>Shiny.AppDeviceBridge.RpiCamera.Client</RootNamespace>
-    <Description>Typed client and contracts for the Shiny.AppDeviceBridge Raspberry Pi camera bridge — cameras, JPEG snapshots, captures into a file root, sensor controls and a live MJPEG stream — for a web app or tool calling a device running Shiny.AppDeviceBridge. Register with services.AddRpiCameraBridgeClient().</Description>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge Raspberry Pi camera bridge — cameras, JPEG snapshots, captures into a file root, sensor controls and a live MJPEG stream — for a web app or tool calling a device running Shiny.AppDeviceBridge. Register with services.AddRpiCameraBridgeClient(). Also the RpiCameraFrameStream format and ReadFramesAsync, for reading a camera streamed into a plain Stream such as a Bluetooth LE L2CAP channel.</Description>
   </PropertyGroup>
 
 </Project>
