@@ -230,7 +230,7 @@ public sealed class WebAppUpdater : IDisposable
 
             // Opened once before it can become the installed build, so an archive that is signed but
             // unservable fails here instead of at the next launch.
-            WebAppArchive.Open(pending, this.options.EntryDocument, this.options.ArchiveBasePath);
+            WebAppArchive.Open(pending, this.options);
 
             var package = this.store.Commit(pending, release);
             this.logger.LogInformation("Installed web app {Version}", release.Version);

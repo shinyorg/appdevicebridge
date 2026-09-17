@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -50,9 +51,11 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
     readonly AppDeviceBridgeServer server;
     readonly WebAppSession session;
     readonly ILogger logger;
-    readonly WebAppFileSource source = new();
+    readonly WebAppFileSource source;
     readonly WebAppInstallStore store;
-    readonly StaticFileMiddleware staticFiles;
+    readonly string defaultVariant;
+    readonly IReadOnlyDictionary<string, StaticFileMiddleware> staticFiles;
+    readonly ConcurrentDictionary<string, bool> reportedVariants = new(StringComparer.Ordinal);
     readonly SemaphoreSlim gate = new(1, 1);
     readonly CancellationTokenSource lifetime = new();
 
@@ -81,13 +84,27 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
         this.store = new WebAppInstallStore(options.ResolveInstallDirectory(server.Options), this.logger);
         this.Updater = new WebAppUpdater(options, server.Options, this.store, this.logger);
 
+        // Without variants there is one, named "", and nothing below asks which.
+        this.defaultVariant = options.VariantNames.Count > 0 ? options.VariantNames[0] : String.Empty;
+        this.source = new WebAppFileSource(this.defaultVariant);
+
+        var files = new Dictionary<string, StaticFileMiddleware>(StringComparer.Ordinal);
+        foreach (var variant in options.VariantNames.Count > 0 ? options.VariantNames : [String.Empty])
+            files[variant] = new StaticFileMiddleware(this.CreateStaticFileOptions(variant));
+
+        this.staticFiles = files;
+    }
+
+    StaticFileOptions CreateStaticFileOptions(string variant)
+    {
+        var options = this.options;
         var staticOptions = new StaticFileOptions
         {
-            Source = this.source,
+            Source = this.source.For(variant),
             FallbackFile = options.SpaFallback ? options.EntryDocument : null,
 
             // Strips the mount point, so everything downstream addresses the archive from its own root.
-            RequestPath = server.Paths.Base,
+            RequestPath = this.server.Paths.Base,
             ServePrecompressedFiles = true,
 
             // Only the entry document, whose URL never changes across updates: a cached copy would keep
@@ -104,7 +121,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
         foreach (var (extension, contentType) in options.ContentTypeOverrides)
             staticOptions.ContentTypeOverrides[extension] = contentType;
 
-        this.staticFiles = new StaticFileMiddleware(staticOptions);
+        return staticOptions;
     }
 
     /// <summary>The bridge server the web app is served from.</summary>
@@ -323,7 +340,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
     }
 
     void Activate(WebAppPackage package)
-        => this.source.Activate(package, package.Open(this.options.EntryDocument, this.options.ArchiveBasePath));
+        => this.source.Activate(package, package.Open(this.options));
 
     async Task<WebAppPackage?> InstallRequiredAsync(WebAppUpdateCheckResult check, WebAppPackage? active, CancellationToken cancellationToken)
     {
@@ -458,31 +475,78 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
             return;
         }
 
+        var variant = this.ChooseVariant(context);
+        var files = this.source.For(variant);
+
+        if (this.options.VariantNames.Count > 0)
+        {
+            // One URL, different bytes per browser: a shared cache must not hand the desktop build to a phone.
+            context.Response.Headers["Vary"] = "User-Agent, Sec-CH-UA-Mobile, Cookie";
+
+            if (this.IsEntryDocument(relative, files))
+                context.Response.Headers["Accept-CH"] = "Sec-CH-UA-Mobile";
+        }
+
         // Mounted somewhere other than the root, the entry document's <base href> has to say so, or every
         // relative URL on the page resolves against the origin instead.
-        if (this.paths.Base.Length > 0 && this.IsEntryDocument(relative) && await this.TryServeEntryDocumentAsync(context))
+        if (this.paths.Base.Length > 0 && this.IsEntryDocument(relative, files) && await this.TryServeEntryDocumentAsync(context, files))
             return;
 
-        await this.staticFiles.InvokeAsync(context, next);
+        await this.staticFiles[variant].InvokeAsync(context, next);
+    }
+
+    /// <summary>
+    /// The app's <see cref="WebAppHostOptions.SelectVariant"/>, or the default variant when there is none, it answers
+    /// nothing or a name the package doesn't have, or it throws. A wrong answer costs one browser the default client, not a
+    /// 500 on every page. Each bad answer is logged once.
+    /// </summary>
+    string ChooseVariant(HttpContext context)
+    {
+        if (this.options.SelectVariant is not { } select)
+            return this.defaultVariant;
+
+        string? chosen;
+        try
+        {
+            chosen = select(context);
+        }
+        catch (Exception ex)
+        {
+            if (this.reportedVariants.TryAdd("exception:" + ex.GetType().FullName, true))
+                this.logger.LogWarning(ex, "SelectVariant threw; serving the default variant '{Variant}'", this.defaultVariant);
+
+            return this.defaultVariant;
+        }
+
+        if (chosen is null)
+            return this.defaultVariant;
+
+        if (this.staticFiles.ContainsKey(chosen))
+            return chosen;
+
+        if (this.reportedVariants.TryAdd(chosen, true))
+            this.logger.LogWarning("SelectVariant chose '{Chosen}', which is not a declared variant; serving '{Variant}'", chosen, this.defaultVariant);
+
+        return this.defaultVariant;
     }
 
     /// <summary>
     /// Whether the static middleware would answer this with the entry document: it is the entry document, or
     /// it is a route the SPA fallback picks up.
     /// </summary>
-    bool IsEntryDocument(string relative)
+    bool IsEntryDocument(string relative, IStaticFileSource files)
     {
         var path = relative.TrimStart('/');
 
         if (path.Length == 0 || String.Equals(path, this.options.EntryDocument, StringComparison.OrdinalIgnoreCase))
             return true;
 
-        return this.options.SpaFallback && !this.source.TryGetFile(path, out _);
+        return this.options.SpaFallback && !files.TryGetFile(path, out _);
     }
 
-    async ValueTask<bool> TryServeEntryDocumentAsync(HttpContext context)
+    async ValueTask<bool> TryServeEntryDocumentAsync(HttpContext context, IStaticFileSource files)
     {
-        if (!this.source.TryGetFile(this.options.EntryDocument, out var file))
+        if (!files.TryGetFile(this.options.EntryDocument, out var file))
             return false;
 
         string html;

@@ -212,6 +212,7 @@ services.AddShinyHttpServer(http => http
 | `ServeWebAppLocally` | `false` | Serve the pages to any caller on this device — a browser opening the loopback address — not only the WebView. |
 | `OnPrepareResponse` | none | Headers for each file of the web app, after the host's own: a cache policy for the network, a security header. |
 | `ContentTypeOverrides` | empty | Content types by extension (`.bcmap`, `.pfb`, …) for files the built-in map doesn't know. |
+| `Variants(...)`, `SelectVariant` | none | Several builds in one package at the same URLs, chosen per request. See [Client variants](#client-variants). |
 | `BackgroundScript` | `background.js` | What takes native calls with no page open. |
 
 ### Mount points
@@ -266,6 +267,44 @@ port as soon as the server is up (and null while it is down). The WebView's sess
 origin, an open tunnel keeps its public address and goes on serving into the same pipeline, and a tunneled caller is
 still refused the loopback names on the new port. A page loaded from the old origin has to be reloaded from the new
 one, because web storage belongs to the origin.
+
+### Client variants
+
+
+One app can ship several builds of its web app — a phone client and a desktop client — in one package, at the same URLs.
+The host picks one for every request, documents and assets alike, because `_framework/dotnet.js` exists in both publishes
+with different bytes:
+
+```csharp
+builder.UseWebAppHost(o =>
+{
+    o.UseBaseline(typeof(App).Assembly, "webapp.zip");   // mobile/…, desktop/…
+    o.Variants("mobile", "desktop");                      // folders in the zip; the first is the default
+    o.SelectVariant = ctx =>
+        ctx.Request.Cookies["view"]
+        ?? (ctx.Request.Headers["Sec-CH-UA-Mobile"].ToString() == "?1" ? "mobile" : "desktop");
+});
+```
+
+- **One package, one version.** Every variant is a folder at the root of the zip (or under `ArchiveBasePath`), with the
+  entry document directly in it or under `wwwroot/`. A package missing any variant's entry document is refused, at
+  install and for the baseline. The device downloads the whole package; a phone's browser still only loads its own build.
+- **The selector has to be stable.** Build it from the `User-Agent`, the `Sec-CH-UA-Mobile` hint and a cookie of your
+  own. To switch a browser to the other build, set your cookie and reload. Every response carries
+  `Vary: User-Agent, Sec-CH-UA-Mobile, Cookie`, and the entry document `Accept-CH: Sec-CH-UA-Mobile`.
+- **Wrong answers are not errors.** Null, an unknown name or an exception serves the default variant, and logs a warning once.
+- **The WebView goes through the selector too.** `background.js` comes from the default variant, and the dev server
+  serves one build.
+
+Zipping two publishes into one release:
+
+```bash
+dotnet publish Client.Mobile -c Release -o out/mobile
+dotnet publish Client.Desktop -c Release -o out/desktop
+mkdir -p release/mobile release/desktop
+cp -R out/mobile/wwwroot/. release/mobile/ && cp -R out/desktop/wwwroot/. release/desktop/
+(cd release && zip -qr ../1.4.0.zip .)
+```
 
 ### Camera, microphone and location in the page
 

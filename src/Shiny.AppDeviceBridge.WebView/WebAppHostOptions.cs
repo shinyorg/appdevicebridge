@@ -1,4 +1,5 @@
 using System.Reflection;
+using Shiny.Net.HttpServer;
 using Shiny.Net.HttpServer.StaticFiles;
 
 namespace Shiny.AppDeviceBridge.WebView;
@@ -162,6 +163,47 @@ public sealed class WebAppHostOptions
     /// </summary>
     public IDictionary<string, string> ContentTypeOverrides { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
+    readonly List<string> variantNames = [];
+
+    /// <summary>The client variants in every package, in the order given to <see cref="Variants"/>. Empty without variants.</summary>
+    public IReadOnlyList<string> VariantNames => this.variantNames;
+
+    /// <summary>
+    /// Every package holds several builds of the web app — a phone client and a desktop client, say — one folder each, and
+    /// <see cref="SelectVariant"/> picks one for every request. They share one app id, one version and one update check,
+    /// and are served at the same URLs: <c>/</c>, <c>/_framework/…</c> and deep links alike. The first is the default.
+    /// <code>
+    /// o.UseBaseline(typeof(App).Assembly, "webapp.zip");   // mobile/index.html, desktop/index.html, …
+    /// o.Variants("mobile", "desktop");
+    /// o.SelectVariant = ctx => ctx.Request.Cookies["view"] ?? (IsPhone(ctx) ? "mobile" : "desktop");
+    /// </code>
+    /// <para>
+    /// Each variant is a folder at the root of the archive (under <see cref="ArchiveBasePath"/> when that is set), holding
+    /// the entry document directly or under <c>wwwroot/</c>. A package missing any variant's entry document is refused,
+    /// the baseline as much as a download.
+    /// </para>
+    /// </summary>
+    public WebAppHostOptions Variants(params string[] names)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+
+        this.variantNames.Clear();
+        this.variantNames.AddRange(names);
+        return this;
+    }
+
+    /// <summary>
+    /// Chooses the variant for a request to the web app — documents, the SPA fallback and every asset, because the same
+    /// asset path holds different bytes in each build. It must answer the same for every request from one browser: derive
+    /// it from the <c>User-Agent</c>, the <c>Sec-CH-UA-Mobile</c> client hint and a cookie of the app's own, which the
+    /// host's <c>Vary</c> header names. Null, an unknown name, or an exception serves the default variant.
+    /// <para>
+    /// The WebView goes through it too. Pages from the <see cref="DevServer"/> do not: there is one dev server.
+    /// <c>background.js</c> is read from the default variant.
+    /// </para>
+    /// </summary>
+    public Func<HttpContext, string?>? SelectVariant { get; set; }
+
     /// <summary>Fails when the host is created, for the mistakes that would otherwise surface as a blank WebView.</summary>
     internal void Validate()
     {
@@ -176,5 +218,17 @@ public sealed class WebAppHostOptions
 
         if (String.IsNullOrWhiteSpace(this.BackgroundScript))
             throw new InvalidOperationException("WebAppHostOptions.BackgroundScript is required.");
+
+        foreach (var name in this.variantNames)
+        {
+            if (String.IsNullOrWhiteSpace(name) || name.IndexOfAny(['/', '\\']) >= 0 || name is "." or "..")
+                throw new InvalidOperationException($"'{name}' is not a valid variant name: it names a folder in the archive.");
+        }
+
+        if (this.variantNames.Distinct(StringComparer.Ordinal).Count() != this.variantNames.Count)
+            throw new InvalidOperationException("WebAppHostOptions.Variants names a variant twice.");
+
+        if (this.SelectVariant is not null && this.variantNames.Count == 0)
+            throw new InvalidOperationException("WebAppHostOptions.SelectVariant is set, but no Variants are declared to choose from.");
     }
 }

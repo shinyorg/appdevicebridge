@@ -27,6 +27,9 @@ triggers:
   - ServeWebAppLocally
   - OnPrepareResponse
   - ContentTypeOverrides
+  - SelectVariant
+  - client variants
+  - mobile and desktop client
   - AddWebAppReleases
   - MapWebAppReleases
   - IWebAppBridge
@@ -160,6 +163,10 @@ calls device features from that web app, updates it over the air, or writes a br
 - Who gets the pages: the WebView (launch session) always; other machines and tunnels only with
   `ServeWebAppRemotely = true`; a browser on the same device only with `ServeWebAppLocally = true`. Neither option
   opens the bridges — that is `AuthorizeBridges`. Never generate a custom middleware to let a local browser in.
+- **Two clients (phone and desktop) at the same URLs**: `o.Variants("mobile", "desktop")` plus
+  `o.SelectVariant = ctx => …` (cookie, `Sec-CH-UA-Mobile`, `User-Agent`), with one zip holding `mobile/` and
+  `desktop/`. Never generate a second mount point, a redirect to `/desktop`, or two `UseWebAppHost` calls for this. The
+  first variant is the default; a null/unknown/throwing selector falls back to it.
 - The server works without the WebView: bridges only, for callers the policy admits.
 - **Moving the server at runtime** (a LAN switch, a port setting) is `await http.StopAsync(); http.Options.Address = …;
   http.Options.Port = …; await http.StartAsync();` on the app's `HttpServer`. `Origin`, the WebView session and an open

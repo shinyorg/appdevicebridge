@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Publishes Sample.Blazor as a release the sample server offers:  ./publish-release.sh 1.1.0
 # Change something in Sample.Blazor first so the new version is visibly different.
+# An app with client variants (WebAppHostOptions.Variants) zips each publish's wwwroot into a folder of its own
+# instead: release/mobile/…, release/desktop/…, then zips release/.
 set -euo pipefail
 
 version="${1:?usage: publish-release.sh <version>}"
