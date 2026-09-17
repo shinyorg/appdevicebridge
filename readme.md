@@ -124,6 +124,17 @@ Embed the baseline zip with a `LogicalName`:
 The zip can hold the files at its root or under `wwwroot/`. A zipped Blazor publish works either way,
 and its precompressed `.br`/`.gz` files are served as they are. Only the entry document is sent with `Cache-Control: no-cache`,
 so an update is never hidden behind a cached `index.html`; every other file carries no cache header from the host.
+`OnPrepareResponse` runs after that for every file, so an app serving the pages over a LAN or a tunnel can cache
+fingerprinted assets for a year and still leave the entry document to revalidate:
+
+```csharp
+o.OnPrepareResponse = x =>
+{
+    // Your rule for which names carry a content hash, such as dotnet.runtime.zbexyp8zrs.js.
+    if (MyCachePolicy.IsFingerprinted(x.File.Name))
+        x.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
+};
+```
 
 ### Platform setup
 
@@ -198,6 +209,9 @@ services.AddShinyHttpServer(http => http
 | `ApplyOptionalUpdatesImmediately` | `false` | Swap to an optional update and reload as soon as it lands. |
 | `DevServer` | none | Take pages from `dotnet watch` in development. See below. |
 | `ServeWebAppRemotely` | `false` | Serve the pages to other machines too, when the server is bound past loopback. |
+| `ServeWebAppLocally` | `false` | Serve the pages to any caller on this device — a browser opening the loopback address — not only the WebView. |
+| `OnPrepareResponse` | none | Headers for each file of the web app, after the host's own: a cache policy for the network, a security header. |
+| `ContentTypeOverrides` | empty | Content types by extension (`.bcmap`, `.pfb`, …) for files the built-in map doesn't know. |
 | `BackgroundScript` | `background.js` | What takes native calls with no page open. |
 
 ### Mount points
@@ -382,6 +396,10 @@ builder.Services.AddShinyHttpServer(http =>
 builder.UseWebAppHost(o => o.ServeWebAppRemotely = true);   // optional: the app's own pages too
 ```
 
+A browser on the device itself — the same machine opening `http://127.0.0.1:5780/` — has no launch session, so in a
+release build it gets `403` for the pages too. `ServeWebAppLocally = true` serves it the pages; the bridges still
+follow the bridge policy, and a tunneled caller never counts as local.
+
 - **The session never leaves the device.** `/_host/start` answers `403` over the network, and the session
   cookie authenticates nothing when replayed from another machine.
 - **The dev server is never relayed.** Remote callers get the installed build, never the proxy to
@@ -408,7 +426,7 @@ public sealed class Sharing(AppDeviceBridgeTunnel tunnel)
 - **A tunnel caller is a remote caller.** A tunnel hands the server its requests from the local end of the
   forward, so every one arrives from `127.0.0.1` — with headers written by someone on the internet. It is never
   `IsOnDevice`, never holds the WebView's session, isn't let in by `AllowAnyCallerInDebug`, and gets the web app's
-  pages only with `ServeWebAppRemotely`. Your own endpoints decide for themselves, as for any remote caller.
+  pages only with `ServeWebAppRemotely` (never with `ServeWebAppLocally`). Your own endpoints decide for themselves, as for any remote caller.
 - **Only the tunnel's own name.** A tunneled request must carry the tunnel's current public host (or a name in
   `AllowedHosts`, for a custom domain in front of it). One claiming `127.0.0.1` or `localhost` gets `421`.
 - **Bind to the address.** `PublicUrl` and `State` raise `PropertyChanged`, on a background thread. A free tunnel

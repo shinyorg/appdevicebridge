@@ -79,6 +79,19 @@ public class TunnelTests
         Assert.Contains("version 1.0.0", await page.Content.ReadAsStringAsync());
     }
 
+    /// <summary>A tunnel delivers from loopback, but serving the pages to this device's browser is not serving them to the internet.</summary>
+    [Fact]
+    public async Task Serving_local_browsers_does_not_serve_the_tunnel()
+    {
+        await using var fixture = await TunnelFixture.StartAsync(web: o => o.ServeWebAppLocally = true);
+
+        using var browser = new HttpClient();
+        Assert.Equal(HttpStatusCode.OK, (await browser.GetAsync(fixture.Host.Origin!)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await fixture.TunnelAsync("/")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await fixture.TunnelAsync("/_bridge/echo/ping")).StatusCode);
+    }
+
     /// <summary>The app's policy decides for a tunneled caller exactly as it would for any remote one.</summary>
     [Fact]
     public async Task Lets_the_apps_policy_admit_a_tunneled_caller()

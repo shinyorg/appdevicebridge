@@ -81,6 +81,83 @@ public class WebAppHostTests
     }
 
     [Fact]
+    public async Task TheAppDecidesTheRestOfTheCachePolicy()
+    {
+        await using var app = new TestApp();
+        app.Store.Add("1.0.0", TestApp.Zip("1.0.0"));
+        await app.StartReleaseServerAsync();
+
+        var options = app.Options();
+        options.OnPrepareResponse = x =>
+        {
+            if (x.File.Name.EndsWith(".js", StringComparison.OrdinalIgnoreCase))
+                x.HttpContext.Response.Headers["Cache-Control"] = "public, max-age=31536000, immutable";
+        };
+        await using var host = app.CreateHost(options);
+
+        var start = await host.StartAsync();
+        using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() });
+        await webView.GetStringAsync(start);
+
+        using var asset = await webView.GetAsync(new Uri(host.Origin!, "/app.js"));
+        Assert.True(asset.Headers.CacheControl?.Public);
+        Assert.Equal(TimeSpan.FromDays(365), asset.Headers.CacheControl?.MaxAge);
+
+        // The host's own rule for the entry document still applies when the app's policy leaves it alone.
+        using var entry = await webView.GetAsync(new Uri(host.Origin!, "/"));
+        Assert.True(entry.Headers.CacheControl?.NoCache);
+    }
+
+    [Fact]
+    public async Task ContentTypesCanBeOverridden()
+    {
+        await using var app = new TestApp();
+        app.Store.Add("1.0.0", TestApp.Zip("1.0.0"));
+        await app.StartReleaseServerAsync();
+
+        var options = app.Options();
+        options.ContentTypeOverrides[".js"] = "text/x-test";
+        await using var host = app.CreateHost(options);
+
+        var start = await host.StartAsync();
+        using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() });
+        await webView.GetStringAsync(start);
+
+        using var asset = await webView.GetAsync(new Uri(host.Origin!, "/app.js"));
+        Assert.Equal("text/x-test", asset.Content.Headers.ContentType?.MediaType);
+    }
+
+    /// <summary>A browser on the same machine, without the WebView's launch session.</summary>
+    [Fact]
+    public async Task ServesALocalBrowserOnlyWhenAsked()
+    {
+        await using var app = new TestApp();
+        app.Store.Add("1.0.0", TestApp.Zip("1.0.0"));
+        await app.StartReleaseServerAsync();
+
+        await using (var closed = app.CreateHost(bridges: new EchoBridge()))
+        {
+            await closed.StartAsync();
+            using var browser = new HttpClient();
+            Assert.Equal(HttpStatusCode.Forbidden, (await browser.GetAsync(closed.Origin!)).StatusCode);
+        }
+
+        var options = app.Options();
+        options.ServeWebAppLocally = true;
+        await using var open = app.CreateHost(options, new EchoBridge());
+        await open.StartAsync();
+
+        using (var browser = new HttpClient())
+        {
+            Assert.Contains("version 1.0.0", await browser.GetStringAsync(open.Origin!));
+            Assert.Contains("version 1.0.0", await browser.GetStringAsync(new Uri(open.Origin!, "/client/side/route")));
+
+            // Opening the pages is not opening the bridges.
+            Assert.Equal(HttpStatusCode.Unauthorized, (await browser.GetAsync(new Uri(open.Origin!, "/_bridge/echo/ping"))).StatusCode);
+        }
+    }
+
+    [Fact]
     public async Task FailsWhenThereIsNothingToServe()
     {
         await using var app = new TestApp();

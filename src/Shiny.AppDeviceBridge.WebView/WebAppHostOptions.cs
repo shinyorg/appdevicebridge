@@ -1,4 +1,5 @@
 using System.Reflection;
+using Shiny.Net.HttpServer.StaticFiles;
 
 namespace Shiny.AppDeviceBridge.WebView;
 
@@ -135,6 +136,31 @@ public sealed class WebAppHostOptions
     /// on its builder, or <c>Shiny.AppDeviceBridge.Tunnel</c>.
     /// </summary>
     public bool ServeWebAppRemotely { get; set; }
+
+    /// <summary>
+    /// Serve the web app's files to any caller on this device, not only the app's own WebView — a browser on the same
+    /// machine opening the loopback address. Off by default. A tunneled caller is never local, however it arrives. Bridges
+    /// are not affected: a local browser without the launch session reaches them only if
+    /// <see cref="AppDeviceBridgeOptions.AuthorizeBridges"/> admits it.
+    /// </summary>
+    public bool ServeWebAppLocally { get; set; }
+
+    /// <summary>
+    /// Runs for every file of the web app just before it is written, after the host's own headers — the entry document's
+    /// <c>Cache-Control: no-cache</c> — so it can replace them. For a cache policy of the app's own, such as caching
+    /// fingerprinted assets for a year when they are served over a LAN or a tunnel, or a security header.
+    /// <para>
+    /// Not called for a response the host writes itself: an entry document rewritten for a mount point, or a page proxied from
+    /// the dev server.
+    /// </para>
+    /// </summary>
+    public Action<StaticFileResponseContext>? OnPrepareResponse { get; set; }
+
+    /// <summary>
+    /// Content types by file extension, for files the built-in map does not know or gets wrong for this app — pdf.js's
+    /// <c>.bcmap</c> and <c>.pfb</c>, say. Keys are extensions with the leading dot.
+    /// </summary>
+    public IDictionary<string, string> ContentTypeOverrides { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Fails when the host is created, for the mistakes that would otherwise surface as a blank WebView.</summary>
     internal void Validate()

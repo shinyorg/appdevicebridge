@@ -81,7 +81,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
         this.store = new WebAppInstallStore(options.ResolveInstallDirectory(server.Options), this.logger);
         this.Updater = new WebAppUpdater(options, server.Options, this.store, this.logger);
 
-        this.staticFiles = new StaticFileMiddleware(new StaticFileOptions
+        var staticOptions = new StaticFileOptions
         {
             Source = this.source,
             FallbackFile = options.SpaFallback ? options.EntryDocument : null,
@@ -91,13 +91,20 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
             ServePrecompressedFiles = true,
 
             // Only the entry document, whose URL never changes across updates: a cached copy would keep
-            // loading the old build. Every other file's caching is the app's to decide.
+            // loading the old build. Every other file's caching is the app's to decide, after this.
             OnPrepareResponse = x =>
             {
                 if (String.Equals(x.File.Name, options.EntryDocument, StringComparison.OrdinalIgnoreCase))
                     x.HttpContext.Response.Headers["Cache-Control"] = "no-cache";
+
+                options.OnPrepareResponse?.Invoke(x);
             }
-        });
+        };
+
+        foreach (var (extension, contentType) in options.ContentTypeOverrides)
+            staticOptions.ContentTypeOverrides[extension] = contentType;
+
+        this.staticFiles = new StaticFileMiddleware(staticOptions);
     }
 
     /// <summary>The bridge server the web app is served from.</summary>
@@ -425,7 +432,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
         }
 
         var allowed = this.server.AllowsAnyCaller(context)
-                      || (isLocal ? this.HasSession(context) : this.options.ServeWebAppRemotely);
+                      || (isLocal ? this.options.ServeWebAppLocally || this.HasSession(context) : this.options.ServeWebAppRemotely);
 
         if (!allowed)
         {

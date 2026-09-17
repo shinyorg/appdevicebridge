@@ -23,6 +23,10 @@ triggers:
   - WebAppHostPage
   - WebAppHostOptions
   - UseBaseline
+  - ServeWebAppRemotely
+  - ServeWebAppLocally
+  - OnPrepareResponse
+  - ContentTypeOverrides
   - AddWebAppReleases
   - MapWebAppReleases
   - IWebAppBridge
@@ -151,6 +155,11 @@ calls device features from that web app, updates it over the air, or writes a br
   zip (the baseline or a signed download), shown in `WebAppHostView` / `WebAppHostPage`. The WebView trades a
   one-time launch token for an HttpOnly cookie, which the host adds to the bridge policy.
   Only the entry document gets `Cache-Control: no-cache`; the host sets no cache header on any other file.
+  `WebAppHostOptions.OnPrepareResponse` runs after that for every file (an app's own cache policy for LAN/tunnel
+  callers), and `ContentTypeOverrides` maps extensions (with the dot) to content types.
+- Who gets the pages: the WebView (launch session) always; other machines and tunnels only with
+  `ServeWebAppRemotely = true`; a browser on the same device only with `ServeWebAppLocally = true`. Neither option
+  opens the bridges — that is `AuthorizeBridges`. Never generate a custom middleware to let a local browser in.
 - The server works without the WebView: bridges only, for callers the policy admits.
 - **Bridges** are HTTP endpoints under `/_bridge/{name}` (the prefix is configurable) plus one Server-Sent
   Events stream. One package per bridge, one extension method each.
