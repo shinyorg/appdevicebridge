@@ -249,6 +249,24 @@ your own code are the one thing that won't follow — build them from `bridge`, 
 the trailing slash redirects to `/kiosk/`. Anything outside `BasePath` is left to the rest of your server — your own
 endpoints, or a `404`.
 
+### Moving the server at runtime
+
+
+A LAN switch or a port setting is a stop, a change and a start, on the server itself:
+
+```csharp
+await http.StopAsync();
+http.Options.Address = shareOnNetwork ? IPAddress.Any : IPAddress.Loopback;
+http.Options.Port = port;
+await http.StartAsync();
+```
+
+Nothing has to follow by hand. `AppDeviceBridgeServer.Origin` is read from the running server, so it is the new
+port as soon as the server is up (and null while it is down). The WebView's session cookie stays valid on the new
+origin, an open tunnel keeps its public address and goes on serving into the same pipeline, and a tunneled caller is
+still refused the loopback names on the new port. A page loaded from the old origin has to be reloaded from the new
+one, because web storage belongs to the origin.
+
 ### Camera, microphone and location in the page
 
 The page can use `getUserMedia`, `navigator.geolocation` and `<input type="file" capture>` directly, with no

@@ -92,6 +92,53 @@ public class TunnelTests
         Assert.Equal(HttpStatusCode.Unauthorized, (await fixture.TunnelAsync("/_bridge/echo/ping")).StatusCode);
     }
 
+    /// <summary>
+    /// An app's LAN switch or port setting: stop the server, move it, start it again. The origin, the WebView's session and the
+    /// tunnel all follow the server, because none of them were copied from it.
+    /// </summary>
+    [Fact]
+    public async Task Rebinding_the_server_keeps_the_session_and_the_tunnel()
+    {
+        await using var fixture = await TunnelFixture.StartAsync();
+        var http = fixture.Bridge.Http;
+        var before = fixture.Host.Origin!;
+
+        Assert.Equal(HttpStatusCode.NoContent, (await fixture.WebView.GetAsync(new Uri(before, "/_bridge/echo/ping"))).StatusCode);
+
+        await http.StopAsync();
+        Assert.Null(fixture.Host.Origin);
+
+
+        http.Options.Address = IPAddress.Any;
+        http.Options.Port = FreePort();
+        await http.StartAsync();
+
+        var after = fixture.Host.Origin!;
+        Assert.Equal(http.Options.Port, after.Port);
+        Assert.NotEqual(before.Port, after.Port);
+        Assert.True(IPAddress.IsLoopback(IPAddress.Parse(after.Host)));
+
+        // The session cookie is the same token the server still honours, now on the new origin.
+        Assert.Equal(HttpStatusCode.NoContent, (await fixture.WebView.GetAsync(new Uri(after, "/_bridge/echo/ping"))).StatusCode);
+        Assert.Contains("version 1.0.0", await fixture.WebView.GetStringAsync(after));
+
+        // A stranger on the device is still a stranger, on any address.
+        using var stranger = new HttpClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await stranger.GetAsync(new Uri(after, "/_bridge/echo/ping"))).StatusCode);
+
+        // The tunnel kept its public host and still reaches the pipeline, still as a remote caller.
+        Assert.Equal(TunnelState.Connected, fixture.Tunnel.State);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await fixture.TunnelAsync("/_bridge/echo/ping")).StatusCode);
+        Assert.Equal(HttpStatusCode.MisdirectedRequest, (await fixture.TunnelAsync("/_bridge/echo/ping", host: $"127.0.0.1:{after.Port}")).StatusCode);
+    }
+
+    static int FreePort()
+    {
+        using var listener = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        return ((IPEndPoint)listener.LocalEndpoint).Port;
+    }
+
     /// <summary>The app's policy decides for a tunneled caller exactly as it would for any remote one.</summary>
     [Fact]
     public async Task Lets_the_apps_policy_admit_a_tunneled_caller()

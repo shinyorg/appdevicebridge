@@ -161,6 +161,9 @@ calls device features from that web app, updates it over the air, or writes a br
   `ServeWebAppRemotely = true`; a browser on the same device only with `ServeWebAppLocally = true`. Neither option
   opens the bridges — that is `AuthorizeBridges`. Never generate a custom middleware to let a local browser in.
 - The server works without the WebView: bridges only, for callers the policy admits.
+- **Moving the server at runtime** (a LAN switch, a port setting) is `await http.StopAsync(); http.Options.Address = …;
+  http.Options.Port = …; await http.StartAsync();` on the app's `HttpServer`. `Origin`, the WebView session and an open
+  tunnel follow on their own; never re-register the bridges or rebuild the host to change the port.
 - **Bridges** are HTTP endpoints under `/_bridge/{name}` (the prefix is configurable) plus one Server-Sent
   Events stream. One package per bridge, one extension method each.
 - **Every bridge has a typed client.** Never generate `fetch("/_bridge/…")` or JSON-object bodies in page code;
