@@ -9,11 +9,13 @@
     <ItemGroup>
         <PackageVersion Include="Nerdbank.GitVersioning" Version="3.10.91"/>
 
-        <PackageVersion Include="Shiny.Net.HttpServer" Version="1.1.1"/>
+        <PackageVersion Include="Shiny.Net.HttpServer" Version="1.2.0"/>
+        <PackageVersion Include="Shiny.Net.HttpServer.Ssh" Version="1.2.0"/>
         <PackageVersion Include="Jint" Version="4.16.2"/>
         <PackageVersion Include="Shiny.Extensions.MauiHosting" Version="5.2.1"/>
         <PackageVersion Include="Shiny.Extensions.Stores" Version="5.2.1"/>
         <PackageVersion Include="Shiny.Maui.Controls.Desktop" Version="1.4.0-beta-0013"/>
+        <PackageVersion Include="Shiny.Maui.Controls.Camera" Version="1.4.0-beta-0013"/>
         <PackageVersion Include="Shiny.Hosting.Maui" Version="5.6.3"/>
         <PackageVersion Include="Shiny.Jobs" Version="5.6.3"/>
         <PackageVersion Include="Shiny.Push" Version="5.6.3"/>

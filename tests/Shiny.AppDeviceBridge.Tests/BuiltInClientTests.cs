@@ -96,7 +96,7 @@ public class BuiltInClientTests
         {
             var options = app.BridgeOptions();
             registry = new WebAppFileRoots(options);
-            return [new WebAppFilesBridge(registry, options)];
+            return [new WebAppFilesBridge(registry, options, new WebAppEventHub())];
         });
         var files = new FilesBridgeClient(fixture.Transport);
 
@@ -138,7 +138,7 @@ public class BuiltInClientTests
     public void Paths_mean_the_same_on_every_platform(string path)
         => Assert.Null(WebAppFilePath.Normalize(path));
 
-    static WebAppFilesBridge FilesBridge(AppDeviceBridgeOptions options) => new(new WebAppFileRoots(options), options);
+    static WebAppFilesBridge FilesBridge(AppDeviceBridgeOptions options) => new(new WebAppFileRoots(options), options, new WebAppEventHub());
 
     /// <summary>A store with no disk behind it, as a picked Android folder has none.</summary>
     sealed class MemoryFileStore(string name) : WebAppFileStore(name)

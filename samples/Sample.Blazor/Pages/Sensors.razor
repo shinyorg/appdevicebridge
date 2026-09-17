@@ -1,0 +1,47 @@
+@page "/sensors"
+@inherits BridgePage
+@inject ISensorsBridge SensorsBridge
+
+<h1>Sensors</h1>
+<p class="muted">Readings arrive as events, at most one per <code>minIntervalMs</code>. Leaving this page closes its event stream, which stops every sensor.</p>
+
+<div class="actions">
+    <button @onclick="@(() => Run(() => SensorsBridge.GetStatusAsync(), Json.SensorStatus))">Status</button>
+    @foreach (var sensor in Enum.GetValues<Sensor>())
+    {
+        var s = sensor;
+        <button @onclick="@(() => Run(() => SensorsBridge.StartAsync(s, new SensorStartRequest(SensorSpeed.UI, 100)), Json.SensorInfo))">Start @s</button>
+    }
+    <button @onclick="@(() => Run(() => SensorsBridge.StopAllAsync(), "Stopped."))">Stop all</button>
+</div>
+
+<table>
+    @foreach (var (name, value) in readings.OrderBy(x => x.Key))
+    {
+        <tr><th>@name</th><td><code>@value</code></td></tr>
+    }
+</table>
+
+<pre>@(shakes.Length == 0 ? "Start the accelerometer and shake the device." : shakes)</pre>
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    static SensorsJsonContext Json => SensorsJsonContext.Default;
+
+    readonly Dictionary<string, string> readings = [];
+    string shakes = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen<VectorReading>(SensorsBridge.OnAccelerometerAsync, r => readings["accelerometer (g)"] = Vector(r));
+        await Listen<VectorReading>(SensorsBridge.OnGyroscopeAsync, r => readings["gyroscope (rad/s)"] = Vector(r));
+        await Listen<VectorReading>(SensorsBridge.OnMagnetometerAsync, r => readings["magnetometer (µT)"] = Vector(r));
+        await Listen<CompassReading>(SensorsBridge.OnCompassAsync, r => readings["compass (°)"] = $"{r.Heading:0.0}");
+        await Listen<BarometerReading>(SensorsBridge.OnBarometerAsync, r => readings["barometer (hPa)"] = $"{r.PressureHPa:0.00}");
+        await Listen<OrientationReading>(SensorsBridge.OnOrientationAsync, r => readings["orientation (quaternion)"] = $"{r.X:0.000}, {r.Y:0.000}, {r.Z:0.000}, {r.W:0.000}");
+        await Listen<ShakeDetected>(SensorsBridge.OnShakeAsync, e => shakes = Prepend(shakes, $"{e.Timestamp.ToLocalTime():T}  shake"));
+    }
+
+    static string Vector(VectorReading r) => $"{r.X:0.000}, {r.Y:0.000}, {r.Z:0.000}";
+}

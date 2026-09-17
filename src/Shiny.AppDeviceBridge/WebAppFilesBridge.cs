@@ -21,11 +21,37 @@ namespace Shiny.AppDeviceBridge;
 /// </code>
 /// <para>
 /// Parent directories are created as needed, and a failed or oversized upload never leaves half a file behind. Roots
-/// come from <see cref="WebAppFileRoots"/>, so a folder a bridge added at runtime is served the same way.
+/// come from <see cref="WebAppFileRoots"/>, so a folder added while the app runs is served the same way, and the page hears
+/// about every such change as the <c>files.roots</c> event.
 /// </para>
 /// </summary>
-public sealed class WebAppFilesBridge(WebAppFileRoots roots, AppDeviceBridgeOptions options) : IWebAppBridge
+public sealed class WebAppFilesBridge : IWebAppBridge
 {
+    readonly WebAppFileRoots roots;
+    readonly AppDeviceBridgeOptions options;
+
+    public WebAppFilesBridge(WebAppFileRoots roots, AppDeviceBridgeOptions options, WebAppEventHub events)
+    {
+        ArgumentNullException.ThrowIfNull(roots);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(events);
+
+        this.roots = roots;
+        this.options = options;
+
+        // Names and what happened, never where a root lives on disk. Nothing when files are switched off: the page has no
+        // roots to hear about.
+        roots.Changed += (_, e) =>
+        {
+            if (roots.Enabled)
+                events.Publish(
+            "files.roots",
+                    new FileRootsChanged(e.Name, e.Change),
+                    AppDeviceBridgeJsonContext.Default.FileRootsChanged
+                );
+        };
+    }
+
     public string Name => "files";
 
     public bool IsSupported => true;
@@ -45,7 +71,7 @@ public sealed class WebAppFilesBridge(WebAppFileRoots roots, AppDeviceBridgeOpti
     ValueTask RootsAsync(HttpContext context)
     {
         // Names only. Where a root lives on disk is none of the page's business.
-        IReadOnlyList<string> names = [.. roots.All.Select(x => x.Name)];
+        IReadOnlyList<string> names = [.. this.roots.All.Select(x => x.Name)];
         return WebAppBridgeResults.Json(context, names, AppDeviceBridgeJsonContext.Default.IReadOnlyListString);
     }
 
@@ -67,14 +93,14 @@ public sealed class WebAppFilesBridge(WebAppFileRoots roots, AppDeviceBridgeOpti
     async ValueTask WriteAsync(HttpContext context, WebAppFileStore root, string path, bool append)
     {
         // Refused before the body is read, when the request says up front that it is too big.
-        if (context.Request.ContentLength > options.MaxFileWriteBytes)
+        if (context.Request.ContentLength > this.options.MaxFileWriteBytes)
             throw WebAppFileException.TooLarge();
 
         var mode = append ? FileWriteMode.Append
             : IsFalse(context.Request.Query["overwrite"].ToString()) ? FileWriteMode.CreateNew
             : FileWriteMode.Replace;
 
-        var written = await root.WriteAsync(path, context.Request.Body, mode, options.MaxFileWriteBytes, context.RequestAborted);
+        var written = await root.WriteAsync(path, context.Request.Body, mode, this.options.MaxFileWriteBytes, context.RequestAborted);
 
         await WebAppBridgeResults.Json(
             context,
@@ -124,7 +150,7 @@ public sealed class WebAppFilesBridge(WebAppFileRoots roots, AppDeviceBridgeOpti
     {
         var name = context.Request.RouteValues["root"] ?? String.Empty;
 
-        if (!roots.TryGet(name, out var root))
+        if (!this.roots.TryGet(name, out var root))
         {
             await WebAppBridgeResults.NotFound(context, $"No file root '{name}'.");
             return;

@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>Shiny.AppDeviceBridge</RootNamespace>
-    <Description>The bridge server: native device services as HTTP endpoints on a fully configurable Shiny.Net.HttpServer, callable from a web page, a script or another app. Bridges answer callers on this device only by default (any caller in a debug build), and who may call them is an authorization policy you can replace. No MAUI dependency; Shiny.AppDeviceBridge.WebView adds a WebView host with over-the-air updates.</Description>
+    <Description>The bridge server: native device services as HTTP endpoints on your app's own Shiny.Net.HttpServer, added with http.AddAppDeviceBridge() and callable from a web page, a script or another app. Bridges answer callers on this device only by default (any caller in a debug build), and who may call them is an authorization policy you can replace. No MAUI dependency; Shiny.AppDeviceBridge.WebView adds a WebView host with over-the-air updates.</Description>
   </PropertyGroup>
 
   <ItemGroup>

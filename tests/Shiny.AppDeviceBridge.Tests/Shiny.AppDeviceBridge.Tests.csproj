@@ -44,6 +44,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.WebView/Shiny.AppDeviceBridge.WebView.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Desktop/Shiny.AppDeviceBridge.Desktop.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.RpiCamera/Shiny.AppDeviceBridge.RpiCamera.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AppSupport/Shiny.AppDeviceBridge.AppSupport.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AspNetCore/Shiny.AppDeviceBridge.AspNetCore.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Blazor/Shiny.AppDeviceBridge.Blazor.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Client/Shiny.AppDeviceBridge.Client.csproj" />
@@ -51,6 +52,8 @@
     <ProjectReference Include="../../tools/Shiny.AppDeviceBridge.TypeScript/Shiny.AppDeviceBridge.TypeScript.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Folders/Shiny.AppDeviceBridge.Folders.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Photos/Shiny.AppDeviceBridge.Photos.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Tunnel/Shiny.AppDeviceBridge.Tunnel.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Camera/Shiny.AppDeviceBridge.Camera.csproj" />
     <!-- As an analyzer, for the test-only [BridgeClient] interface; and as an assembly, to run it against bad declarations. -->
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Client.SourceGenerators/Shiny.AppDeviceBridge.Client.SourceGenerators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="true" />

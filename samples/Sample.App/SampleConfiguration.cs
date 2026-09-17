@@ -4,6 +4,7 @@ using Shiny.AppDeviceBridge.AppLinks;
 using Shiny.AppDeviceBridge.AppSupport;
 using Shiny.AppDeviceBridge.BluetoothLE;
 using Shiny.AppDeviceBridge.Calendar;
+using Shiny.AppDeviceBridge.Camera;
 using Shiny.AppDeviceBridge.Contacts;
 using Shiny.AppDeviceBridge.Discovery;
 using Shiny.AppDeviceBridge.Folders;
@@ -20,6 +21,7 @@ using Shiny.AppDeviceBridge.Speech;
 using Shiny.AppDeviceBridge.Wifi;
 using Shiny.AppDeviceBridge.Maui;
 using Shiny.AppDeviceBridge.WebView;
+using Shiny.Net.HttpServer;
 
 namespace Sample;
 
@@ -34,9 +36,10 @@ public static class SampleConfiguration
     /// </summary>
     public static MauiAppBuilder ConfigureSample(this MauiAppBuilder builder)
     {
-        // A Raspberry Pi camera through libcamera. Plain IServiceCollection, since it is as much for a headless Pi as for
-        // an app; everywhere but a Pi with the native shim, the page is told why there is no camera.
-        builder.Services.AddRpiCameraBridge();
+        // The server itself, on Shiny.Net.HttpServer's own builder: anything that is not MAUI registers here. A Raspberry Pi
+        // camera through libcamera is as much for a headless Pi as for an app; everywhere but a Pi with the native shim, the
+        // page is told why there is no camera.
+        builder.Services.AddShinyHttpServer(http => http.AddRpiCameraBridge(), autoStart: false);
 
         return builder
         .UseAppDeviceBridge(o => o.AppId = "sample")
@@ -77,6 +80,9 @@ public static class SampleConfiguration
         .AddContactsBridge()
         .AddCalendarBridge()
         .AddPhotosBridge()
+
+        // This device's own camera, for a page elsewhere to drive: Open shows the bridge's camera screen over the web app.
+        .AddCameraBridge()
         .AddFoldersBridge()
 
         // sample://device opens /device. Universal links would add o.Hosts, which needs a domain you control.

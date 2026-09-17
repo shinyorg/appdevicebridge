@@ -24,6 +24,9 @@
         <Project Path="tools/Shiny.AppDeviceBridge.TypeScript/Shiny.AppDeviceBridge.TypeScript.csproj" />
     </Folder>
     <Project Path="src/Shiny.AppDeviceBridge.AspNetCore/Shiny.AppDeviceBridge.AspNetCore.csproj" />
+    <Project Path="src/Shiny.AppDeviceBridge.Camera/Shiny.AppDeviceBridge.Camera.csproj" />
+    <Project Path="src/Shiny.AppDeviceBridge.Camera.Client/Shiny.AppDeviceBridge.Camera.Client.csproj" />
+    <Project Path="src/Shiny.AppDeviceBridge.Tunnel/Shiny.AppDeviceBridge.Tunnel.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.AppSupport/Shiny.AppDeviceBridge.AppSupport.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.BluetoothLE/Shiny.AppDeviceBridge.BluetoothLE.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Jobs/Shiny.AppDeviceBridge.Jobs.csproj" />

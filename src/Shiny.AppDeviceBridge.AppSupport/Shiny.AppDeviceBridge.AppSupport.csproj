@@ -6,12 +6,16 @@
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.AppSupport</RootNamespace>
-    <Description>Device and app information, orientation, browser, maps, settings, app store, launch-at-login (Windows, macOS, Linux), sharing, haptics, vibration, connectivity, battery, screen and clipboard endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Extensions.MauiHosting and .NET MAUI Essentials. One call: builder.AddAppSupportBridge().</Description>
+    <Description>Device and app information, orientation, browser, maps, settings, app store, launch-at-login (Windows, macOS, Linux), sharing, haptics, vibration, connectivity, battery, screen and clipboard endpoints, plus motion and environment sensors (accelerometer, gyroscope, magnetometer, compass, barometer, orientation) as live events, for a Shiny.AppDeviceBridge web app, backed by Shiny.Extensions.MauiHosting and .NET MAUI Essentials. One call: builder.AddAppSupportBridge().</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Shiny.Extensions.MauiHosting" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
   </ItemGroup>
 
   <ItemGroup>

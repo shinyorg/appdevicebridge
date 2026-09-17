@@ -74,6 +74,7 @@ public sealed record JobRun(string Name);
 [JsonSerializable(typeof(IReadOnlyList<FileEntry>))]
 [JsonSerializable(typeof(FileEntry))]
 [JsonSerializable(typeof(FileTransfer))]
+[JsonSerializable(typeof(FileRootsChanged))]
 [JsonSerializable(typeof(BridgeFile))]
 [JsonSerializable(typeof(JobRun))]
 public partial class AppDeviceBridgeJsonContext : JsonSerializerContext;

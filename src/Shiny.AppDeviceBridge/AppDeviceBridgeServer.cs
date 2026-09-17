@@ -11,39 +11,40 @@ using Shiny.Net.HttpServer.Security;
 namespace Shiny.AppDeviceBridge;
 
 /// <summary>
-/// The Shiny.Net.HttpServer the bridges live on. It is created from <see cref="AppDeviceBridgeOptions.Server"/>, configured
-/// by <see cref="AppDeviceBridgeOptions.ConfigureServer"/> and by extensions such as the WebView host, and then carries
-/// every registered bridge under the bridge prefix, each behind <see cref="AppDeviceBridgePolicies.Bridges"/>.
+/// The bridges, on the app's own Shiny.Net.HttpServer. Registered with
+/// <see cref="AppDeviceBridgeHttpServerBuilderExtensions.AddAppDeviceBridge"/>, it composes itself onto the
+/// <see cref="HttpServer"/> the container builds: every registered bridge under the bridge prefix, each behind
+/// <see cref="AppDeviceBridgePolicies.Bridges"/>, plus <c>_host</c> and whatever an extension such as the WebView host adds.
 /// <para>
-/// The pipeline is put together once, the first time the server starts — Shiny.Net.HttpServer composes its middleware on
-/// first serve — so everything that adds to it has to be registered before then.
+/// It owns what it mounts and nothing else. The app's own middleware, endpoints, authentication and fallback policy are
+/// the app's, and a request for any path the bridge server did not mount passes through it untouched.
 /// </para>
 /// </summary>
 public sealed class AppDeviceBridgeServer : IAsyncDisposable
 {
     readonly IReadOnlyList<IWebAppBridge> bridges;
-    readonly Func<IEnumerable<IAppDeviceBridgeServerExtension>> resolveExtensions;
-    readonly IServiceProvider? services;
+    readonly IServiceProvider services;
     readonly ILogger logger;
     readonly SemaphoreSlim gate = new(1, 1);
     IReadOnlyList<IAppDeviceBridgeServerExtension> extensions = [];
-    ServiceProvider? security;
+    IReadOnlyList<IAppDeviceBridgeTunnel> tunnels = [];
+    IAuthenticationHandler[] authentication = [];
+    AuthorizationPolicy? bridgePolicy;
     HttpServer? http;
-    volatile Uri? origin;
     int disposed;
 
     public AppDeviceBridgeServer(
         AppDeviceBridgeOptions options,
         IEnumerable<IWebAppBridge> bridges,
         WebAppEventHub events,
-        Func<IEnumerable<IAppDeviceBridgeServerExtension>>? extensions = null,
-        IServiceProvider? services = null,
+        IServiceProvider services,
         ILoggerFactory? loggerFactory = null
     )
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(bridges);
         ArgumentNullException.ThrowIfNull(events);
+        ArgumentNullException.ThrowIfNull(services);
 
         options.Validate();
 
@@ -51,10 +52,9 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
         this.Events = events;
         this.Paths = WebAppPaths.From(options);
         this.services = services;
-        this.resolveExtensions = extensions ?? (() => []);
         this.logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<AppDeviceBridgeServer>();
 
-        // Settings and files are registered with the server either way; switching them off leaves them unmapped.
+        // Settings and files are registered either way; switching them off leaves them unmapped.
         this.bridges =
         [
             .. bridges.Where(x => x switch
@@ -76,53 +76,59 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
     /// <summary>The bridges this server carries.</summary>
     public IReadOnlyList<IWebAppBridge> Bridges => this.bridges;
 
-    /// <summary>The Shiny.Net.HttpServer itself. Null until the server has been built, which <see cref="StartAsync"/> does.</summary>
-    public HttpServer? Http => this.http;
+    /// <summary>
+    /// The app's Shiny.Net.HttpServer, which the bridges are composed onto. Resolving it is what composes them, so this is
+    /// safe to read at any time.
+    /// </summary>
+    public HttpServer Http => this.http ?? this.services.GetRequiredService<HttpServer>();
 
-    /// <summary><c>http://127.0.0.1:{port}/</c> — the address this device reaches the server at — once started.</summary>
-    public Uri? Origin => this.origin;
+    /// <summary>
+    /// <c>http://127.0.0.1:{port}/</c> — the address this device reaches the server at — while the server is running;
+    /// null while it is not. Read from the running server each time, so an app that restarts it on another port is
+    /// followed.
+    /// </summary>
+    public Uri? Origin => this.http is { IsRunning: true } server ? OriginOf(server) : null;
 
-    /// <summary>The extensions the server was built with.</summary>
+    /// <summary>The extensions the server was composed with.</summary>
     public IReadOnlyList<IAppDeviceBridgeServerExtension> Extensions => this.extensions;
 
-    /// <summary>Builds the pipeline if it has not been, and starts listening. Safe to call again; a running server is left alone.</summary>
+    /// <summary>The tunnels registered in the container, resolved when the server was composed.</summary>
+    public IReadOnlyList<IAppDeviceBridgeTunnel> Tunnels => this.tunnels;
+
+    /// <summary>
+    /// Starts the app's server if it is not running, and returns the loopback origin. Safe to call again, and safe to call
+    /// on a server the app already started. When <see cref="AppDeviceBridgeOptions.AllowPortFallback"/> is on and the
+    /// port is taken, serves on any free port instead and keeps that port for later restarts.
+    /// </summary>
     public async Task<Uri> StartAsync(CancellationToken cancellationToken = default)
     {
-        if (this.origin is { } started)
-            return started;
+        var server = this.Http;
+        if (this.Origin is { } running)
+            return running;
 
         await this.gate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
-            if (this.origin is { } raced)
+            if (this.Origin is { } raced)
                 return raced;
-
-            var server = this.Build();
-            var serverOptions = this.Options.Server;
 
             try
             {
                 await server.StartAsync(cancellationToken).ConfigureAwait(false);
             }
-            catch (Exception ex) when (this.Options.AllowPortFallback && serverOptions.Port != 0 && IsAddressInUse(ex))
+            catch (Exception ex) when (this.Options.AllowPortFallback && server.Options.Port != 0 && IsAddressInUse(ex))
             {
-                this.logger.LogWarning("Port {Port} is in use; serving on a random port. A page's web storage will be empty for this launch.", serverOptions.Port);
-                serverOptions.Port = 0;
+                this.logger.LogWarning("Port {Port} is in use; serving on a random port. A page's web storage will be empty for this launch.", server.Options.Port);
+                server.Options.Port = 0;
                 await server.StartAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            var port = Uri.TryCreate(server.ListenUrl, UriKind.Absolute, out var listening) && listening.Port > 0
-                ? listening.Port
-                : serverOptions.Port;
-
             // Pinned from here on, so a restart after resume comes back on the same origin.
-            serverOptions.Port = port;
+            if (ListeningPort(server) is { } port)
+                server.Options.Port = port;
 
-            var scheme = serverOptions.Https is null ? "http" : "https";
-            this.origin = new Uri($"{scheme}://127.0.0.1:{port}/");
-
-            return this.origin;
+            return OriginOf(server) ?? throw new InvalidOperationException("The server started but reports no port to reach it on.");
         }
         finally
         {
@@ -137,7 +143,7 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
     /// </summary>
     public async Task<bool> EnsureRunningAsync(CancellationToken cancellationToken = default)
     {
-        if (this.origin is not { } current || this.http is not { } server)
+        if (this.Origin is not { } current || this.http is not { } server)
         {
             await this.StartAsync(cancellationToken).ConfigureAwait(false);
             return false;
@@ -171,43 +177,31 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Creates the server and composes everything onto it, if that has not happened yet. <see cref="StartAsync"/> calls
-    /// this; call it yourself only to inspect the routes without listening.
+    /// Puts the bridges onto the server. Called once, from the server's own configuration when the container builds it —
+    /// <see cref="AppDeviceBridgeHttpServerBuilderExtensions.AddAppDeviceBridge"/> arranges that.
     /// </summary>
-    public HttpServer Build()
+    internal void Compose(HttpServer server)
     {
-        if (this.http is { } built)
-            return built;
+        ArgumentNullException.ThrowIfNull(server);
 
-        this.extensions = [.. this.resolveExtensions()];
-        this.security = this.BuildSecurity();
+        if (Interlocked.CompareExchange(ref this.http, server, null) is not null)
+            throw new InvalidOperationException("The bridge server is already composed onto a server.");
 
-        // Uploads to the files bridge go up to its own limit; the server's 30 MB default would otherwise decide first.
-        var limits = this.Options.Server.Limits;
-        if (this.bridges.OfType<WebAppFilesBridge>().Any() && this.Options.MaxFileWriteBytes > (limits.MaxRequestBodySize ?? Int64.MaxValue))
+        this.extensions = [.. this.services.GetServices<IAppDeviceBridgeServerExtension>()];
+        this.tunnels = [.. this.services.GetServices<IAppDeviceBridgeTunnel>()];
+        this.authentication = [.. this.services.GetServices<IAuthenticationHandler>()];
+
+        // Raised whatever is registered. The limit is the server's, checked before any route is chosen, so a file too big
+        // for it is refused with 413 before the files bridge, a bridge taking a photo or an app's own upload endpoint ever
+        // sees it. Only ever raised: a limit the app set higher, or turned off, stands.
+        var limits = server.Options.Limits;
+        if (this.Options.MaxFileWriteBytes > (limits.MaxRequestBodySize ?? Int64.MaxValue))
             limits.MaxRequestBodySize = this.Options.MaxFileWriteBytes;
-
-        var server = new HttpServer(
-            this.Options.Server,
-            this.services is null ? this.security : new WebAppServiceProvider(this.security, this.services)
-        );
-        this.http = server;
 
         server.Use(this.GuardAsync);
 
-        var before = server.Router.Endpoints.ToHashSet();
-        var appServices = this.services ?? this.security;
-
-        foreach (var configure in this.Options.ServerConfigurations)
-            configure(server, appServices);
-
-        var appEndpoints = server.Router.Endpoints.Where(x => !before.Contains(x)).ToList();
-
         foreach (var extension in this.extensions)
             extension.ConfigurePipeline(this);
-
-        server.UseAuthentication();
-        server.UseAuthorization();
 
         this.MapHostRoutes(server);
 
@@ -216,70 +210,87 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
 
         foreach (var extension in this.extensions)
             extension.Map(this);
-
-        this.MountAppEndpoints(server, appEndpoints);
-        return server;
     }
 
-    ServiceProvider BuildSecurity()
+    /// <summary>
+    /// Whether the default rules let this caller in without asking who it is: a debug build with
+    /// <see cref="AppDeviceBridgeOptions.AllowAnyCallerInDebug"/>, for any caller that did not come through a tunnel. That
+    /// allowance is for a browser on the development machine or a device on the same network; a tunnel is the internet,
+    /// and opening one in a debug build must not hand it the device.
+    /// </summary>
+    public bool AllowsAnyCaller(HttpContext context)
     {
-        var container = new ServiceCollection();
-        var http = new ShinyHttpServerBuilder(container);
-        var authentication = http.AddAuthentication();
+        ArgumentNullException.ThrowIfNull(context);
+        return this.Options.IsDebug && this.Options.AllowAnyCallerInDebug && !context.Connection.IsTunneled;
+    }
+
+    /// <summary>
+    /// The default bridge policy's decision: any caller the debug allowance lets in, or a caller on this device that every
+    /// extension also admits — the WebView host admits only its own launch session. Not consulted once
+    /// <see cref="AppDeviceBridgeOptions.AuthorizeBridges"/> has replaced the policy.
+    /// </summary>
+    public bool IsDefaultBridgeCaller(HttpContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        if (this.AllowsAnyCaller(context))
+            return true;
+
+        if (!BridgeCallers.IsOnDevice(context))
+            return false;
 
         foreach (var extension in this.extensions)
-            extension.ConfigureAuthentication(authentication);
-
-        foreach (var configure in this.Options.Authentication)
-            configure(authentication);
-
-        // One call, carrying every policy: a second AddAuthorization would be ignored.
-        http.AddAuthorization(o =>
         {
-            // Secure by default: an endpoint of the app's that says nothing needs a caller who authenticated somehow.
-            o.SetFallbackPolicy(p => p.RequireAuthenticatedUser());
+            if (!extension.AdmitsBridgeCaller(context))
+                return false;
+        }
 
-            o.AddPolicy(AppDeviceBridgePolicies.Bridges, p =>
-            {
-                if (this.Options.BridgePolicy is { } custom)
-                {
-                    custom(p);
-                    return;
-                }
-
-                p.RequireAssertion(
-                    ctx => this.AllowsAnyCaller || BridgeCallers.IsOnDevice(ctx.HttpContext),
-                    "a caller on this device"
-                );
-
-                foreach (var extension in this.extensions)
-                    extension.ConfigureDefaultBridgePolicy(p);
-            });
-
-            foreach (var extension in this.extensions)
-                extension.ConfigureAuthorization(o);
-
-            foreach (var configure in this.Options.Authorization)
-                configure(o);
-        });
-
-        return container.BuildServiceProvider();
+        return true;
     }
 
-    /// <summary>Whether the default bridge policy lets anyone in: a debug build with <see cref="AppDeviceBridgeOptions.AllowAnyCallerInDebug"/>.</summary>
-    public bool AllowsAnyCaller => this.Options.IsDebug && this.Options.AllowAnyCallerInDebug;
+    /// <summary>
+    /// Whether the request names this server as something it answers to: loopback, an IP address, or a name in
+    /// <see cref="AppDeviceBridgeOptions.AllowedHosts"/>. A request that came through a tunnel must name the tunnel itself —
+    /// its current public host, or an allowed name such as a custom domain in front of it. Loopback and bare addresses are
+    /// refused there: nobody on the internet reaches this device by those names, so one arriving through a tunnel is a
+    /// caller trying to pass for something it is not.
+    /// <para>
+    /// Applied to everything the bridge server answers — the bridges, <c>_host</c>, and the web app's files when the WebView
+    /// host serves them. The app's own endpoints are the app's to check.
+    /// </para>
+    /// </summary>
+    public bool IsAllowedHost(HttpContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+
+        var host = context.Request.Host;
+        if (BridgeCallers.HostName(host) is not { } name)
+            return false;
+
+        if (this.Options.AllowedHosts.Contains(name))
+            return true;
+
+        if (context.Connection.IsTunneled)
+            return this.IsTunnelHost(name);
+
+        return BridgeCallers.IsLoopbackHost(host) || IPAddress.TryParse(name, out _);
+    }
+
+    /// <summary>Whether a host name is the public host of a tunnel open right now. Read per request: a free tunnel's address changes when it reconnects.</summary>
+    bool IsTunnelHost(string name)
+    {
+        foreach (var tunnel in this.tunnels)
+        {
+            if (tunnel.PublicUrl is { } url && String.Equals(url.IdnHost, name, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
 
     async ValueTask GuardAsync(HttpContext context, RequestDelegate next)
     {
         var request = context.Request;
-
-        // A request by a name this server does not answer to is DNS rebinding — a hostile site pointing its own name at
-        // this device arrives carrying that name — or a mistake. 421 Misdirected Request either way.
-        if (!this.IsAllowedHost(request.Host))
-        {
-            context.Response.StatusCode = 421;
-            return;
-        }
 
         // /kiosk means /kiosk/: the difference decides what every relative URL on a page resolves against.
         if (this.Paths.IsBaseWithoutSlash(request.Path))
@@ -289,9 +300,20 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
             return;
         }
 
-        if (!this.Paths.TryStripBase(request.Path, out _))
+        var isBridge = IsUnder(request.Path, this.Paths.Bridge);
+
+        // Not the bridge server's: the app's own endpoints, or the web app's files, which the WebView host guards.
+        if (!isBridge && !IsUnder(request.Path, this.Paths.Host))
         {
-            context.Response.StatusCode = StatusCodes.Status404NotFound;
+            await next(context);
+            return;
+        }
+
+        // A request by a name this server does not answer to is DNS rebinding — a hostile site pointing its own name at
+        // this device arrives carrying that name — or a mistake. 421 Misdirected Request either way.
+        if (!this.IsAllowedHost(context))
+        {
+            context.Response.StatusCode = 421;
             return;
         }
 
@@ -312,11 +334,17 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
             return;
         }
 
-        if (!IsUnder(request.Path, this.Paths.Bridge))
+        if (!isBridge)
         {
             await next(context);
             return;
         }
+
+        // Enforced here, before routing, rather than left to the app's UseAuthorization: the bridges are device access, and
+        // whether they are protected must not depend on whether, or in what order, the app put authorization in its
+        // pipeline. Every path under the prefix is checked, so a caller the policy refuses cannot tell which bridges exist.
+        if (!await this.AuthorizeBridgeCallerAsync(context))
+            return;
 
         try
         {
@@ -329,10 +357,46 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
         }
     }
 
-    /// <summary>Loopback, an IP address, or a name in <see cref="AppDeviceBridgeOptions.AllowedHosts"/>.</summary>
-    bool IsAllowedHost(string? host)
-        => BridgeCallers.HostName(host) is { } name
-           && (BridgeCallers.IsLoopbackHost(host) || IPAddress.TryParse(name, out _) || this.Options.AllowedHosts.Contains(name));
+    /// <summary>Authenticates the caller if nothing has yet, and evaluates <see cref="AppDeviceBridgePolicies.Bridges"/>. Answers 401 or 403 and returns false when it refuses.</summary>
+    async ValueTask<bool> AuthorizeBridgeCallerAsync(HttpContext context)
+    {
+        if (context.User.Identity?.IsAuthenticated != true)
+        {
+            foreach (var handler in this.authentication)
+            {
+                var result = await handler.AuthenticateAsync(context).ConfigureAwait(false);
+
+                if (result.Succeeded)
+                {
+                    context.User = result.Principal!;
+                    break;
+                }
+
+                // Credentials offered and rejected: the caller meant to authenticate and got it wrong.
+                if (result.Attempted)
+                    break;
+            }
+        }
+
+        this.bridgePolicy ??= this.services.GetRequiredService<AuthorizationOptions>().GetPolicy(AppDeviceBridgePolicies.Bridges);
+
+        var failure = await this.bridgePolicy.EvaluateAsync(new AuthorizationContext(context, context.User)).ConfigureAwait(false);
+        if (failure is null)
+            return true;
+
+        var authenticated = context.User.Identity?.IsAuthenticated == true;
+        this.logger.LogInformation(
+            "Denied bridge call {Method} {Path} for {Caller}: requires {Requirement}",
+            context.Request.Method,
+            context.Request.Path,
+            authenticated ? context.User.Identity!.Name ?? "an authenticated caller" : "an anonymous caller",
+            failure
+        );
+
+        context.Response.StatusCode = authenticated ? StatusCodes.Status403Forbidden : StatusCodes.Status401Unauthorized;
+        context.Response.ContentLength = 0;
+        return false;
+    }
 
     /// <summary>
     /// Whether one of the app's own endpoints answers this request — a route matches, or the path matches with another
@@ -385,35 +449,23 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
         }).RequireAuthorization(AppDeviceBridgePolicies.Bridges);
     }
 
-    /// <summary>
-    /// Moves the app's own endpoints under the base path. Mapped from the root and moved afterwards, because a
-    /// source-generated <c>[Route]</c> class can only map at the template it was written with; method, constraints and
-    /// metadata — <c>[Authorize]</c> and <c>[AllowAnonymous]</c> included — carry over.
-    /// </summary>
-    void MountAppEndpoints(HttpServer server, IReadOnlyList<RouteEndpoint> added)
-    {
-        foreach (var endpoint in added)
-        {
-            var template = endpoint.Template.ToString() ?? String.Empty;
-            var mounted = this.Paths.Base + (template.StartsWith('/') ? template : "/" + template);
-
-            if (IsUnder(mounted, this.Paths.Bridge) || IsUnder(mounted, this.Paths.Host))
-                throw new InvalidOperationException(
-                    $"The endpoint {endpoint.Method} {template} would sit under {(IsUnder(mounted, this.Paths.Bridge) ? this.Paths.Bridge : this.Paths.Host)}, which the bridge server reserves. Map it somewhere else."
-                );
-
-            if (this.Paths.Base.Length > 0)
-            {
-                server.Unmap(endpoint);
-                server.MapRoute(endpoint.Method, mounted, endpoint.RequestDelegate, [.. endpoint.Metadata]);
-            }
-        }
-    }
-
     /// <summary>Whether <paramref name="path"/> is <paramref name="prefix"/> or under it.</summary>
     public static bool IsUnder(string path, string prefix)
         => path.Equals(prefix, StringComparison.OrdinalIgnoreCase)
            || path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase);
+
+    static int? ListeningPort(HttpServer server)
+        => Uri.TryCreate(server.ListenUrl, UriKind.Absolute, out var listening) && listening.Port > 0 ? listening.Port : null;
+
+    static Uri? OriginOf(HttpServer server)
+    {
+        var port = ListeningPort(server) ?? (server.Options.Port > 0 ? server.Options.Port : (int?)null);
+        if (port is null)
+            return null;
+
+        var scheme = server.Options.Https is null ? "http" : "https";
+        return new Uri($"{scheme}://127.0.0.1:{port}/");
+    }
 
     static bool IsAddressInUse(Exception ex)
     {
@@ -451,17 +503,12 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
         }
     }
 
-    public async ValueTask DisposeAsync()
+    /// <summary>The server itself belongs to the container that built it, and is disposed with that container.</summary>
+    public ValueTask DisposeAsync()
     {
-        if (Interlocked.Exchange(ref this.disposed, 1) == 1)
-            return;
+        if (Interlocked.Exchange(ref this.disposed, 1) == 0)
+            this.gate.Dispose();
 
-        if (this.http is { } server)
-            await server.DisposeAsync().ConfigureAwait(false);
-
-        if (this.security is not null)
-            await this.security.DisposeAsync().ConfigureAwait(false);
-
-        this.gate.Dispose();
+        return ValueTask.CompletedTask;
     }
 }

@@ -88,7 +88,9 @@ sealed class WebAppInstallStore(string rootDirectory, ILogger logger)
             File.Move(pendingPath, target, overwrite: true);
 
         var state = new InstallState(release.Version, sha, release.Size, release.MinimumHostVersion, DateTimeOffset.UtcNow);
-        var temp = this.StatePath + ".tmp";
+        // A temp file of its own: two installs committing at once — a background update and one the page asked for —
+        // would otherwise move each other's file away mid-write. The last to commit wins, as it would anyway.
+        var temp = $"{this.StatePath}.{Guid.NewGuid():n}.tmp";
 
         File.WriteAllBytes(temp, JsonSerializer.SerializeToUtf8Bytes(state, ClientJsonContext.Default.InstallState));
         File.Move(temp, this.StatePath, overwrite: true);

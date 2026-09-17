@@ -45,7 +45,7 @@ public class FoldersAndPhotosTests
     {
         await using var app = new TestApp();
         var options = app.BridgeOptions();
-        var (host, webView) = await StartAsync(app, new FoldersBridge(new WebAppFileRoots(options), options));
+        var (host, webView) = await StartAsync(app, new FoldersBridge(new FolderRoots(new WebAppFileRoots(options), options)));
         await using var _ = host;
         using var __ = webView;
 

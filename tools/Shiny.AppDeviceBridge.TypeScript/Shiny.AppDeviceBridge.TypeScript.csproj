@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Client/Shiny.AppDeviceBridge.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Calendar.Client/Shiny.AppDeviceBridge.Calendar.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Camera.Client/Shiny.AppDeviceBridge.Camera.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Photos.Client/Shiny.AppDeviceBridge.Photos.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Folders.Client/Shiny.AppDeviceBridge.Folders.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Obd.Client/Shiny.AppDeviceBridge.Obd.Client.csproj" />

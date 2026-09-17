@@ -16,36 +16,37 @@ namespace Shiny.AppDeviceBridge.RpiCamera;
 public static class RpiCameraBridgeExtensions
 {
     /// <summary>
-    /// Adds <c>/_bridge/rpicamera</c> and registers <see cref="ICameraService"/> over libcamera.
+    /// Adds <c>/_bridge/rpicamera</c> to the server and registers <see cref="ICameraService"/> over libcamera.
     /// <code>
-    /// services
+    /// services.AddShinyHttpServer(http => http
     ///     .AddAppDeviceBridge(o => o.AppId = "greenhouse")
     ///     .AddRpiCameraBridge(o =>
     ///     {
     ///         o.StreamWidth = 1280;
     ///         o.StreamHeight = 720;
     ///         o.Camera.NativeLibraryPath = "/opt/greenhouse/native";
-    ///     });
+    ///     })
+    /// );
     /// </code>
     /// <para>
-    /// Takes an <c>IServiceCollection</c> rather than a <c>MauiAppBuilder</c>, because a camera appliance is usually a
-    /// headless Pi with no MAUI; a MAUI app calls it on <c>builder.Services</c>. Safe to call anywhere: off Linux, or with
-    /// the native shim missing or built against another libcamera, the camera reports itself unsupported with the reason
-    /// and every other route answers 501. An <see cref="ICameraService"/> registered first is used instead.
+    /// Hangs off the server's builder rather than a <c>MauiAppBuilder</c>, because a camera appliance is usually a headless
+    /// Pi with no MAUI. Safe to call anywhere: off Linux, or with the native shim missing or built against another libcamera,
+    /// the camera reports itself unsupported with the reason and every other route answers 501. An
+    /// <see cref="ICameraService"/> registered first is used instead.
     /// </para>
     /// </summary>
-    public static IServiceCollection AddRpiCameraBridge(this IServiceCollection services, Action<RpiCameraBridgeOptions>? configure = null)
+    public static ShinyHttpServerBuilder AddRpiCameraBridge(this ShinyHttpServerBuilder http, Action<RpiCameraBridgeOptions>? configure = null)
     {
-        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(http);
 
         var options = new RpiCameraBridgeOptions();
         configure?.Invoke(options);
         options.Validate();
 
-        services.TryAddSingleton(options);
-        services.TryAddSingleton<ICameraService>(sp => CreateCameraService(options, sp.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance));
-        services.AddWebAppBridge<RpiCameraBridge>();
-        return services;
+        http.Services.TryAddSingleton(options);
+        http.Services.TryAddSingleton<ICameraService>(sp => CreateCameraService(options, sp.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance));
+        http.AddWebAppBridge<RpiCameraBridge>();
+        return http;
     }
 
     static ICameraService CreateCameraService(RpiCameraBridgeOptions options, ILoggerFactory loggerFactory)

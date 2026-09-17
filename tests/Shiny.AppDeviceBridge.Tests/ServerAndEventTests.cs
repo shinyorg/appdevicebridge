@@ -132,3 +132,26 @@ public class EventAndInstallTests
         Assert.True(File.Exists(package.ZipPath));
     }
 }
+
+public class InstallStoreTests
+{
+    /// <summary>A background update and one the page asked for can commit at the same moment; neither may lose the other's state file.</summary>
+    [Fact]
+    public async Task CommitsFromTwoInstallsAtOnce()
+    {
+        await using var app = new TestApp();
+        var store = new WebAppInstallStore(app.InstallDirectory, Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+
+        await Parallel.ForAsync(0, 40, async (i, _) =>
+        {
+            var zip = TestApp.Zip($"1.0.{i}");
+            var pending = store.CreatePendingPath();
+            await File.WriteAllBytesAsync(pending, zip);
+
+            store.Commit(pending, app.Store.Add($"1.0.{i}", zip));
+        });
+
+        Assert.NotNull(store.ReadInstalled(WebAppVersion.Parse("1.0.0")));
+        Assert.Empty(Directory.GetFiles(app.InstallDirectory, "*.tmp"));
+    }
+}

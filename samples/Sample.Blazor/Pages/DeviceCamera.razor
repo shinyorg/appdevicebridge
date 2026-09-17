@@ -1,0 +1,66 @@
+@page "/device-camera"
+@inherits BridgePage
+@inject ICameraBridge CameraBridge
+
+<h1>Device camera</h1>
+<p class="muted">
+    This device's own camera, driven from here — which could be a browser on another machine. Open puts the camera screen up on
+    the device; everything else needs it open. Linux has no camera and answers <code>501</code>.
+</p>
+
+<div class="actions">
+    <button @onclick="@(() => Run(() => CameraBridge.GetStatusAsync(), Json.CameraStatus))">Status</button>
+    <button @onclick="@(() => Run(() => CameraBridge.RequestAccessAsync(), Json.CameraAccessResult))">Request access</button>
+    <button @onclick="@(() => Run(() => CameraBridge.OpenAsync(), "Asked the device to open its camera."))">Open</button>
+    <button @onclick="@(() => Run(() => CameraBridge.CloseAsync(), "Asked the device to close its camera."))">Close</button>
+    <button @onclick="@(() => watching = !watching)">@(watching ? "Stop watching" : "Watch viewfinder")</button>
+</div>
+
+<div class="actions">
+    <button @onclick="@(() => Run(() => CameraBridge.TakePhotoAsync(), Json.CameraCapture))">Take photo</button>
+    <button @onclick="@(() => Run(() => CameraBridge.UpdateSettingsAsync(new CameraSettingsInput(VideoMode: !(status?.VideoMode ?? false))), Json.CameraStatus))">Toggle video mode</button>
+    <button @onclick="@(() => Run(() => CameraBridge.StartRecordingAsync(), "Recording."))">Start recording</button>
+    <button @onclick="@(() => Run(() => CameraBridge.StopRecordingAsync(), Json.CameraCapture))">Stop recording</button>
+    <button @onclick="@(() => Run(() => CameraBridge.UpdateSettingsAsync(new CameraSettingsInput(Facing: status?.Facing == CameraFacing.Front ? CameraFacing.Back : CameraFacing.Front, CameraId: "")), Json.CameraStatus))">Flip</button>
+    <button @onclick="@(() => Run(() => CameraBridge.UpdateSettingsAsync(new CameraSettingsInput(Filter: status?.Filter == CameraFilter.Noir ? CameraFilter.None : CameraFilter.Noir)), Json.CameraStatus))">Noir</button>
+</div>
+
+@if (status is not null)
+{
+    <p class="muted">@(status.Live ? status.VideoMode ? status.Recording ? "Recording" : "Video" : "Photo" : "Not open") — @status.Message</p>
+}
+
+@if (watching)
+{
+    @* Multipart MJPEG, which an img plays as it arrives. The query makes a fresh request each time it is shown: a browser
+       may otherwise reuse the last response, which never finishes. Removing the img stops the device encoding. *@
+    <img class="preview" src="@($"_bridge/camera/preview?t={started}")" alt="Viewfinder" />
+}
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    static CameraJsonContext Json => CameraJsonContext.Default;
+
+    bool watching;
+    long started = DateTime.UtcNow.Ticks;
+    CameraStatus? status;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen<CameraStatus>(CameraBridge.OnStatusAsync, next =>
+        {
+            status = next;
+            InvokeAsync(StateHasChanged);
+        });
+
+        try
+        {
+            status = await CameraBridge.GetStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+    }
+}

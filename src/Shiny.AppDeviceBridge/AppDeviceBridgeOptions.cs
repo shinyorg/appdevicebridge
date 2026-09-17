@@ -6,16 +6,15 @@ using Shiny.Net.HttpServer.Security;
 namespace Shiny.AppDeviceBridge;
 
 /// <summary>
-/// The bridge server: the Shiny.Net.HttpServer the bridges are mapped on, who may call them, and the built-in settings
-/// and files. Everything about the server itself is <see cref="Server"/>, a plain <see cref="HttpServerOptions"/> — bind
-/// any address, enable TLS or HTTP/2, raise limits — and <see cref="ConfigureServer"/> adds middleware and endpoints of
-/// your own.
+/// The bridges on the app's Shiny.Net.HttpServer: who may call them, where they mount, and the built-in settings and
+/// files. The server itself — address, port, TLS, limits, the app's own endpoints, authentication — is configured on the
+/// same <see cref="ShinyHttpServerBuilder"/> the bridges are added to.
 /// <code>
-/// services.AddAppDeviceBridge(o =>
+/// services.AddShinyHttpServer(http =>
 /// {
-///     o.AppId = "field-app";
-///     o.Server.Port = 5780;
-///     o.ConfigureServer((server, services) => server.UseResponseCompression());
+///     http.Options.Port = 5780;
+///     http.AddAppDeviceBridge(o => o.AppId = "field-app");
+///     http.Configure(server => server.MapGet("/api/orders", ...));
 /// });
 /// </code>
 /// </summary>
@@ -31,14 +30,9 @@ public sealed class AppDeviceBridgeOptions
     public string Platform { get; set; } = DetectPlatform();
 
     /// <summary>
-    /// The server, exactly as Shiny.Net.HttpServer takes it. Loopback on port 5780 by default. The port is fixed on
-    /// purpose when a WebView is served from it: a page's origin includes the port, and web storage belongs to the origin.
-    /// </summary>
-    public HttpServerOptions Server { get; } = new() { Address = System.Net.IPAddress.Loopback, Port = 5780 };
-
-    /// <summary>
-    /// When <see cref="Server"/>'s port is taken, serve on any free port instead of failing to start. On by default,
-    /// because a blank screen is worse than a page whose web storage is empty for one launch.
+    /// When the server's port is taken as <see cref="AppDeviceBridgeServer.StartAsync"/> starts it, serve on any free port
+    /// instead of failing. On by default, because a blank screen is worse than a page whose web storage is empty for one
+    /// launch — a page's origin includes the port, which is why the port is fixed in the first place.
     /// </summary>
     public bool AllowPortFallback { get; set; } = true;
 
@@ -53,8 +47,9 @@ public sealed class AppDeviceBridgeOptions
 
     /// <summary>
     /// Host names a caller from another machine may use besides a bare IP address — an mDNS name such as
-    /// <c>kiosk.local</c>. Anything else from off the device is turned away with <c>421</c>, which is what stops DNS
-    /// rebinding: a hostile site that points its own name at this device arrives carrying that name.
+    /// <c>kiosk.local</c>, or a custom domain in front of a tunnel. Anything else from off the device is turned away with
+    /// <c>421</c>, which is what stops DNS rebinding: a hostile site that points its own name at this device arrives carrying
+    /// that name. An open tunnel's own public host needs no entry here (see <see cref="IAppDeviceBridgeTunnel"/>).
     /// </summary>
     public ISet<string> AllowedHosts { get; } = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -85,7 +80,12 @@ public sealed class AppDeviceBridgeOptions
     /// </summary>
     public IDictionary<string, string> FileRoots { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>The largest file the page can write in one request. The server's request body limit is raised to match.</summary>
+    /// <summary>
+    /// The largest file the page can write in one request, through the files bridge or any other bridge that takes a file.
+    /// The server's request body limit (<see cref="HttpServerOptions.Limits"/>) is raised to at least this when the server is
+    /// built, whichever bridges are registered — the limit is the server's, so it also applies to the app's own upload
+    /// endpoints. A limit set higher, or turned off, is left alone; set this lower to keep the server's limit smaller.
+    /// </summary>
     public long MaxFileWriteBytes { get; set; } = 256 * 1024 * 1024;
 
     /// <summary>
@@ -103,50 +103,16 @@ public sealed class AppDeviceBridgeOptions
     /// <summary>How long a page that accepted a native call has to finish it.</summary>
     public TimeSpan PageInvocationTimeout { get; set; } = TimeSpan.FromSeconds(25);
 
-    internal List<Action<HttpServer, IServiceProvider>> ServerConfigurations { get; } = [];
-
-    internal List<Action<AuthenticationBuilder>> Authentication { get; } = [];
-
-    internal List<Action<AuthorizationOptions>> Authorization { get; } = [];
-
     internal Action<AuthorizationPolicyBuilder>? BridgePolicy { get; private set; }
-
-    /// <summary>
-    /// Runs against the server before the bridges and routes are mapped: add middleware — compression, CORS, logging, an
-    /// IP filter — or endpoints of your own. Called once, when the server is first started; every call applies, in order.
-    /// Endpoints you map need an authenticated caller unless they say <c>AllowAnonymous()</c>, and are moved under
-    /// <see cref="BasePath"/>.
-    /// </summary>
-    public AppDeviceBridgeOptions ConfigureServer(Action<HttpServer, IServiceProvider> configure)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-        this.ServerConfigurations.Add(configure);
-        return this;
-    }
-
-    /// <summary>Adds authentication schemes: for your own endpoints, and for the bridges when <see cref="AuthorizeBridges"/> asks for them.</summary>
-    public AppDeviceBridgeOptions AddAuthentication(Action<AuthenticationBuilder> configure)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-        this.Authentication.Add(configure);
-        return this;
-    }
-
-    /// <summary>Adds authorization policies. Every call applies.</summary>
-    public AppDeviceBridgeOptions AddAuthorization(Action<AuthorizationOptions> configure)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-        this.Authorization.Add(configure);
-        return this;
-    }
 
     /// <summary>
     /// Replaces who may call the bridges. The bridges are device access, so this is a security decision: by default only a
     /// caller on this device may use them (any caller in a debug build — see <see cref="AllowAnyCallerInDebug"/>), and a
-    /// WebView host adds its launch session to that. Whatever this policy allows can reach the device.
+    /// WebView host adds its launch session to that. Whatever this policy allows can reach the device. The schemes it asks
+    /// for are the ones added to the server's builder.
     /// <code>
-    /// o.AddAuthentication(auth => auth.AddApiKey(k => k.AddKey(key, "kiosk")));
-    /// o.AuthorizeBridges(p => p.RequireAuthenticatedUser());
+    /// http.AddAuthentication().AddApiKey(k => k.AddKey(key, "kiosk"));
+    /// http.AddAppDeviceBridge(o => o.AuthorizeBridges(p => p.RequireAuthenticatedUser()));
     ///
     /// o.AuthorizeBridges(p => p.RequireAssertion(ctx => BridgeCallers.IsOnDevice(ctx.HttpContext) || ctx.User.IsInRole("admin")));
     /// </code>
@@ -196,9 +162,6 @@ public sealed class AppDeviceBridgeOptions
 
         if (this.MaxFileWriteBytes <= 0)
             throw new InvalidOperationException("AppDeviceBridgeOptions.MaxFileWriteBytes must be positive.");
-
-        if (this.Server.Port is < 0 or > 65535)
-            throw new InvalidOperationException($"AppDeviceBridgeOptions.Server.Port {this.Server.Port} is out of range.");
 
         if (!WebAppPaths.IsValid(this.BasePath))
             throw new InvalidOperationException($"AppDeviceBridgeOptions.BasePath '{this.BasePath}' is not valid. Use path segments of letters, digits, '-', '_', '.' and '~'.");

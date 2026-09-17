@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics.CodeAnalysis;
+using Shiny.AppDeviceBridge.Client;
 
 namespace Shiny.AppDeviceBridge;
 
@@ -43,7 +44,18 @@ public sealed class WebAppFileRoots
     /// <summary>Whether the app configured the root, as opposed to a bridge adding it. Configured roots cannot be replaced.</summary>
     public bool IsConfigured(string name) => this.configured.Contains(name);
 
-    /// <summary>Adds a root, or replaces one a bridge added earlier under the same name.</summary>
+    /// <summary>
+    /// Raised after a root is added, replaced or removed while the app runs — by a bridge, or by the app mapping a folder
+    /// or a share. Raised on the thread that made the change. The files bridge passes it to the page as the
+    /// <c>files.roots</c> event.
+    /// </summary>
+    public event EventHandler<WebAppFileRootsChangedEventArgs>? Changed;
+
+    /// <summary>
+    /// Adds a root, or replaces one added earlier under the same name. For a directory, pass a
+    /// <see cref="WebAppFileRoot"/>; the name is what the page calls it, so a folder the user named "Team Docs" is added as
+    /// something like <c>team-docs</c> and shown by its own name elsewhere.
+    /// </summary>
     public void Add(WebAppFileStore root)
     {
         ArgumentNullException.ThrowIfNull(root);
@@ -51,11 +63,27 @@ public sealed class WebAppFileRoots
         if (this.IsConfigured(root.Name))
             throw new InvalidOperationException($"'{root.Name}' is a file root the app configured; it cannot be replaced.");
 
-        this.roots[root.Name] = root;
+        var replaced = false;
+        this.roots.AddOrUpdate(root.Name, root, (_, _) =>
+        {
+            replaced = true;
+            return root;
+        });
+
+        this.Changed?.Invoke(this, new WebAppFileRootsChangedEventArgs(root.Name, replaced ? FileRootChange.Replaced : FileRootChange.Added));
     }
 
-    /// <summary>Removes a root a bridge added. The app's own roots stay.</summary>
-    public bool Remove(string name) => !this.IsConfigured(name) && this.roots.TryRemove(name, out _);
+    /// <summary>Removes a root added while the app runs. The app's configured roots stay.</summary>
+    public bool Remove(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        if (this.IsConfigured(name) || !this.roots.TryRemove(name, out var removed))
+            return false;
+
+        this.Changed?.Invoke(this, new WebAppFileRootsChangedEventArgs(removed.Name, FileRootChange.Removed));
+        return true;
+    }
 
     /// <summary>
     /// The absolute path for a page-supplied root name and relative path. False when files are disabled, the root does not
@@ -71,4 +99,12 @@ public sealed class WebAppFileRoots
         fullPath = store.GetLocalPath(normalized);
         return fullPath is not null;
     }
+}
+
+/// <param name="Name">The root's name, as the page knows it.</param>
+public sealed class WebAppFileRootsChangedEventArgs(string name, FileRootChange change) : EventArgs
+{
+    public string Name { get; } = name;
+
+    public FileRootChange Change { get; } = change;
 }

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Shiny.AppDeviceBridge.AspNetCore;
+using Shiny.Net.HttpServer;
 
 namespace Shiny.AppDeviceBridge.Tests;
 
@@ -41,7 +42,7 @@ sealed class TestApp : IAsyncDisposable
         await this.server.StartAsync();
     }
 
-    readonly List<AppDeviceBridgeServer> servers = [];
+    readonly List<ServiceProvider> containers = [];
 
     /// <summary>Options pointing at the TestServer. Each client gets its own handler, since the updater disposes the one it is given.</summary>
     public WebAppHostOptions Options(Func<HttpMessageHandler>? handler = null) => new()
@@ -53,8 +54,8 @@ sealed class TestApp : IAsyncDisposable
     };
 
     /// <summary>
-    /// Bridge server options for a release build: any port, data beside the installs, and debug's any-caller default off
-    /// so the tests see the rules an app ships with.
+    /// Bridge options for a release build: data beside the installs, and debug's any-caller default off so the tests see the
+    /// rules an app ships with.
     /// </summary>
     public AppDeviceBridgeOptions BridgeOptions(Action<AppDeviceBridgeOptions>? configure = null)
     {
@@ -64,7 +65,6 @@ sealed class TestApp : IAsyncDisposable
             DataDirectory = this.InstallDirectory,
             IsDebug = false
         };
-        options.Server.Port = 0;
         configure?.Invoke(options);
         return options;
     }
@@ -72,30 +72,64 @@ sealed class TestApp : IAsyncDisposable
     public WebAppHost CreateHost(WebAppHostOptions? options = null, params IWebAppBridge[] bridges)
         => this.CreateHost(options, null, null, bridges);
 
-    /// <summary>A server with the host as its extension, wired the way <c>AddWebAppHost</c> wires them. Disposed with the app.</summary>
+    /// <summary>
+    /// The app's server with the bridges and the WebView host on it, registered through the builder exactly as an app
+    /// registers them — except that the bridges are the ones given rather than every one in the container. Any port. Disposed
+    /// with the app.
+    /// </summary>
     public WebAppHost CreateHost(
         WebAppHostOptions? options,
         AppDeviceBridgeOptions? bridgeOptions,
         WebAppEventHub? events,
         IEnumerable<IWebAppBridge> bridges,
-        IServiceProvider? services = null,
+        Action<ShinyHttpServerBuilder>? http = null,
         WebAppSession? session = null
     )
     {
-        WebAppHost? host = null;
-        var server = new AppDeviceBridgeServer(
-            bridgeOptions ?? this.BridgeOptions(),
-            bridges,
-            events ?? new WebAppEventHub(),
-            () => [host!],
-            services
+        var web = options ?? this.Options();
+        var provider = this.Build(bridgeOptions, events, bridges, builder =>
+        {
+            builder.Services.AddSingleton(web);
+            builder.Services.AddSingleton(session ?? new WebAppSession());
+            builder.AddWebAppHost(_ => { });
+            http?.Invoke(builder);
+        });
+
+        return provider.GetRequiredService<WebAppHost>();
+    }
+
+    /// <summary>The app's server with only the bridges on it: no WebView host. Any port. Disposed with the app.</summary>
+    public AppDeviceBridgeServer CreateServer(AppDeviceBridgeOptions? bridgeOptions, IEnumerable<IWebAppBridge> bridges, Action<ShinyHttpServerBuilder>? http = null)
+        => this.Build(bridgeOptions, null, bridges, http).GetRequiredService<AppDeviceBridgeServer>();
+
+    ServiceProvider Build(AppDeviceBridgeOptions? bridgeOptions, WebAppEventHub? events, IEnumerable<IWebAppBridge> bridges, Action<ShinyHttpServerBuilder>? http)
+    {
+        var options = bridgeOptions ?? this.BridgeOptions();
+        var hub = events ?? new WebAppEventHub();
+        IReadOnlyList<IWebAppBridge> list = [.. bridges];
+
+        var services = new ServiceCollection();
+        services.AddSingleton(options);
+        services.AddSingleton(hub);
+
+        // Registered before AddAppDeviceBridge, which keeps it: the server carries exactly these bridges.
+        services.AddSingleton(sp => new AppDeviceBridgeServer(options, list, hub, sp));
+
+        services.AddShinyHttpServer(
+            builder =>
+            {
+                builder.Options.Port = 0;
+                builder.AddAppDeviceBridge();
+                http?.Invoke(builder);
+            },
+            autoStart: false
         );
 
-        lock (this.servers)
-            this.servers.Add(server);
+        var provider = services.BuildServiceProvider();
+        lock (this.containers)
+            this.containers.Add(provider);
 
-        host = new WebAppHost(options ?? this.Options(), server, session ?? new WebAppSession());
-        return host;
+        return provider;
     }
 
     public string Sign(WebAppRelease release)
@@ -131,8 +165,8 @@ sealed class TestApp : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var bridgeServer in this.servers)
-            await bridgeServer.DisposeAsync();
+        foreach (var container in this.containers)
+            await container.DisposeAsync();
 
         if (this.server is not null)
             await this.server.DisposeAsync();

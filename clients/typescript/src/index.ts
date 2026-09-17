@@ -4,6 +4,7 @@ export * from "./core";
 export * from "./app-support";
 export * from "./bluetooth-le";
 export * from "./calendar";
+export * from "./camera";
 export * from "./contacts";
 export * from "./desktop";
 export * from "./discovery";

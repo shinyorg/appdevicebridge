@@ -70,6 +70,10 @@ static partial class FolderPlatform
 
     public static void Release(string token)
     {
+        // A path holds no grant to give back.
+        if (token.StartsWith(PathPrefix, StringComparison.Ordinal))
+            return;
+
         try
         {
             Android.App.Application.Context.ContentResolver?.ReleasePersistableUriPermission(AndroidUri.Parse(token)!, Access);

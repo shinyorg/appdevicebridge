@@ -20,7 +20,7 @@ app, served from the device itself, updated from your own server, and able to ca
 ┌─ MAUI app ───────────────────────────────────────────────────┐
 │  WebAppHostView ── WebView ──▶ http://127.0.0.1:5780         │
 │                                   │                          │
-│  AppDeviceBridgeServer ── Shiny.Net.HttpServer (configurable)│
+│  AppDeviceBridgeServer ── your app's Shiny.Net.HttpServer    │
 │    ├─ bridge policy   on this device · launch session        │
 │    ├─ /_bridge/*      device · location · BLE · push · …     │
 │    ├─ /_bridge/events Server-Sent Events                     │
@@ -35,16 +35,17 @@ app, served from the device itself, updated from your own server, and able to ca
 
 | Package | Use it in | What it does |
 | --- | --- | --- |
-| `Shiny.AppDeviceBridge.Maui` | the app | `UseAppDeviceBridge`: the bridge server, started with the app and restarted on resume |
+| `Shiny.AppDeviceBridge.Maui` | the app | `UseAppDeviceBridge`: `AddShinyHttpServer` with the bridges on it, started with the app and restarted on resume |
 | `Shiny.AppDeviceBridge.WebView` | the app | `UseWebAppHost`, `WebAppHostView`, `WebAppHostPage`, `AllowWebPermissions`: the web app in a WebView, over-the-air updates, the dev server proxy, the launch session and `background.js` |
 | `Shiny.AppDeviceBridge.Blazor` | the Blazor WebAssembly app | `AddWebAppHostClient()`: the page's transport, typed clients for the built-in bridges (`IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge`), `WebAppEvents`, `WebAppNativeCalls` (typed C# handlers for jobs, GPS, geofences and push), and `WebAppBridge` for endpoints of your own |
 | `Shiny.AppDeviceBridge.Client` | (dependency) | the typed-client foundation: `IBridgeTransport`, `BridgeException`, the `[BridgeClient]` attributes and the generator that implements them, and the built-in bridges' contracts |
 | `Shiny.AppDeviceBridge.{Bridge}.Client` | the web app | one per bridge: its contracts and typed client — `ICalendarBridge`, `IWifiBridge`, … — registered with `Add{Bridge}BridgeClient()` |
 | `@shinyorg/appdevicebridge` | a JavaScript or TypeScript web app | the same typed clients in TypeScript, generated from the same declarations (`clients/typescript`) |
-| `Shiny.AppDeviceBridge` | (dependency) | the bridge server: `AppDeviceBridgeOptions` (every Shiny.Net.HttpServer setting, middleware, authentication, the bridge policy), bridge contracts, built-in settings, files and native-call endpoints; no MAUI dependency |
+| `Shiny.AppDeviceBridge` | (dependency) | the bridge server: `http.AddAppDeviceBridge()` on Shiny.Net.HttpServer's `ShinyHttpServerBuilder`, `AppDeviceBridgeOptions` (mount points, allowed hosts, the bridge policy), bridge contracts, built-in settings, files and native-call endpoints; no MAUI dependency |
+| `Shiny.AppDeviceBridge.Tunnel` | the app, or a headless device | `http.AddAppDeviceBridgeTunnel()`: a public HTTPS address for the server, opened and closed while the app runs; everything through it is treated as a remote caller |
 | `Shiny.AppDeviceBridge.Core` | (dependency) | protocol contracts, version ordering, release signatures |
 | `Shiny.AppDeviceBridge.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
-| `Shiny.AppDeviceBridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, launch at login, share, haptics and vibration, connectivity, battery, screen and clipboard |
+| `Shiny.AppDeviceBridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, launch at login, share, haptics and vibration, connectivity, battery, screen and clipboard; and `/_bridge/sensors` — accelerometer, gyroscope, magnetometer, compass, barometer and orientation |
 | `Shiny.AppDeviceBridge.Locations` | the app | `AddGpsBridge()`, `AddGeofenceBridge()`, `AddLocationBridges()`, `AddMotionActivityBridge()` |
 | `Shiny.AppDeviceBridge.BluetoothLE` | the app | `AddBluetoothLEBridge()` |
 | `Shiny.AppDeviceBridge.Obd` | the app | `AddObdBridge()`: OBD-II over Bluetooth LE or Wi-Fi adapters — decoded PIDs, VIN, trouble codes, live readings |
@@ -59,10 +60,11 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Speech` | the app | `AddSpeechBridge()`: on-device speech recognition, dictation as events, text-to-speech, voices |
 | `Shiny.AppDeviceBridge.Contacts` | the app | `AddContactsBridge()`: access, paged search, read, photos, create, update and delete (Android, iOS) |
 | `Shiny.AppDeviceBridge.Calendar` | the app | `AddCalendarBridge()`: access, calendars, events in a date range, create, update and delete |
+| `Shiny.AppDeviceBridge.Camera` | the app | `AddCameraBridge()`: this device's own camera driven from a page anywhere — a live MJPEG viewfinder, photos and video filed into a file root, lens, zoom, torch and effects; `CameraBridgeView` for a camera screen of your own |
 | `Shiny.AppDeviceBridge.Photos` | the app | `AddPhotosBridge()`: the system photo picker, and the photo library — pages, thumbnails and full-size exports — as files in a file root |
-| `Shiny.AppDeviceBridge.Folders` | the app | `AddFoldersBridge()`: the platform's folder picker, with each picked folder remembered as a file root across launches |
+| `Shiny.AppDeviceBridge.Folders` | the app | `AddFoldersBridge()`: the platform's folder picker, and `FolderRoots` for folders the app adds by path — each remembered as a file root across launches |
 | `Shiny.AppDeviceBridge.Desktop` | the app | `AddTrayIconBridge()`: system tray / menu bar icons, menus, badges, notifications and animation. `AddQuickEntryBridge()`: a prompt window that opens over other applications from a global hotkey. Both hand what the user does back to the web app |
-| `Shiny.AppDeviceBridge.RpiCamera` | the app, or a headless Pi | `AddRpiCameraBridge()` on an `IServiceCollection`: Raspberry Pi cameras through libcamera — snapshots, captures into a file root, sensor controls and a shared live MJPEG stream |
+| `Shiny.AppDeviceBridge.RpiCamera` | the app, or a headless Pi | `http.AddRpiCameraBridge()` on the server's builder: Raspberry Pi cameras through libcamera — snapshots, captures into a file root, sensor controls and a shared live MJPEG stream |
 
 ## The app
 
@@ -102,8 +104,7 @@ builder
 ```
 
 No web app at all? `UseAppDeviceBridge` alone serves the bridges to callers on the device (any caller in a debug build),
-and `ConfigureServer`, `AddAuthentication` and `AuthorizeBridges` decide the rest. See
-[Security](#security-model).
+and the server's own builder and `AuthorizeBridges` decide the rest. See [Security](#security-model).
 
 There is no manifest, no signing key and no network at any point; the install directory is never even
 created. Add `UpdateServer` and `PublicKey` later and the embedded build becomes the floor that
@@ -135,32 +136,51 @@ Plus the usage descriptions and permissions for whichever bridges you add.
 
 ### The bridge server
 
-`UseAppDeviceBridge` (from `Shiny.AppDeviceBridge.Maui`) configures the server the bridges, and the web app, are served
-from. Every call configures the same options, and the server starts with the app.
+The bridges live on **your app's own Shiny.Net.HttpServer**. `http.AddAppDeviceBridge()` puts them on it, on the same
+`ShinyHttpServerBuilder` you configure the server with — address, port, TLS, limits, authentication, endpoints of your
+own. `UseAppDeviceBridge` (from `Shiny.AppDeviceBridge.Maui`) does that for a MAUI app, starts the server with the app
+and restarts it on resume:
+
+```csharp
+builder.UseAppDeviceBridge(o => o.AppId = "field-app");
+
+// The same server, configured wherever suits — before UseAppDeviceBridge or after.
+builder.Services.AddShinyHttpServer(http =>
+{
+    http.Options.Limits.MaxRequestBodySize = 64 * 1024 * 1024;
+    http.AddResponseCompression();
+}, autoStart: false);
+```
+
+Without MAUI — a headless device, a test — it's the builder alone:
+
+```csharp
+services.AddShinyHttpServer(http => http
+    .AddAppDeviceBridge(o => o.AppId = "greenhouse")
+    .AddRpiCameraBridge());
+```
 
 | Option | Default | Why |
 | --- | --- | --- |
 | `AppId` | required | Names the data directory, namespaces settings, and is what a release server knows the app by. |
-| `Server` | loopback, `5780` | A Shiny.Net.HttpServer `HttpServerOptions`: address, port, TLS, HTTP/2, limits, timeouts. The port is fixed on purpose: localStorage, IndexedDB and cookies belong to the origin, and the port is part of the origin. |
-| `AllowPortFallback` | `true` | If the port is taken, serve on a random one, with empty web storage for that launch. |
-| `BasePath` | `/` | Serve everything under a path — `/kiosk/`, `/kiosk/_bridge/…`. See [Mount points](#mount-points). |
+| `AllowPortFallback` | `true` | If the port is taken when the bridge server starts the server, serve on a random one, with empty web storage for that launch. |
+| `BasePath` | `/` | Serve the web app and the bridges under a path — `/kiosk/`, `/kiosk/_bridge/…`. See [Mount points](#mount-points). |
 | `BridgePrefix` | `/_bridge` | Move the bridges when the web app wants that route for itself. |
 | `AllowedHosts` | none | Host names accepted besides loopback names and IP addresses. See [Security](#security-model). |
-| `AllowAnyCallerInDebug` | `true` | A debug build lets any caller reach the bridges. See [Who may call the bridges](#who-may-call-the-bridges). |
-| `ConfigureServer` | | Middleware and endpoints of your own, against the `HttpServer` itself. |
+| `AllowAnyCallerInDebug` | `true` | A debug build lets any caller not arriving through a tunnel reach the bridges. See [Who may call the bridges](#who-may-call-the-bridges). |
 | `AuthorizeBridges` | device only | Replace who may call the bridges. |
+| `MaxFileWriteBytes` | 256 MB | The largest file a bridge takes in one request. The server's request body limit is raised to at least this. |
 
-```csharp
-builder.UseAppDeviceBridge(o =>
-{
-    o.AppId = "field-app";
-    o.Server.Limits.MaxRequestBodySize = 64 * 1024 * 1024;
-    o.ConfigureServer((server, services) => server.UseResponseCompression());
-});
-```
-
-The server doesn't need a WebView. Without `Shiny.AppDeviceBridge.WebView`, the bridges answer callers on the device
-(or anyone `AuthorizeBridges` allows), and a native call no page takes is reported as not handled.
+- **The port.** `UseAppDeviceBridge` listens on loopback port `5780` unless you give the server a port of your own. The
+  port is fixed on purpose: localStorage, IndexedDB and cookies belong to the origin, and the port is part of the
+  origin.
+- **The bridges guard only what they mount.** Your middleware, endpoints, authentication and fallback policy stay
+  yours, and a request for anything the bridge server didn't mount passes straight through to them.
+- **The bridge policy doesn't depend on your pipeline.** The bridges authenticate and authorize their own requests,
+  so they're protected whether or not — and wherever — you call `UseAuthentication` and `UseAuthorization`. Your own
+  endpoints need those calls; the bridges don't.
+- **The server doesn't need a WebView.** Without `Shiny.AppDeviceBridge.WebView`, the bridges answer callers on the
+  device (or anyone `AuthorizeBridges` allows), and a native call no page takes is reported as not handled.
 
 ### The web app host
 
@@ -210,8 +230,9 @@ const info = await (await fetch(bridge + "app/info")).json();
 ```
 
 The typed clients, C# and TypeScript, discover the prefix the same way. Raw `fetch("/_bridge/...")` calls in
-your own code are the one thing that won't follow — build them from `bridge`, or keep the defaults. `/kiosk` without the trailing slash redirects to `/kiosk/`, and anything
-outside `BasePath` gets a `404`.
+your own code are the one thing that won't follow — build them from `bridge`, or keep the defaults. `/kiosk` without
+the trailing slash redirects to `/kiosk/`. Anything outside `BasePath` is left to the rest of your server — your own
+endpoints, or a `404`.
 
 ### Camera, microphone and location in the page
 
@@ -297,12 +318,13 @@ Bridges are device access, so every bridge route requires one authorization poli
 | Build | Default |
 | --- | --- |
 | Release | A caller **on this device only**: a loopback connection, reaching the server by a loopback name, with no `Origin` or a loopback one. With `Shiny.AppDeviceBridge.WebView`, it must also be the app's own WebView, holding the launch session. |
-| Debug | **Any caller.** A browser on your machine, `curl`, a script, another device on the network. |
+| Debug | **Any caller not arriving through a tunnel.** A browser on your machine, `curl`, a script, another device on the network. |
 
 > [!CAUTION]
 > **Debug builds let any caller in.** In a debug build the default policy admits any caller, so you can drive the bridges from a browser or a script
 > while you develop. That includes anything that can reach the port: loopback-only by default, the whole network if you
-> bind `Server.Address` past it. "Debug" is detected from an attached debugger or the entry assembly's
+> bind the server's `Options.Address` past it. A tunnel is the exception — see [Through a tunnel](#through-a-tunnel).
+> "Debug" is detected from an attached debugger or the entry assembly's
 > `DebuggableAttribute`. Turn it off with `o.AllowAnyCallerInDebug = false`, or set `o.IsDebug` yourself where
 > detection isn't reliable. `AuthorizeBridges` replaces the default in every build.
 
@@ -310,9 +332,9 @@ Bridges are device access, so every bridge route requires one authorization poli
   app can connect to `127.0.0.1`. Each launch generates a 256-bit token that the WebView's first navigation trades
   for an `HttpOnly`, `SameSite=Strict` cookie. The WebView host adds that cookie to the default bridge policy, so
   another app on the device gets a `401`. The web app's own files need it too (`403` without).
-- **Host header.** A request under a name the server doesn't answer to gets `421`, whoever sent it. Loopback names and
-  IP addresses are accepted, plus any name in `AllowedHosts`. That's what stops DNS rebinding: a hostile site
-  pointing its own name at the device arrives under that name.
+- **Host header.** A request to the bridges, `_host` or the web app under a name the server doesn't answer to gets `421`,
+  whoever sent it. Loopback names and IP addresses are accepted, plus any name in `AllowedHosts`. That's what stops DNS
+  rebinding: a hostile site pointing its own name at the device arrives under that name.
 - **Origin header.** A browser call from another site running on this device carries that site's `Origin`, and
   the default policy refuses it.
 - **Releases.** A release must pass five checks before it's served: signature, app id, a version
@@ -325,36 +347,36 @@ Bridges are device access, so every bridge route requires one authorization poli
 you add:
 
 ```csharp
-builder.UseAppDeviceBridge(o =>
+builder.Services.AddShinyHttpServer(http =>
 {
-    o.AddAuthentication(auth => auth.AddApiKey(k => k.AddKey(key, "kiosk", "kiosk")));
+    http.AddAuthentication().AddApiKey(k => k.AddKey(key, "kiosk", "kiosk"));
 
     // This device's callers, or anyone presenting the kiosk key.
-    o.AuthorizeBridges(p => p.RequireAssertion(ctx =>
-        BridgeCallers.IsOnDevice(ctx.HttpContext) || ctx.User.IsInRole("kiosk")));
-});
+    http.AddAppDeviceBridge(o => o.AuthorizeBridges(p => p.RequireAssertion(ctx =>
+        BridgeCallers.IsOnDevice(ctx.HttpContext) || ctx.User.IsInRole("kiosk"))));
+}, autoStart: false);
 ```
 
 - **The replacement is the whole rule.** The launch session is no longer added, and neither is the debug
   allowance. Whatever the policy allows can reach the device.
-- **`BridgeCallers`** has the checks the default uses: `IsOnDevice(HttpContext)`, `IsLocal(IPAddress)`,
-  `IsLoopbackHost(host)`.
+- **`BridgeCallers`** has the checks the default uses: `IsOnDevice(HttpContext)`, `IsLocalConnection(HttpContext)`,
+  `IsLocal(IPAddress)`, `IsLoopbackHost(host)`. Ask `IsLocalConnection`, not `IsLocal`, whether a request came from
+  this device: a tunnel delivers from loopback.
 - **The WebView's session is a scheme.** It authenticates as `WebAppSessionAuthenticationHandler.SchemeName`
   with the `appdevicebridge:session` claim, so `p.RequireClaim(WebAppSessionAuthenticationHandler.SessionClaim)`
   keeps the page in a policy of your own.
 
 ### Serving the network
 
-The server is `Server`, a plain Shiny.Net.HttpServer `HttpServerOptions`: bind any address, add TLS, raise limits.
-Binding past loopback doesn't open the bridges. The default policy still refuses anyone off the device in a release
-build.
+Binding the server past loopback doesn't open the bridges. The default policy still refuses anyone off the device in a
+release build.
 
 ```csharp
-builder.UseAppDeviceBridge(o =>
+builder.Services.AddShinyHttpServer(http =>
 {
-    o.Server.Address = IPAddress.Any;          // reachable from the network
-    o.AllowedHosts.Add("kiosk.local");         // an mDNS name you control, besides IP addresses
-});
+    http.Options.Address = IPAddress.Any;                              // reachable from the network
+    http.AddAppDeviceBridge(o => o.AllowedHosts.Add("kiosk.local"));   // an mDNS name you control, besides IP addresses
+}, autoStart: false);
 
 builder.UseWebAppHost(o => o.ServeWebAppRemotely = true);   // optional: the app's own pages too
 ```
@@ -366,49 +388,77 @@ builder.UseWebAppHost(o => o.ServeWebAppRemotely = true);   // optional: the app
 - **Open a bridge remotely with a policy.** Use `AuthorizeBridges` with a credential, as above. A route-level
   allowlist is one assertion away: `ctx.HttpContext.Request.Path.StartsWithSegments("/_bridge/files")`.
 
+### Through a tunnel
+
+`Shiny.AppDeviceBridge.Tunnel` gives the server a public HTTPS address — an SSH reverse forward to a public host such as
+Pinggy, in managed code, so it works on phones as well as desktops. The app turns it on and off while it runs; there
+are no routes for it, so where that switch lives, and who may flip it, is the app's decision.
+
+```csharp
+builder.Services.AddShinyHttpServer(http => http.AddAppDeviceBridgeTunnel(), autoStart: false);
+
+public sealed class Sharing(AppDeviceBridgeTunnel tunnel)
+{
+    public Task<Uri?> OnAsync(string? pinggyToken) => tunnel.StartAsync(pinggyToken);   // null, with LastError, if it failed
+    public Task OffAsync() => tunnel.StopAsync();
+}
+```
+
+- **A tunnel caller is a remote caller.** A tunnel hands the server its requests from the local end of the
+  forward, so every one arrives from `127.0.0.1` — with headers written by someone on the internet. It is never
+  `IsOnDevice`, never holds the WebView's session, isn't let in by `AllowAnyCallerInDebug`, and gets the web app's
+  pages only with `ServeWebAppRemotely`. Your own endpoints decide for themselves, as for any remote caller.
+- **Only the tunnel's own name.** A tunneled request must carry the tunnel's current public host (or a name in
+  `AllowedHosts`, for a custom domain in front of it). One claiming `127.0.0.1` or `localhost` gets `421`.
+- **Bind to the address.** `PublicUrl` and `State` raise `PropertyChanged`, on a background thread. A free tunnel
+  reconnects at a new address, and the old host stops being accepted the moment it goes.
+- **It doesn't start the listener.** Tunneled requests go straight into the server's pipeline, so a server stopped
+  because sharing on the local network is off can still be reached through a tunnel that's on.
+- **Your own tunnel.** Register an `IAppDeviceBridgeTunnel` whose `PublicUrl` is the address, and the server accepts
+  that host the same way.
+
 ### Your own endpoints
 
-Serve your own API beside the web app and the bridges — middleware, raw routes, source-generated `[Route]`
-classes or modules, with Shiny.Net.HttpServer's own API — and authentication to go with them:
+Your API sits beside the web app and the bridges on the same server, configured the Shiny.Net.HttpServer way —
+middleware, raw routes, source-generated `[Route]` classes, authentication:
 
 ```csharp
 using Shiny.Net.HttpServer;
 using Shiny.Net.HttpServer.Security;     // AllowAnonymous, RequireAuthorization, AddApiKey
 
-builder.UseAppDeviceBridge(o => o
-    .ConfigureServer((server, services) =>
+builder.Services.AddShinyHttpServer(http =>
+{
+    http.AddAuthentication().AddApiKey(k => k.AddKey(key, "kiosk", "admin"));
+    http.AddAuthorization(a =>
     {
-        server.UseResponseCompression();
+        a.SetFallbackPolicy(p => p.RequireAuthenticatedUser());
+        a.AddPolicy("admin", p => p.RequireRole("admin"));
+    });
+
+    http.Configure(server =>
+    {
+        server.UseAuthentication();
+        server.UseAuthorization();
+
         server.MapOrderEndpoints();                                         // [Route("/api/orders")]
         server.MapGet("/api/health", ctx => …).AllowAnonymous();
         server.MapGet("/api/admin", ctx => …).RequireAuthorization("admin");
         server.MapGet("/api/draft", ctx => …).RequireAuthorization(WebAppPolicies.Session);
-    })
-    .AddAuthentication(auth => auth.AddApiKey(k => k.AddKey(key, "kiosk", "admin")))
-    .AddAuthorization(a => a.AddPolicy("admin", p => p.RequireRole("admin"))));
+    });
+}, autoStart: false);
 ```
 
-- **Authenticated by default.** An endpoint that says nothing needs a caller who authenticated through
-  *some* scheme. The WebView's session is one, so the page calls your endpoints with no extra setup,
-  and every scheme from `AddAuthentication` is another. `AllowAnonymous()` opts an endpoint out;
-  `WebAppPolicies.Session` accepts the WebView and nothing else, however valid another credential is.
+- **The WebView is one more scheme.** Its session authenticates like any other, so the page calls your endpoints with
+  no extra setup once your pipeline has `UseAuthentication`. `WebAppPolicies.Session` accepts the WebView and nothing
+  else, however valid another credential is.
 - **Bridges keep their own policy.** Your endpoints' fallback and policies don't reach them, so a key that opens
-  `/api/admin` opens nothing on the device unless `AuthorizeBridges` says so.
-- **Middleware sees everything.** `ConfigureServer` runs before the bridges are mapped, once, when the server
-  first starts. Every call applies, in order.
-- **Mapped from the root, served under `BasePath`.** A generated `[Route]` class can only map at the
-  template it was written with, so the server moves everything afterwards — constraints, `[Authorize]`,
-  `[AllowAnonymous]` and all. Anything under the bridge prefix or `_host` is refused at startup.
-- **`AddAuthorization` can be called as often as you like.** Shiny.Net.HttpServer's own
-  `AddAuthorization` keeps the first call and silently drops the rest; this one applies every call.
-- **Your app's own container is left alone.** Schemes and policies live in a container the server owns,
-  so an app that runs a Shiny.Net.HttpServer of its own keeps its own authentication. Endpoint classes
-  still get their dependencies from your app. The one consequence: a scheme that resolves a dependency
-  *by type* (`AddBasic<UserStore>()`) needs it registered on `auth.Services` too; delegate options
-  such as an API key's `ValidateAsync` can reach your services through `context.RequestServices`.
+  `/api/admin` opens nothing on the device unless `AuthorizeBridges` says so. An endpoint you map under the bridge
+  prefix is guarded as a bridge.
+- **Where you map it is where it's served.** `BasePath` moves the web app and the bridges, not your endpoints.
+- **Every `AddAuthorization` call applies**, yours and the bridges' alike (Shiny.Net.HttpServer 1.2).
 
-With the WebView host, a path that matches none of your endpoints is the web app's, and without the WebView's
-session that's a `403`, so a caller outside the page can't probe which routes exist.
+With the WebView host, a path under `BasePath` that matches none of your endpoints is the web app's, and without the
+WebView's session that's a `403`, so a caller outside the page can't probe which routes exist.
 
 ## Bridges
 
@@ -418,6 +468,7 @@ session that's a `403`, so a caller outside the page can't probe which routes ex
 | settings (built in) | `GET/DELETE settings/{local\|secure}`, `GET/PUT/DELETE settings/{scope}/{key}` | |
 | files (built in) | `GET files`, `GET files/{root}/list`, `GET files/{root}/info`, `GET/PUT files/{root}/content`, `POST files/{root}/append`, `POST files/{root}/directory`, `DELETE files/{root}/entry`, `POST files/{root}/move`, `POST files/{root}/copy`, with paths in `?path=` | |
 | AppSupport | `GET app/info`, `POST/DELETE app/orientation`, `POST app/browser`, `POST app/map`, `POST app/settings`, `GET app/store`, `POST app/store/open`, `POST app/store/review`, `POST app/share`, `POST app/haptics`, `POST/DELETE app/vibrate`, `GET app/connectivity`, `GET app/battery`, `GET app/screen`, `PUT/DELETE app/screen/keep-awake`, `GET/PUT/DELETE app/clipboard`, `GET app/startup`, `POST/DELETE app/startup/registration`, `POST app/startup/settings` | `app.orientation`, `app.culture`, `app.timezone`, `app.connectivity`, `app.battery`, `app.energysaver` |
+| Sensors | `GET sensors`, `POST/DELETE sensors/{sensor}`, `DELETE sensors` | `sensors.accelerometer`, `sensors.gyroscope`, `sensors.magnetometer`, `sensors.compass`, `sensors.barometer`, `sensors.orientation`, `sensors.shake` |
 | GPS | `GET gps/status`, `POST gps/access`, `GET gps/last`, `GET gps/current`, `GET/POST/DELETE gps/listener` | `gps.reading` |
 | Geofences | `GET geofences/status`, `POST geofences/access`, `GET/POST/DELETE geofences/regions`, `DELETE geofences/regions/{id}`, `GET geofences/regions/{id}/state` | `geofence.status` |
 | Motion activity | `GET motion/status`, `POST motion/access`, `GET motion/current`, `GET/POST/DELETE motion/listener` | `motion.activity` |
@@ -436,6 +487,7 @@ session that's a `403`, so a caller outside the page can't probe which routes ex
 | Folders | `GET folders`, `POST folders/pick`, `DELETE folders/{root}` | |
 | Tray icon | `GET/POST/DELETE tray`, `GET/PUT/DELETE tray/{id}`, `PUT/DELETE tray/{id}/menu`, `POST tray/{id}/menu/show`, `POST tray/{id}/notification`, `PUT/DELETE tray/{id}/animation` | `tray.click`, `tray.menu` |
 | Quick entry | `GET quickentry`, `PUT quickentry/options`, `POST quickentry/{show,hide,toggle}`, `GET/PUT quickentry/prompt`, `POST quickentry/prompt/reset`, `POST quickentry/glow/{show,hide,pulse}` | `quickentry.submitted`, `quickentry.suggestion`, `quickentry.cancelled`, `quickentry.microphone`, `quickentry.opened`, `quickentry.closed` |
+| Device camera | `GET camera`, `POST camera/access`, `POST camera/open`, `POST camera/close`, `POST camera/photo`, `POST/DELETE camera/recording`, `PUT camera/settings`, `GET camera/preview` (MJPEG) | `camera.status` |
 | Pi camera | `GET rpicamera`, `GET rpicamera/snapshot`, `POST rpicamera/capture`, `GET rpicamera/stream` (MJPEG), `GET/PUT rpicamera/controls`, `DELETE rpicamera/streams` | |
 
 The routes are the wire protocol. A page doesn't build them by hand: every bridge has a typed client, in C# for
@@ -745,20 +797,89 @@ quickEntry.onSubmitted(async ({ text, suggestion }) => {
 });
 ```
 
-**Pi camera** (`Shiny.AppDeviceBridge.RpiCamera`, `AddRpiCameraBridge()`): Raspberry Pi cameras through libcamera, with no
+**Device camera** (`Shiny.AppDeviceBridge.Camera`, `AddCameraBridge()`): this device's own camera, driven from a page anywhere — the
+reason being a phone on a mount, framed and fired from a laptop across the room. Not the camera of the machine showing the
+page: that's `getUserMedia` (see [Camera, microphone and location in the page](#camera-microphone-and-location-in-the-page)).
+Android, iOS, Mac Catalyst, macOS and Windows, through Shiny's `CameraView`; Linux has no camera and answers `501`.
+
+```csharp
+builder.AddCameraBridge(o =>
+{
+    o.Root = "data";                 // captures are filed here…
+    o.Folder = "camera";             // …as camera/IMG_20260916-201502.jpg, camera/VID_….mov
+});
+```
+
+- **A camera screen, not a background service.** The camera runs on a view on screen — iOS won't run one in the
+  background at all — so `GET camera` says whether one is `live`, and until it is every command answers
+  `409 camera_not_open`. That's a normal state: show it as "open the camera on the device", not as an error.
+- **Opening it from afar.** `POST camera/open` (`202`) asks the device to show its camera. Unless something handles
+  `CameraBridgeSession.OpenRequested`, the bridge pushes its own `CameraBridgePage` over the web app — shutter, photo and
+  video, flip, torch, close. `POST camera/close` closes it. For a camera screen of your own, put a `CameraBridgeView` on
+  it, set `PresentWhenOpened = false` and navigate there from `OpenRequested`; the buttons on that screen and the
+  requests from a page run the same methods.
+- **Driving it.** `POST camera/photo` and `POST`/`DELETE camera/recording` capture at full resolution and file into the
+  file root, answering `{ file: { root, path }, kind, size, … }` for the files bridge. `PUT camera/settings` is a
+  patch — `videoMode`, `facing`, `cameraId`, `active`, `filter`, `torchOn`, `zoom` — so two viewers don't undo each
+  other; changing the camera mid-recording is a `422 camera_state`. Phones flip front and back; desktops list
+  `cameras` and set `choosesCamera`, since none of theirs is front or back.
+- **The viewfinder.** `GET camera/preview` is `multipart/x-mixed-replace` MJPEG an `<img>` plays: small (720 px) and 12
+  frames a second by default (`PreviewMaxEdge`, `PreviewFramesPerSecond`, `PreviewQuality`), because latency matters more
+  than smoothness when framing. The device encodes only while someone watches, and a slow viewer gets the newest frame.
+- **Everyone follows the device.** `camera.status` carries the whole status whenever anything changes — somebody picks
+  the phone up and switches to video, and every page's controls follow.
+- **Filing elsewhere.** Register an `ICameraCaptureStore` before `AddCameraBridge` to file captures through your own
+  storage.
+- **Platform setup:** `NSCameraUsageDescription` and `NSMicrophoneUsageDescription` on Apple platforms (plus the camera
+  and audio-input entitlements where sandboxed), `CAMERA` and `RECORD_AUDIO` on Android, the `webcam` and `microphone`
+  capabilities on Windows. `POST camera/access` prompts where the platform will.
+
+```html
+<img src="_bridge/camera/preview?t=1726517702" />   <!-- a new query each time it's shown -->
+```
+
+```ts
+const camera = new CameraBridge();
+camera.onStatus(status => render(status));
+await camera.open();
+const photo = await camera.takePhoto();              // { file: { root: "data", path: "camera/IMG_….jpg" }, … }
+await camera.updateSettings({ videoMode: true, zoom: 2 });
+```
+
+**Sensors** (`Shiny.AppDeviceBridge.AppSupport`, added by `AddAppSupportBridge()`): the accelerometer (g), gyroscope
+(rad/s), magnetometer (µT), compass (degrees from magnetic north), barometer (hPa) and orientation (a quaternion), over
+.NET MAUI Essentials.
+- **Start, then listen.** `POST sensors/compass` with `{ "speed": "UI", "minIntervalMs": 16 }` starts the sensor; readings
+  arrive only as events. Posting again with another speed restarts it; another interval changes only what gets through.
+- **Throttled.** Readings closer together than `minIntervalMs` (16 by default, at least 5) are dropped before they
+  reach the page, so `Fastest` can't flood the event stream. `sensors.shake` is never dropped, and fires only while the
+  accelerometer runs.
+- **Stopped for you.** Every sensor stops when the page's last event stream closes, so a page that navigates away or
+  closes doesn't leave one draining the battery. `DELETE sensors` stops them all.
+- **Platforms.** Whatever Essentials offers on Android, iOS, Mac Catalyst and Windows, and only the sensors the device
+  has. `GET sensors` says which; starting one that isn't there answers `501`. The macOS (AppKit) and Linux (GTK4) heads
+  have none.
+
+```ts
+const sensors = new SensorsBridge();
+sensors.onCompass(({ heading }) => needle.style.rotate = `${-heading}deg`);
+await sensors.start("Compass", { speed: "UI", minIntervalMs: 50 });
+```
+
+**Pi camera** (`Shiny.AppDeviceBridge.RpiCamera`, `http.AddRpiCameraBridge()`): Raspberry Pi cameras through libcamera, with no
 `rpicam-apps` process to launch. Linux with the native shim only; everywhere else `GET rpicamera` says why there is no
 camera and the rest answer `501`.
 
 ```csharp
-// A plain IServiceCollection: a camera appliance is usually a headless Pi, running the bridge server with no MAUI.
-services
+// The server's own builder: a camera appliance is usually a headless Pi, running the bridge server with no MAUI.
+services.AddShinyHttpServer(http => http
     .AddAppDeviceBridge(o => o.AppId = "greenhouse")
     .AddRpiCameraBridge(o =>
     {
         o.StreamWidth = 1280;
         o.StreamHeight = 720;
         o.Camera.NativeLibraryPath = "/opt/greenhouse/native";
-    });
+    }));
 
 await services.BuildServiceProvider().GetRequiredService<AppDeviceBridgeServer>().StartAsync();
 ```
@@ -839,10 +960,11 @@ var saved = await Settings.GetAsync(SettingsScope.Secure, "token", MyJson.Defaul
 ```
 
 **Files** are confined to named roots: `data` (persistent) and `cache` (the OS may clear it), unless
-you set `FileRoots` — plus any folder the user picked through the folders bridge. Paths are relative and use
+you set `FileRoots` — plus any folder picked through the folders bridge or added by the app. Paths are relative and use
 forward slashes. A path is refused if it contains `..`, `\`, `:`, a control character or anything a file name
 can't hold on some platform (`< > " | ? *`), or passes through a link that leads out of the root. Writes are atomic, parent
-directories are created as needed, and `MaxFileWriteBytes` (256 MB) caps a single file.
+directories are created as needed, and `MaxFileWriteBytes` (256 MB) caps a single file — and sets the floor for the
+server's request body limit, whichever bridges are registered, so your own upload endpoints get it too.
 
 ```ts
 const files = new FilesBridge();
@@ -851,9 +973,26 @@ const entries = await files.list("data", { path: "photos" });
 await files.move("data", { from: "photos/cat.jpg", to: "photos/tabby.jpg" });
 ```
 
-A bridge that adds roots at runtime — as the folders bridge does — adds a `WebAppFileStore` to the
-`WebAppFileRoots` service. `WebAppFileRoot` is a directory on disk; a store that isn't one implements the same
-operations over whatever it is, and `GetLocalPath` returns null so path-only bridges refuse its files.
+**Folders the app maps while it runs** — a folder chosen in its own dialog, a share an administrator published — go
+through `FolderRoots` (`Shiny.AppDeviceBridge.Folders`). Each becomes a root the page uses by name, and is restored the
+next time the app runs, on every platform:
+
+```csharp
+public sealed class Shares(FolderRoots folders)
+{
+    public PickedFolder Publish(string name, string path) => folders.Add(name, path, displayName: name);   // absolute path, existing directory
+    public bool Unpublish(string name) => folders.Forget(name);
+}
+```
+
+The page never names a path — that's the app's decision — but it hears every change as the `files.roots` event
+(`IFilesBridge.OnRootsChangedAsync`, `FilesBridge.onRootsChanged`). A folder that no longer opens stays in
+`FolderRoots.All` with `Available` false. On Apple platforms a folder the app currently has security-scoped access to is
+kept as a bookmark. Failures are `WebAppFileException`, with the code the folders bridge answers with.
+
+Lower down, `WebAppFileRoots` holds every root and raises `Changed`. `WebAppFileRoot` is a directory on disk (an absolute
+path); a store that isn't one — an Android Storage Access Framework tree — implements `WebAppFileStore`, and
+`GetLocalPath` returns null so path-only bridges refuse its files.
 
 ### Writing a bridge
 
@@ -873,6 +1012,8 @@ public static MauiAppBuilder AddClipboardBridge(this MauiAppBuilder builder)
     return builder;
 }
 ```
+
+A bridge with no MAUI dependency hangs off the server's builder instead: `http.AddWebAppBridge<ClipboardBridge>()`.
 
 Use source-generated JSON contexts (`JsonTypeInfo`). The packages are trim and AOT clean, and bridges
 should stay that way.

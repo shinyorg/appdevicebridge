@@ -67,6 +67,13 @@ public interface IFilesBridge
     /// <summary>Copies a file, or a directory recursively, within a root.</summary>
     [BridgePost("{root}/copy")]
     Task<FileEntry> CopyAsync(string root, FileTransfer transfer, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// A root was added, replaced or removed while the app ran — a folder the user picked or the app mapped, a share it
+    /// published. Call <see cref="GetRootsAsync"/> again, and drop anything listed from a root that was replaced or removed.
+    /// </summary>
+    [BridgeEvent("files.roots")]
+    Task<IAsyncDisposable> OnRootsChangedAsync(Func<FileRootsChanged, Task> handler);
 }
 
 /// <summary>A file or directory.</summary>
@@ -76,6 +83,21 @@ public interface IFilesBridge
 /// <param name="Size">Bytes, for files.</param>
 /// <param name="Modified">When it last changed.</param>
 public sealed record FileEntry(string Name, string Path, bool IsDirectory, long? Size, DateTimeOffset Modified);
+
+public enum FileRootChange
+{
+    Added,
+
+    /// <summary>The name now points somewhere else.</summary>
+    Replaced,
+
+    Removed
+}
+
+/// <summary>The <c>files.roots</c> event.</summary>
+/// <param name="Root">The root's name.</param>
+/// <param name="Change">What happened to it.</param>
+public sealed record FileRootsChanged(string Root, FileRootChange Change);
 
 /// <summary>A move or copy within a root.</summary>
 /// <param name="From">The entry to move or copy.</param>

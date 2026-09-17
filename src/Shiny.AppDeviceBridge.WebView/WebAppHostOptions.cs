@@ -131,7 +131,8 @@ public sealed class WebAppHostOptions
     /// <summary>
     /// Serve the web app's files to callers on other machines too. Off by default. Bridges are not affected: who may call
     /// those is <see cref="AppDeviceBridgeOptions.AuthorizeBridges"/>'s decision, and the launch session this host adds to
-    /// them never leaves the device. Needs <see cref="AppDeviceBridgeOptions.Server"/> bound to more than loopback.
+    /// them never leaves the device. Needs the server bound to more than loopback, or a tunnel — the server's <c>Options.Address</c>
+    /// on its builder, or <c>Shiny.AppDeviceBridge.Tunnel</c>.
     /// </summary>
     public bool ServeWebAppRemotely { get; set; }
 

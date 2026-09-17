@@ -281,8 +281,8 @@ public sealed partial class AppSupportBridge : IWebAppBridge, IDisposable
 public static class AppSupportBridgeExtensions
 {
     /// <summary>
-    /// Adds <c>/_bridge/app</c> and registers <c>IAppSupport</c> and <c>IStartupService</c> — there is nothing
-    /// else to call. Pass <paramref name="appStore"/> to register <c>IAppStore</c> too and light up the store
+    /// Adds <c>/_bridge/app</c> and <c>/_bridge/sensors</c> (accelerometer, gyroscope, magnetometer, compass, barometer
+    /// and orientation), and registers <c>IAppSupport</c> and <c>IStartupService</c> — there is nothing else to call. Pass <paramref name="appStore"/> to register <c>IAppStore</c> too and light up the store
     /// endpoints, and <paramref name="startup"/> to configure the launch-at-login entry.
     /// <code>
     /// builder.AddAppSupportBridge(
@@ -311,6 +311,7 @@ public static class AppSupportBridgeExtensions
             builder.AddAppStore(appStore);
 
         builder.Services.AddWebAppBridge<AppSupportBridge>();
+        builder.Services.AddWebAppBridge<SensorsBridge>();
         return builder;
     }
 }

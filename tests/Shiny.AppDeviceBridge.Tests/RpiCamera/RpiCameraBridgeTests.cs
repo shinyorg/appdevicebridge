@@ -1,3 +1,4 @@
+using Shiny.Net.HttpServer;
 using System.Net;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
@@ -141,7 +142,9 @@ public class RpiCameraBridgeTests
     {
         Assert.SkipWhen(OperatingSystem.IsLinux(), "On Linux the native shim decides, which depends on the machine.");
 
-        var services = new ServiceCollection().AddRpiCameraBridge().BuildServiceProvider();
+        var collection = new ServiceCollection();
+        collection.AddShinyHttpServer(http => http.AddRpiCameraBridge(), autoStart: false);
+        var services = collection.BuildServiceProvider();
         var cameras = services.GetRequiredService<ICameraService>();
 
         Assert.False(cameras.IsSupported);
@@ -152,7 +155,7 @@ public class RpiCameraBridgeTests
     [InlineData(0)]
     [InlineData(101)]
     public void Refuses_options_it_cannot_honour(int quality)
-        => Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddRpiCameraBridge(o => o.StreamQuality = quality));
+        => Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddShinyHttpServer(http => http.AddRpiCameraBridge(o => o.StreamQuality = quality), autoStart: false));
 
     [Fact]
     public void Maps_every_contract_enum()
@@ -235,7 +238,7 @@ public class RpiCameraBridgeTests
                     .AddSingleton(new RpiCameraBridgeOptions { MaxFps = 60 })
                     .BuildServiceProvider();
 
-                return [new RpiCameraBridge(services), new WebAppFilesBridge(roots, options)];
+                return [new RpiCameraBridge(services), new WebAppFilesBridge(roots, options, new WebAppEventHub())];
             }, onStarted: client => webView = client);
 
             return new CameraFixture(host, webView!, camera);

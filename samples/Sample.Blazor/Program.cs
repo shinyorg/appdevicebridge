@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using Sample.Blazor;
 using Shiny.AppDeviceBridge.Blazor;
 using Shiny.AppDeviceBridge.Calendar.Client;
+using Shiny.AppDeviceBridge.Camera.Client;
 using Shiny.AppDeviceBridge.Photos.Client;
 using Shiny.AppDeviceBridge.RpiCamera.Client;
 using Shiny.AppDeviceBridge.Folders.Client;
@@ -27,6 +28,7 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 builder.Services
     .AddWebAppHostClient()
     .AddCalendarBridgeClient()
+    .AddCameraBridgeClient()
     .AddPhotosBridgeClient()
     .AddRpiCameraBridgeClient()
     .AddFoldersBridgeClient()
@@ -35,6 +37,7 @@ builder.Services
     .AddTrayBridgeClient()
     .AddQuickEntryBridgeClient()
     .AddAppBridgeClient()
+    .AddSensorsBridgeClient()
     .AddDiscoveryBridgeClient()
     .AddTransfersBridgeClient()
     .AddGpsBridgeClient()

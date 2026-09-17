@@ -55,6 +55,30 @@ static partial class FolderPlatform
         }
     }
 
+    /// <summary>
+    /// The token for a folder the app already reaches by path — one its own panel just returned, say. A security-scoped
+    /// bookmark when the app holds access it can carry into the next launch; the path when it has nothing to carry, which
+    /// is every folder an app outside the sandbox can read.
+    /// </summary>
+    public static string TokenForPath(string path)
+    {
+        using var url = NSUrl.CreateFileUrl(path, true, null);
+        var accessing = url.StartAccessingSecurityScopedResource();
+
+        try
+        {
+            var bookmark = url.CreateBookmarkData(CreationOptions, [], null, out var error);
+            return bookmark is null || error is not null
+                ? PathPrefix + path
+                : BookmarkPrefix + bookmark.GetBase64EncodedString(NSDataBase64EncodingOptions.None);
+        }
+        finally
+        {
+            if (accessing)
+                url.StopAccessingSecurityScopedResource();
+        }
+    }
+
     public static WebAppFileStore? Open(string root, string token)
     {
         if (!token.StartsWith(BookmarkPrefix, StringComparison.Ordinal))

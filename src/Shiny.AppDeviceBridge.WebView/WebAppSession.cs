@@ -62,8 +62,9 @@ public static class WebAppPolicies
 /// The WebView as an authentication scheme: the launch cookie becomes a principal, so your own endpoints treat
 /// the page the same way they treat a caller presenting an API key or a token.
 /// <para>
-/// Only ever from this device. The cookie is the device's secret; one arriving over the network proves nothing
-/// about who sent it, so a remote request never authenticates through this scheme.
+/// Only ever from this device. The cookie is the device's secret; one arriving over the network — or through a tunnel,
+/// which delivers from loopback — proves nothing about who sent it, so such a request never authenticates through this
+/// scheme.
 /// </para>
 /// </summary>
 public sealed class WebAppSessionAuthenticationHandler(WebAppSession session) : IAuthenticationHandler
@@ -79,7 +80,7 @@ public sealed class WebAppSessionAuthenticationHandler(WebAppSession session) : 
     {
         ArgumentNullException.ThrowIfNull(context);
 
-        if (!BridgeCallers.IsLocal(context.Connection.RemoteIpAddress) || !session.IsValid(context.Request.Cookies[WebAppSession.CookieName]))
+        if (!BridgeCallers.IsLocalConnection(context) || !session.IsValid(context.Request.Cookies[WebAppSession.CookieName]))
             return ValueTask.FromResult(AuthenticateResult.NoResult());
 
         var identity = new ClaimsIdentity(

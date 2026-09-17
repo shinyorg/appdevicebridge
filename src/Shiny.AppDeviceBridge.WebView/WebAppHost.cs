@@ -358,22 +358,12 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
         }
     }
 
-    void IAppDeviceBridgeServerExtension.ConfigureAuthentication(AuthenticationBuilder authentication)
-        => authentication.AddScheme(_ => new WebAppSessionAuthenticationHandler(this.session));
-
-    void IAppDeviceBridgeServerExtension.ConfigureAuthorization(AuthorizationOptions authorization)
-        => authorization.AddPolicy(WebAppPolicies.Session, p => p.RequireClaim(WebAppSessionAuthenticationHandler.SessionClaim));
-
     /// <summary>
     /// On top of "a caller on this device": the caller is this app's own WebView, holding the launch cookie. Binding to
     /// loopback keeps other machines out but not other apps — on Android any app can open a socket to 127.0.0.1 — so
-    /// the session is what keeps the bridges to the page. Waived with the rest in a debug build that allows any caller.
+    /// the session is what keeps the bridges to the page.
     /// </summary>
-    void IAppDeviceBridgeServerExtension.ConfigureDefaultBridgePolicy(AuthorizationPolicyBuilder policy)
-        => policy.RequireAssertion(
-            ctx => this.server.AllowsAnyCaller || this.HasSession(ctx.HttpContext),
-            "the web app's own WebView"
-        );
+    bool IAppDeviceBridgeServerExtension.AdmitsBridgeCaller(HttpContext context) => this.HasSession(context);
 
     void IAppDeviceBridgeServerExtension.ConfigurePipeline(AppDeviceBridgeServer bridgeServer)
         => bridgeServer.Http!.Use(this.ServeAsync);
@@ -387,17 +377,18 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
     string? IWebAppStatus.PendingVersion => this.PendingPackage?.Version.ToString();
 
     bool HasSession(HttpContext context)
-        => BridgeCallers.IsLocal(context.Connection.RemoteIpAddress)
+        => BridgeCallers.IsLocalConnection(context)
            && this.session.IsValid(context.Request.Cookies[WebAppSession.CookieName]);
 
     /// <summary>
-    /// Everything on the server that is not a bridge, <c>_host</c> or one of the app's own endpoints: the session
-    /// exchange, and the web app's files.
+    /// The session exchange, and the web app's files — everything under the mount point that is not a bridge, <c>_host</c>
+    /// or one of the app's own endpoints. The rest of the app's server passes through.
     /// </summary>
     async ValueTask ServeAsync(HttpContext context, RequestDelegate next)
     {
         var request = context.Request;
-        var isLocal = BridgeCallers.IsLocal(context.Connection.RemoteIpAddress);
+        // A tunnel delivers from loopback, so the address alone would count the internet as this device.
+        var isLocal = BridgeCallers.IsLocalConnection(context);
 
         if (request.Path == this.paths.Start)
         {
@@ -411,20 +402,28 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
             return;
         }
 
+        // Bridges, _host, the app's own endpoints, and anything outside the mount point are not the web app's. Straight past
+        // the static files, whose SPA fallback would otherwise answer an unknown bridge route with index.html and a 200.
         if (AppDeviceBridgeServer.IsUnder(request.Path, this.paths.Bridge)
             || AppDeviceBridgeServer.IsUnder(request.Path, this.paths.Host)
-            || this.server.MatchesEndpoint(request))
+            || this.server.MatchesEndpoint(request)
+            || !this.paths.TryStripBase(request.Path, out var relative))
         {
-            // Routing and authorization take it from here. Straight past the static files, whose SPA fallback would
-            // otherwise answer an unknown bridge route with index.html and a 200.
             await next(context);
             return;
         }
 
-        var allowed = this.server.AllowsAnyCaller
+        // The same names the bridges answer to: a page is not served to a hostile site that pointed its own name here.
+        if (!this.server.IsAllowedHost(context))
+        {
+            context.Response.StatusCode = 421;
+            return;
+        }
+
+        var allowed = this.server.AllowsAnyCaller(context)
                       || (isLocal ? this.HasSession(context) : this.options.ServeWebAppRemotely);
 
-        if (!allowed || !this.paths.TryStripBase(request.Path, out var relative))
+        if (!allowed)
         {
             context.Response.StatusCode = StatusCodes.Status403Forbidden;
             return;

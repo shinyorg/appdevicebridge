@@ -3,29 +3,39 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Hosting;
 using Microsoft.Maui.LifecycleEvents;
+using Shiny.Net.HttpServer;
 
 namespace Shiny.AppDeviceBridge.Maui;
 
 public static class AppDeviceBridgeMauiExtensions
 {
     /// <summary>
-    /// Registers the bridge server. The host version defaults to the app's display version. Call it as often as you like;
-    /// every call configures the same options. Bridges come from their own packages, one extension each, and a WebView
-    /// host from <c>Shiny.AppDeviceBridge.WebView</c>:
+    /// Registers Shiny.Net.HttpServer with the bridges on it — <c>AddShinyHttpServer</c> and <c>AddAppDeviceBridge</c> in one
+    /// call. The host version defaults to the app's display version. Call it as often as you like; every call configures the
+    /// same options. Bridges come from their own packages, one extension each, and a WebView host from
+    /// <c>Shiny.AppDeviceBridge.WebView</c>:
     /// <code>
     /// builder
-    ///     .UseAppDeviceBridge(o =>
-    ///     {
-    ///         o.AppId = "field-app";
-    ///         o.Server.Port = 5780;
-    ///     })
+    ///     .UseAppDeviceBridge(o => o.AppId = "field-app")
     ///     .UseWebAppHost(o => o.UseBaseline(typeof(App).Assembly, "webapp.zip"))
     ///     .AddLocationBridges();
+    ///
+    /// // The server itself, and anything else on it, on the same builder — before or after:
+    /// builder.Services.AddShinyHttpServer(http =>
+    /// {
+    ///     http.Options.Address = IPAddress.Any;
+    ///     http.AddAuthentication().AddCookie(...);
+    ///     http.Configure(server => server.MapMyApi());
+    /// }, autoStart: false);
     /// </code>
+    /// <para>
+    /// Loopback on port <see cref="DefaultPort"/>, unless the app gives the server a port of its own — before this call or
+    /// after it. The port is fixed on purpose: a page's origin includes it, and web storage belongs to the origin.
+    /// </para>
     /// <para>
     /// The server starts with the app, and restarts when the app returns to the foreground if the OS took its socket away
     /// while it was suspended — iOS does. Pass <paramref name="startWithApp"/> false to start
-    /// <see cref="AppDeviceBridgeServer"/> yourself.
+    /// <see cref="AppDeviceBridgeServer"/> yourself — an app with a switch for sharing over the network.
     /// </para>
     /// <para>
     /// Platform setup the library cannot do for you:
@@ -43,13 +53,27 @@ public static class AppDeviceBridgeMauiExtensions
 
         var first = !builder.Services.Any(x => x.ServiceType == typeof(AppDeviceBridgeServer));
 
-        builder.Services.AddAppDeviceBridge(o =>
-        {
-            if (first && TryGetAppVersion() is { } version)
-                o.HostVersion = version;
+        // Not started by a hosted service: MAUI does not run them. AppDeviceBridgeStartup starts it instead.
+        builder.Services.AddShinyHttpServer(
+            http =>
+            {
+                // Decided by the port, not by whether the server was registered before: a bridge or a tunnel registering
+                // on the builder first says nothing about the port, and would otherwise leave the server on
+                // Shiny.Net.HttpServer's 5000 — a different origin from every earlier launch, and a WebView whose storage
+                // is suddenly empty. A port the app set later still wins, because its configure runs later.
+                if (http.Options.Port == LibraryDefaultPort)
+                    http.Options.Port = DefaultPort;
 
-            configure?.Invoke(o);
-        });
+                http.AddAppDeviceBridge(o =>
+                {
+                    if (first && TryGetAppVersion() is { } version)
+                        o.HostVersion = version;
+
+                    configure?.Invoke(o);
+                });
+            },
+            autoStart: false
+        );
 
         if (first && startWithApp)
         {
@@ -66,6 +90,11 @@ public static class AppDeviceBridgeMauiExtensions
 
         return builder;
     }
+
+    /// <summary>The port a MAUI app's server listens on unless the app chooses one.</summary>
+    public const int DefaultPort = 5780;
+
+    static readonly int LibraryDefaultPort = new HttpServerOptions().Port;
 
     static string? TryGetAppVersion()
     {

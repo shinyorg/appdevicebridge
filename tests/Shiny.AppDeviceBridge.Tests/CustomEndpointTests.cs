@@ -7,14 +7,18 @@ using Shiny.Net.HttpServer.Security;
 
 namespace Shiny.AppDeviceBridge.Tests;
 
-/// <summary>The app's own endpoints on the host's server, and the authentication that comes with them.</summary>
+/// <summary>
+/// The app's own endpoints on the same server as the bridges, secured the app's way — its schemes, its policies, its fallback
+/// — with the WebView's session as one more scheme among them.
+/// </summary>
 public class CustomEndpointTests
 {
     const string ReaderKey = "reader-key";
     const string AdminKey = "admin-key";
 
+    /// <summary>The fallback is the app's choice, on the app's server; the bridges do not impose one.</summary>
     [Fact]
-    public async Task NeedsAnAuthenticatedCallerByDefault()
+    public async Task UsesTheAppsOwnFallbackPolicy()
     {
         await using var fixture = await Fixture.StartAsync();
 
@@ -38,8 +42,8 @@ public class CustomEndpointTests
         => Assert.Equal(HttpStatusCode.OK, (await (await Fixture.StartAsync()).GetAsync("/api/health")).StatusCode);
 
     /// <summary>
-    /// Shiny.Net.HttpServer keeps only the first AddAuthorization and drops the rest silently, which surfaces as a
-    /// 500 the first time the missing policy is asked for. Every call here has to land.
+    /// The app, the bridges and the WebView host each add authorization on the one builder. Every call has to land — the
+    /// bridges' policy beside the app's, not instead of it.
     /// </summary>
     [Fact]
     public async Task AppliesPoliciesFromEveryRegistration()
@@ -76,36 +80,34 @@ public class CustomEndpointTests
         Assert.NotEqual(HttpStatusCode.NoContent, (await fixture.GetAsync("/_bridge/echo/ping", key: ReaderKey)).StatusCode);
     }
 
+    /// <summary>The app mapped its endpoints where it wanted them; moving the web app and the bridges leaves them there.</summary>
     [Fact]
-    public async Task MovesEndpointsUnderTheBasePath()
+    public async Task LeavesTheAppsEndpointsWhereTheAppMappedThem()
     {
         await using var fixture = await Fixture.StartAsync(o => o.BasePath = "/kiosk");
 
-        Assert.Equal(HttpStatusCode.OK, (await fixture.GetAsync("/kiosk/api/health")).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await fixture.GetAsync("/kiosk/api/admin", key: AdminKey)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await fixture.GetAsync("/api/health")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await fixture.GetAsync("/api/admin", key: AdminKey)).StatusCode);
 
-        // Moved, not copied.
-        Assert.Equal(HttpStatusCode.NotFound, (await fixture.GetAsync("/api/health")).StatusCode);
+        // Under the mount point it is the web app's, which wants the WebView's session.
+        Assert.Equal(HttpStatusCode.Forbidden, (await fixture.GetAsync("/kiosk/api/health")).StatusCode);
     }
 
-    /// <summary>
-    /// A generated [Route] class can only map at the template it was written with, so it is the case that most
-    /// needs the move — with its constraints, its [Authorize] and its dependencies from the app's container intact.
-    /// </summary>
+    /// <summary>A generated [Route] class, with its constraints, its [Authorize] and its dependencies from the app's container.</summary>
     [Fact]
-    public async Task MountsASourceGeneratedClass()
+    public async Task ServesASourceGeneratedClass()
     {
-        await using var fixture = await Fixture.StartAsync(o => o.BasePath = "/kiosk");
+        await using var fixture = await Fixture.StartAsync();
 
-        var order = await fixture.GetAsync("/kiosk/api/generated/42", key: ReaderKey);
+        var order = await fixture.GetAsync("/api/generated/42", key: ReaderKey);
         Assert.Equal(HttpStatusCode.OK, order.StatusCode);
         Assert.Equal("order 42 from the app container", await order.Content.ReadAsStringAsync());
 
         // The constraint turns 'abc' away, so it is no endpoint at all — just a path into the web app, which demands
         // the WebView's session as it always has. A caller without one does not learn which paths exist.
-        Assert.Equal(HttpStatusCode.Forbidden, (await fixture.GetAsync("/kiosk/api/generated/abc", key: ReaderKey)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await fixture.GetAsync("/kiosk/api/generated/admin", key: ReaderKey)).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await fixture.GetAsync("/kiosk/api/generated/admin", key: AdminKey)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await fixture.GetAsync("/api/generated/abc", key: ReaderKey)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await fixture.GetAsync("/api/generated/admin", key: ReaderKey)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await fixture.GetAsync("/api/generated/admin", key: AdminKey)).StatusCode);
     }
 
     [Fact]
@@ -118,33 +120,17 @@ public class CustomEndpointTests
         Assert.Equal(HttpStatusCode.MethodNotAllowed, (await client.SendAsync(request)).StatusCode);
     }
 
-    [Theory]
-    [InlineData("/_bridge/mine")]
-    [InlineData("/_host/mine")]
-    public async Task RefusesAnEndpointOverWhatTheHostReserves(string path)
-    {
-        var failure = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
-        {
-            await using var _ = await Fixture.StartAsync(map: server => server.MapGet(path, ctx => ctx.Response.WriteAsync("x")));
-        });
-
-        Assert.Contains("reserves", failure.Message);
-    }
-
     /// <summary>
-    /// The server's security lives in a container of its own. Shiny.Net.HttpServer registers an HttpServer and a
-    /// first-wins AuthorizationOptions when asked for auth; doing that in the app's container would change an app
-    /// that runs its own server.
+    /// An endpoint of the app's mapped under the bridge prefix is treated as a bridge: behind the bridge policy, whatever
+    /// the app's own authorization says about it. Nothing under the prefix is ever reachable on weaker terms.
     /// </summary>
     [Fact]
-    public void LeavesTheAppsContainerAlone()
+    public async Task GuardsAnAppRouteUnderTheBridgePrefixAsABridge()
     {
-        var services = new ServiceCollection();
-        Fixture.Register(services);
+        await using var fixture = await Fixture.StartAsync(map: server => server.MapGet("/_bridge/mine", ctx => ctx.Response.WriteAsync("mine")));
 
-        Assert.DoesNotContain(services, x => x.ServiceType == typeof(HttpServer));
-        Assert.DoesNotContain(services, x => x.ServiceType == typeof(AuthorizationOptions));
-        Assert.DoesNotContain(services, x => x.ServiceType == typeof(IAuthenticationHandler));
+        Assert.Equal(HttpStatusCode.Forbidden, (await fixture.GetAsync("/_bridge/mine", key: AdminKey)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await fixture.GetAsync("/_bridge/mine", webView: true)).StatusCode);
     }
 
     [Fact]
@@ -153,7 +139,7 @@ public class CustomEndpointTests
         var lan = FindLanAddress();
         Assert.SkipWhen(lan is null, "No non-loopback IPv4 address on this machine, so a remote request cannot be made.");
 
-        await using var fixture = await Fixture.StartAsync(o => o.Server.Address = IPAddress.Any);
+        await using var fixture = await Fixture.StartAsync(http: h => h.Options.Address = IPAddress.Any);
         var remote = new Uri($"http://{lan}:{fixture.Host.Origin!.Port}");
 
         // Their authorization is the gate.
@@ -178,37 +164,46 @@ public class CustomEndpointTests
     sealed class Fixture : IAsyncDisposable
     {
         TestApp app = null!;
-        ServiceProvider services = null!;
         CookieContainer cookies = new();
 
         public WebAppHost Host { get; private set; } = null!;
         public WebAppSession Session { get; private set; } = null!;
 
-        /// <summary>What an app would register: endpoints, schemes and policies, split across calls on purpose.</summary>
-        public static void Register(IServiceCollection services, Action<HttpServer>? map = null)
+        /// <summary>What an app would register on its server: endpoints, schemes and policies, split across calls on purpose.</summary>
+        static void Register(ShinyHttpServerBuilder http, Action<HttpServer>? map)
         {
-            services.AddSingleton<GeneratedOrderStore>();
-            services.AddScoped<GeneratedOrders>();
-            services.AddAppDeviceBridge(o => Configure(o, map));
-        }
+            http.Services.AddSingleton<GeneratedOrderStore>();
+            http.Services.AddScoped<GeneratedOrders>();
 
-        static void Configure(AppDeviceBridgeOptions options, Action<HttpServer>? map) => options
-            .ConfigureServer((server, _) => (map ?? (http =>
-            {
-                http.MapGet("/api/orders", ctx => ctx.Response.WriteAsync($"orders for {ctx.User?.Identity?.Name}"));
-                http.MapGet("/api/health", ctx => ctx.Response.WriteAsync("ok")).AllowAnonymous();
-                http.MapGet("/api/admin", ctx => ctx.Response.WriteAsync("admin")).RequireAuthorization("admin");
-                http.MapGet("/api/page-only", ctx => ctx.Response.WriteAsync("page")).RequireAuthorization(WebAppPolicies.Session);
-                http.MapGeneratedOrders();
-            }))(server))
-            .AddAuthentication(auth => auth.AddApiKey(o => o
+            http.AddAuthentication().AddApiKey(o => o
                 .AddKey(ReaderKey, "reader")
                 .AddKey(AdminKey, "admin", "admin")
-            ))
-            .AddAuthorization(o => o.AddPolicy("unused", p => p.RequireRole("nobody")))
-            .AddAuthorization(o => o.AddPolicy("admin", p => p.RequireRole("admin")));
+            );
+            http.AddAuthorization(o => o.SetFallbackPolicy(p => p.RequireAuthenticatedUser()));
+            http.AddAuthorization(o => o.AddPolicy("unused", p => p.RequireRole("nobody")));
+            http.AddAuthorization(o => o.AddPolicy("admin", p => p.RequireRole("admin")));
 
-        public static async Task<Fixture> StartAsync(Action<AppDeviceBridgeOptions>? configure = null, Action<HttpServer>? map = null)
+            http.Configure(server =>
+            {
+                server.UseAuthentication();
+                server.UseAuthorization();
+
+                (map ?? (s =>
+                {
+                    s.MapGet("/api/orders", ctx => ctx.Response.WriteAsync($"orders for {ctx.User?.Identity?.Name}"));
+                    s.MapGet("/api/health", ctx => ctx.Response.WriteAsync("ok")).AllowAnonymous();
+                    s.MapGet("/api/admin", ctx => ctx.Response.WriteAsync("admin")).RequireAuthorization("admin");
+                    s.MapGet("/api/page-only", ctx => ctx.Response.WriteAsync("page")).RequireAuthorization(WebAppPolicies.Session);
+                    s.MapGeneratedOrders();
+                }))(server);
+            });
+        }
+
+        public static async Task<Fixture> StartAsync(
+            Action<AppDeviceBridgeOptions>? configure = null,
+            Action<HttpServer>? map = null,
+            Action<ShinyHttpServerBuilder>? http = null
+        )
         {
             var fixture = new Fixture { app = new TestApp() };
 
@@ -217,22 +212,17 @@ public class CustomEndpointTests
                 fixture.app.Store.Add("1.0.0", TestApp.Zip("1.0.0"));
                 await fixture.app.StartReleaseServerAsync();
 
-                var services = new ServiceCollection();
-                services.AddSingleton<GeneratedOrderStore>();
-                services.AddScoped<GeneratedOrders>();
-                fixture.services = services.BuildServiceProvider();
-
                 fixture.Session = new WebAppSession();
                 fixture.Host = fixture.app.CreateHost(
                     fixture.app.Options(),
-                    fixture.app.BridgeOptions(o =>
-                    {
-                        Configure(o, map);
-                        configure?.Invoke(o);
-                    }),
+                    fixture.app.BridgeOptions(configure),
                     null,
                     [new EchoBridge()],
-                    fixture.services,
+                    h =>
+                    {
+                        Register(h, map);
+                        http?.Invoke(h);
+                    },
                     fixture.Session
                 );
 
@@ -276,9 +266,6 @@ public class CustomEndpointTests
         {
             if (this.Host is not null)
                 await this.Host.DisposeAsync();
-
-            if (this.services is not null)
-                await this.services.DisposeAsync();
 
             await this.app.DisposeAsync();
         }

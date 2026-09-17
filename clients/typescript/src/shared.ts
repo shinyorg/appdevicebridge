@@ -51,6 +51,16 @@ export interface FileEntry {
     modified: string;
 }
 
+export type FileRootChange = "Added" | "Replaced" | "Removed";
+
+/** The `files.roots` event. */
+export interface FileRootsChanged {
+    /** The root's name. */
+    root: string;
+    /** What happened to it. */
+    change: FileRootChange;
+}
+
 /** A move or copy within a root. */
 export interface FileTransfer {
     /** The entry to move or copy. */
@@ -169,6 +179,11 @@ export class FilesBridge {
     /** Copies a file, or a directory recursively, within a root. */
     copy(root: string, transfer: FileTransfer, options?: { signal?: AbortSignal }): Promise<FileEntry> {
         return call<FileEntry>(this.transport, "POST", `files/${segment(root)}/copy`, { json: transfer, signal: options?.signal });
+    }
+
+    /** A root was added, replaced or removed while the app ran — a folder the user picked or the app mapped, a share it published. Call `getRoots` again, and drop anything listed from a root that was replaced or removed. */
+    onRootsChanged(handler: (payload: FileRootsChanged) => void): () => void {
+        return this.transport.subscribe("files.roots", json => handler(JSON.parse(json) as FileRootsChanged));
     }
 }
 

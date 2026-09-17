@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Maui.LifecycleEvents;
 using Shiny.AppDeviceBridge.Folders.Client;
 using Shiny.Net.HttpServer;
@@ -11,7 +12,8 @@ public static class FoldersBridgeExtensions
 {
     /// <summary>
     /// Adds <c>/_bridge/folders</c>: the platform's folder picker, and every picked folder remembered as a file root the
-    /// page uses through <c>/_bridge/files</c> — there is nothing else to call.
+    /// page uses through <c>/_bridge/files</c> — there is nothing else to call. Also registers <see cref="FolderRoots"/>, for
+    /// the app to keep folders of its own by path.
     /// <code>
     /// builder.AddFoldersBridge();
     /// </code>
@@ -32,45 +34,29 @@ public static class FoldersBridgeExtensions
         ));
 #endif
 
+        builder.Services.TryAddSingleton<FolderRoots>();
         builder.Services.AddWebAppBridge<FoldersBridge>();
         return builder;
     }
 }
 
 /// <summary>
-/// <c>/_bridge/folders</c>.
+/// <c>/_bridge/folders</c> — <see cref="FolderRoots"/> for the page.
 /// <code>
 /// GET    /_bridge/folders           { "supported": true, "folders": [{ "root": "photos", "displayName": "Pictures", "available": true }] }
 /// POST   /_bridge/folders/pick      { "root": "photos", "title": "Choose a folder" }   204 when cancelled
 /// DELETE /_bridge/folders/{root}
 /// </code>
+/// <para>
+/// The page can pick a folder and forget one, but never name a path: a folder by path is added by the app, through
+/// <see cref="FolderRoots.Add"/>, where the decision about what the page may read belongs.
+/// </para>
 /// </summary>
-public sealed class FoldersBridge : IWebAppBridge
+public sealed class FoldersBridge(FolderRoots folders) : IWebAppBridge
 {
-    readonly WebAppFileRoots roots;
-    readonly FolderMemory memory;
-    readonly SemaphoreSlim picker = new(1, 1);
-
-    public FoldersBridge(WebAppFileRoots roots, AppDeviceBridgeOptions options)
-    {
-        this.roots = roots;
-        this.memory = new FolderMemory(Path.Combine(options.ResolveDataDirectory(), "folders.json"));
-
-        // Back as roots before the page asks for them. One that no longer opens stays listed as unavailable, so the page
-        // can tell the user and offer to pick it again.
-        if (roots.Enabled && FolderPlatform.IsSupported)
-        {
-            foreach (var saved in this.memory.All)
-            {
-                if (!roots.IsConfigured(saved.Root) && TryRestore(saved) is { } store)
-                    roots.Add(store);
-            }
-        }
-    }
-
     public string Name => "folders";
 
-    public bool IsSupported => FolderPlatform.IsSupported && this.roots.Enabled;
+    public bool IsSupported => folders.CanPick;
 
     public void Map(WebAppBridgeRoutes routes) => routes
         .MapGet("", this.ListAsync)
@@ -78,14 +64,7 @@ public sealed class FoldersBridge : IWebAppBridge
         .MapDelete("/{root}", this.ForgetAsync);
 
     ValueTask ListAsync(HttpContext context)
-        => WebAppBridgeResults.Json(
-            context,
-            new FolderList(
-                this.IsSupported,
-                [.. this.memory.All.Select(x => new PickedFolder(x.Root, x.DisplayName, this.roots.TryGet(x.Root, out _)))]
-            ),
-            FoldersJsonContext.Default.FolderList
-        );
+        => WebAppBridgeResults.Json(context, new FolderList(this.IsSupported, folders.All), FoldersJsonContext.Default.FolderList);
 
     async ValueTask PickAsync(HttpContext context)
     {
@@ -96,19 +75,6 @@ public sealed class FoldersBridge : IWebAppBridge
         }
 
         var body = await WebAppBridgeResults.ReadBodyAsync(context, FoldersJsonContext.Default.FolderPickRequest) ?? new FolderPickRequest();
-        var root = body.Root ?? $"folder-{Guid.NewGuid():n}"[..15];
-
-        if (!WebAppFileStore.IsValidName(root))
-        {
-            await WebAppBridgeResults.BadRequest(context, "A root name is 1-64 letters, digits, '-' or '_'.");
-            return;
-        }
-
-        if (this.roots.IsConfigured(root))
-        {
-            await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "configured_root", $"'{root}' is one of the app's own file roots.");
-            return;
-        }
 
         if (body.Title?.Length > 256)
         {
@@ -116,40 +82,16 @@ public sealed class FoldersBridge : IWebAppBridge
             return;
         }
 
-        // One picker on screen at a time; a second request would stack sheets or be dropped by the OS.
-        if (!await this.picker.WaitAsync(0))
-        {
-            await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "picker_open", "A folder picker is already open.");
-            return;
-        }
-
         try
         {
-            if (await FolderPlatform.PickAsync(body.Title, context.RequestAborted) is not { } picked)
-            {
+            if (await folders.PickAsync(body.Root, body.Title, context.RequestAborted) is { } picked)
+                await WebAppBridgeResults.Json(context, picked, FoldersJsonContext.Default.PickedFolder);
+            else
                 await WebAppBridgeResults.NoContent(context);
-                return;
-            }
-
-            var saved = new SavedFolder(root, picked.DisplayName, picked.Token);
-            if (TryRestore(saved) is not { } store)
-            {
-                FolderPlatform.Release(picked.Token);
-                await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "folder_unavailable", "The folder was picked but could not be opened.");
-                return;
-            }
-
-            if (this.memory.Find(root) is { } previous && previous.Token != picked.Token)
-                FolderPlatform.Release(previous.Token);
-
-            this.roots.Add(store);
-            this.memory.Save(saved);
-
-            await WebAppBridgeResults.Json(context, new PickedFolder(root, picked.DisplayName), FoldersJsonContext.Default.PickedFolder);
         }
-        finally
+        catch (WebAppFileException ex) when (!context.Response.HasStarted)
         {
-            this.picker.Release();
+            await WebAppBridgeResults.Error(context, ex.StatusCode, ex.Code, ex.Message);
         }
     }
 
@@ -157,21 +99,188 @@ public sealed class FoldersBridge : IWebAppBridge
     {
         var root = context.Request.RouteValues["root"] ?? String.Empty;
 
-        if (this.memory.Find(root) is not { } saved)
-            return WebAppBridgeResults.NotFound(context, $"No picked folder '{root}'.");
+        return folders.Forget(root)
+            ? WebAppBridgeResults.NoContent(context)
+            : WebAppBridgeResults.NotFound(context, $"No picked folder '{root}'.");
+    }
+}
 
-        this.roots.Remove(root);
-        this.memory.Remove(root);
+/// <summary>
+/// Folders kept as file roots across launches: the ones the user picks with the platform's picker, and the ones the app adds
+/// by path — a folder mapped from a tray menu, a share an administrator published. Each is a root in
+/// <see cref="WebAppFileRoots"/> under a name the page uses, remembered in the app's data directory and restored the next
+/// time the app runs.
+/// <code>
+/// public sealed class ShareService(FolderRoots folders)
+/// {
+///     public PickedFolder Publish(string name, string path) => folders.Add(name, path, displayName: name);
+///     public bool Unpublish(string name) => folders.Forget(name);
+/// }
+/// </code>
+/// <para>
+/// A folder that no longer opens — moved, deleted, its access revoked — stays listed with <see cref="PickedFolder.Available"/>
+/// false, so the app can say so and offer to pick it again. Failures the page should hear about are
+/// <see cref="WebAppFileException"/>, carrying the status and code the folders bridge answers with.
+/// </para>
+/// </summary>
+public sealed class FolderRoots
+{
+    readonly WebAppFileRoots roots;
+    readonly FolderMemory memory;
+    readonly SemaphoreSlim picker = new(1, 1);
+    readonly Lock gate = new();
+
+    public FolderRoots(WebAppFileRoots roots, AppDeviceBridgeOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(roots);
+        ArgumentNullException.ThrowIfNull(options);
+
+        this.roots = roots;
+        this.memory = new FolderMemory(Path.Combine(options.ResolveDataDirectory(), "folders.json"));
+
+        // Back as roots before the page asks for them.
+        if (roots.Enabled)
+        {
+            foreach (var saved in this.memory.All)
+            {
+                if (!roots.IsConfigured(saved.Root) && TryRestore(saved) is { } store)
+                    roots.Add(store);
+            }
+        }
+    }
+
+    /// <summary>Whether this platform has a folder picker, and files are switched on.</summary>
+    public bool CanPick => FolderPlatform.IsSupported && this.roots.Enabled;
+
+    /// <summary>Every remembered folder, picked or added, and whether it opens right now.</summary>
+    public IReadOnlyList<PickedFolder> All
+        => [.. this.memory.All.Select(x => new PickedFolder(x.Root, x.DisplayName, this.roots.TryGet(x.Root, out _)))];
+
+    /// <summary>
+    /// Shows the platform's folder picker and keeps the folder as a root. Null when the user cancels. A root name already in
+    /// use by a remembered folder is replaced; one is chosen when <paramref name="root"/> is null.
+    /// </summary>
+    /// <exception cref="WebAppFileException">
+    /// <c>not_supported</c> (501) without a picker; <c>bad_request</c> for a root name that is not 1–64 letters, digits,
+    /// <c>-</c> or <c>_</c>; <c>configured_root</c> for one of the app's own roots; <c>picker_open</c> while a picker is on
+    /// screen; <c>folder_unavailable</c> when the chosen folder cannot be opened.
+    /// </exception>
+    public async Task<PickedFolder?> PickAsync(string? root = null, string? title = null, CancellationToken cancellationToken = default)
+    {
+        if (!this.CanPick)
+            throw new WebAppFileException(StatusCodes.Status501NotImplemented, "not_supported", "A folder picker is not available on this platform.");
+
+        root ??= $"folder-{Guid.NewGuid():n}"[..15];
+        this.CheckName(root);
+
+        // One picker on screen at a time; a second request would stack sheets or be dropped by the OS.
+        if (!await this.picker.WaitAsync(0, cancellationToken))
+            throw new WebAppFileException(StatusCodes.Status409Conflict, "picker_open", "A folder picker is already open.");
+
+        try
+        {
+            if (await FolderPlatform.PickAsync(title, cancellationToken) is not { } picked)
+                return null;
+
+            return this.Keep(new SavedFolder(root, picked.DisplayName, picked.Token), "The folder was picked but could not be opened.");
+        }
+        finally
+        {
+            this.picker.Release();
+        }
+    }
+
+    /// <summary>
+    /// Keeps a folder the app already reaches by path as a root, replacing a remembered folder under the same name. For the
+    /// folders the app decides on — a path the user typed into the app's settings, one its own native dialog returned —
+    /// never a path the page supplied. On Apple platforms a folder the app currently has security-scoped access to is kept
+    /// as a bookmark, so the access outlives the launch.
+    /// </summary>
+    /// <param name="root">The name the page uses: 1–64 letters, digits, <c>-</c> or <c>_</c>.</param>
+    /// <param name="path">An absolute path to a directory that exists.</param>
+    /// <param name="displayName">What to call it where the page shows folders. The directory's own name by default.</param>
+    /// <exception cref="WebAppFileException">
+    /// <c>bad_request</c> for an invalid name or a relative path; <c>configured_root</c> for one of the app's own roots;
+    /// <c>folder_unavailable</c> when the directory does not exist or cannot be opened.
+    /// </exception>
+    public PickedFolder Add(string root, string path, string? displayName = null)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        this.CheckName(root);
+
+        if (!Path.IsPathFullyQualified(path))
+            throw WebAppFileException.BadRequest($"A folder is an absolute path; '{path}' is not.");
+
+        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        if (!Directory.Exists(full))
+            throw new WebAppFileException(StatusCodes.Status409Conflict, "folder_unavailable", "The folder does not exist.");
+
+        var name = String.IsNullOrWhiteSpace(displayName)
+            ? Path.GetFileName(full) is { Length: > 0 } last ? last : full
+            : displayName;
+
+        return this.Keep(new SavedFolder(root, name, FolderPlatform.TokenForPath(full)), "The folder exists but could not be opened.");
+    }
+
+    /// <summary>Forgets a remembered folder: its root goes away and any access the platform granted is given back. False when there is none by that name.</summary>
+    public bool Forget(string root)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+
+        SavedFolder? saved;
+        lock (this.gate)
+        {
+            saved = this.memory.Find(root);
+            if (saved is null)
+                return false;
+
+            this.memory.Remove(root);
+            this.roots.Remove(saved.Root);
+        }
+
         FolderPlatform.Release(saved.Token);
+        return true;
+    }
 
-        return WebAppBridgeResults.NoContent(context);
+    void CheckName(string root)
+    {
+        if (!WebAppFileStore.IsValidName(root))
+            throw WebAppFileException.BadRequest("A root name is 1-64 letters, digits, '-' or '_'.");
+
+        if (this.roots.IsConfigured(root))
+            throw new WebAppFileException(StatusCodes.Status409Conflict, "configured_root", $"'{root}' is one of the app's own file roots.");
+    }
+
+    /// <summary>Opens the folder, then remembers it and makes it a root — in that order, so nothing is remembered that does not open.</summary>
+    PickedFolder Keep(SavedFolder saved, string unavailable)
+    {
+        if (TryRestore(saved) is not { } store)
+        {
+            FolderPlatform.Release(saved.Token);
+            throw new WebAppFileException(StatusCodes.Status409Conflict, "folder_unavailable", unavailable);
+        }
+
+        SavedFolder? previous;
+        lock (this.gate)
+        {
+            previous = this.memory.Find(saved.Root);
+            this.roots.Add(store);
+            this.memory.Save(saved);
+        }
+
+        if (previous is not null && previous.Token != saved.Token)
+            FolderPlatform.Release(previous.Token);
+
+        return new PickedFolder(saved.Root, saved.DisplayName);
     }
 
     static WebAppFileStore? TryRestore(SavedFolder saved)
     {
         try
         {
-            return FolderPlatform.Open(saved.Root, saved.Token);
+            return FolderPlatform.Restore(saved.Root, saved.Token);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
         {

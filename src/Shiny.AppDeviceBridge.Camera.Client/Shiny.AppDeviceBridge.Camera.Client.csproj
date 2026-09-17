@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Camera.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge camera bridge — the device's own camera driven from a page anywhere: a live MJPEG viewfinder, the shutter, video recording, lens, zoom, torch and effects, with captures filed into a file root. Register with services.AddCameraBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

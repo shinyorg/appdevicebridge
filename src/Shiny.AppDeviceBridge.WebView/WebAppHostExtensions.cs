@@ -3,6 +3,8 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shiny.AppDeviceBridge.Maui;
+using Shiny.Net.HttpServer;
+using Shiny.Net.HttpServer.Security;
 
 namespace Shiny.AppDeviceBridge.WebView;
 
@@ -10,8 +12,8 @@ public static class WebAppHostExtensions
 {
     /// <summary>
     /// Serves a web app from the bridge server and shows it in <see cref="WebAppHostView"/>. Registers the bridge server
-    /// too, if <see cref="AppDeviceBridgeMauiExtensions.UseAppDeviceBridge"/> has not — its options (the app id, the
-    /// port, who may call the bridges) are set there.
+    /// too, if <see cref="AppDeviceBridgeMauiExtensions.UseAppDeviceBridge"/> has not — its options (the app id, who may call
+    /// the bridges) are set there, and the server's own (the port) on <c>AddShinyHttpServer</c>.
     /// <code>
     /// builder
     ///     .UseAppDeviceBridge(o => o.AppId = "field-app")
@@ -29,30 +31,44 @@ public static class WebAppHostExtensions
         ArgumentNullException.ThrowIfNull(configure);
 
         builder.UseAppDeviceBridge();
-        builder.Services.AddWebAppHost(configure);
+        new ShinyHttpServerBuilder(builder.Services).AddWebAppHost(configure);
         return builder;
     }
 
     /// <summary>
-    /// Registers <see cref="WebAppHost"/> on the bridge server, without MAUI's startup — for tests, or a host of your own.
-    /// Every call configures the same options, which are validated when the host is created.
+    /// Registers <see cref="WebAppHost"/> on the app's server, without MAUI's startup — for tests, or a host of your own. Adds
+    /// the bridges if they are not there yet. Every call configures the same options, which are validated when the host is
+    /// created.
+    /// <para>
+    /// The WebView's launch session is added to the server as an authentication scheme, and
+    /// <see cref="WebAppPolicies.Session"/> as a policy, so the app's own endpoints can recognise the page — through the
+    /// app's <c>UseAuthentication</c> and <c>UseAuthorization</c>, as for any other scheme.
+    /// </para>
     /// </summary>
-    public static IServiceCollection AddWebAppHost(this IServiceCollection services, Action<WebAppHostOptions> configure)
+    public static ShinyHttpServerBuilder AddWebAppHost(this ShinyHttpServerBuilder http, Action<WebAppHostOptions> configure)
     {
-        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(http);
         ArgumentNullException.ThrowIfNull(configure);
 
-        services.AddAppDeviceBridge();
+        http.AddAppDeviceBridge();
 
+        var services = http.Services;
         if (services.FirstOrDefault(x => x.ServiceType == typeof(WebAppHostOptions))?.ImplementationInstance is WebAppHostOptions existing)
         {
             configure(existing);
-            return services;
+
+            // An instance registered up front still needs everything below, once.
+            if (services.Any(x => x.ServiceType == typeof(WebAppHost)))
+                return http;
+        }
+        else
+        {
+            existing = new WebAppHostOptions();
+            configure(existing);
+            services.AddSingleton(existing);
         }
 
-        var options = new WebAppHostOptions();
-        configure(options);
-        services.AddSingleton(options);
+        var options = existing;
 
         services.TryAddSingleton<WebAppSession>();
         services.TryAddSingleton(sp => new WebAppHost(
@@ -68,7 +84,10 @@ public static class WebAppHostExtensions
             (sp.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance).CreateLogger<WebAppScriptEngine>()
         ));
 
-        return services;
+        http.AddAuthentication().AddScheme(sp => new WebAppSessionAuthenticationHandler(sp.GetRequiredService<WebAppSession>()));
+        http.AddAuthorization(o => o.AddPolicy(WebAppPolicies.Session, p => p.RequireClaim(WebAppSessionAuthenticationHandler.SessionClaim)));
+
+        return http;
     }
 
     /// <summary>

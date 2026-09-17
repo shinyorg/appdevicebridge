@@ -22,9 +22,18 @@ public sealed class WebAppFileRoot : WebAppFileStore
         ? StringComparison.Ordinal
         : StringComparison.OrdinalIgnoreCase;
 
+    /// <param name="name">What the page calls the root: 1–64 letters, digits, <c>-</c> or <c>_</c>.</param>
+    /// <param name="path">
+    /// The directory, as an absolute path. A relative one is refused rather than resolved, because it would resolve against
+    /// whatever the working directory happens to be — which is not a decision about what the page may read.
+    /// </param>
     public WebAppFileRoot(string name, string path) : base(name)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        if (!Path.IsPathFullyQualified(path))
+            throw new ArgumentException($"A file root is an absolute path; '{path}' is not.", nameof(path));
+
         this.FullPath = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
     }
 
