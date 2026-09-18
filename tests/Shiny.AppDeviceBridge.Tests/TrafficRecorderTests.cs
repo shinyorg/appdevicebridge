@@ -17,7 +17,7 @@ public class TrafficRecorderTests
         using var response = await fixture.Client.GetAsync("/api/hello?name=world");
         Assert.Equal("hello world", await response.Content.ReadAsStringAsync());
 
-        var exchange = Assert.Single(fixture.Recorder.Snapshot());
+        var exchange = Assert.Single(await fixture.RecordedAsync(1));
         Assert.Equal("GET", exchange.Method);
         Assert.Equal("/api/hello", exchange.Path);
         Assert.Equal("/api/hello?name=world", exchange.Target);
@@ -39,7 +39,7 @@ public class TrafficRecorderTests
         using var response = await fixture.Client.PostAsync("/api/echo", new StringContent("{\"a\":1}", Encoding.UTF8, "application/json"));
         Assert.Equal("{\"a\":1}", await response.Content.ReadAsStringAsync());
 
-        var exchange = Assert.Single(fixture.Recorder.Snapshot());
+        var exchange = Assert.Single(await fixture.RecordedAsync(1));
         Assert.Equal(TrafficBodyState.Captured, exchange.RequestBody.State);
         Assert.Equal("{\"a\":1}", exchange.RequestBody.Text);
         Assert.Equal("{\"a\":1}", exchange.ResponseBody.Text);
@@ -53,7 +53,7 @@ public class TrafficRecorderTests
         using var response = await fixture.Client.GetAsync("/api/binary");
         Assert.Equal(4096, (await response.Content.ReadAsByteArrayAsync()).Length);
 
-        var body = Assert.Single(fixture.Recorder.Snapshot()).ResponseBody;
+        var body = Assert.Single(await fixture.RecordedAsync(1)).ResponseBody;
         Assert.Equal(TrafficBodyState.Binary, body.State);
         Assert.Equal(4096, body.ByteCount);
         Assert.Null(body.Text);
@@ -67,7 +67,7 @@ public class TrafficRecorderTests
         using var response = await fixture.Client.PostAsync("/api/echo", new StringContent(new string('x', 50), Encoding.UTF8, "text/plain"));
         Assert.Equal(50, (await response.Content.ReadAsStringAsync()).Length);
 
-        var exchange = Assert.Single(fixture.Recorder.Snapshot());
+        var exchange = Assert.Single(await fixture.RecordedAsync(1));
         Assert.Equal(TrafficBodyState.Truncated, exchange.RequestBody.State);
         Assert.Equal(new string('x', 10), exchange.RequestBody.Text);
         Assert.Equal(50, exchange.RequestBody.ByteCount);
@@ -83,7 +83,7 @@ public class TrafficRecorderTests
         using var response = await fixture.Client.PostAsync("/api/echo", new StringContent("password=hunter2", Encoding.UTF8, "application/x-www-form-urlencoded"));
         Assert.Equal("password=hunter2", await response.Content.ReadAsStringAsync());
 
-        var body = Assert.Single(fixture.Recorder.Snapshot()).RequestBody;
+        var body = Assert.Single(await fixture.RecordedAsync(1)).RequestBody;
         Assert.Equal(TrafficBodyState.Redacted, body.State);
         Assert.Null(body.Text);
         Assert.Equal(16, body.ByteCount);
@@ -101,7 +101,7 @@ public class TrafficRecorderTests
         using var response = await fixture.Client.GetAsync("/_bridge/echo/ping");
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
 
-        var exchange = Assert.Single(fixture.Recorder.Snapshot());
+        var exchange = Assert.Single(await fixture.RecordedAsync(1));
         Assert.Equal("/_bridge/echo/ping", exchange.Path);
         Assert.Equal(401, exchange.StatusCode);
     }
@@ -114,7 +114,7 @@ public class TrafficRecorderTests
         using var response = await fixture.Client.GetAsync("/_bridge/echo/boom");
         Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
 
-        var exchange = Assert.Single(fixture.Recorder.Snapshot());
+        var exchange = Assert.Single(await fixture.RecordedAsync(1));
         Assert.Equal(500, exchange.StatusCode);
         Assert.Contains("bridge_failed", exchange.ResponseBody.Text);
     }
@@ -132,7 +132,7 @@ public class TrafficRecorderTests
         using (await fixture.Client.GetAsync(start)) { }
         using (await fixture.Client.GetAsync("/_bridge/echo/ping")) { }
 
-        var exchanges = fixture.Recorder.Snapshot();
+        var exchanges = await fixture.RecordedAsync(3);
         Assert.Equal(3, exchanges.Count); // the start URL, its redirect to the page, and the bridge call
 
         var token = fixture.Session!.Token;
@@ -157,7 +157,7 @@ public class TrafficRecorderTests
         request.Headers.Add("Authorization", "Bearer secret");
         using (await fixture.Client.SendAsync(request)) { }
 
-        var headers = Assert.Single(fixture.Recorder.Snapshot()).RequestHeaders;
+        var headers = Assert.Single(await fixture.RecordedAsync(1)).RequestHeaders;
         Assert.Equal("(redacted)", headers.Single(x => x.Name == "Authorization").Value);
     }
 
@@ -174,7 +174,7 @@ public class TrafficRecorderTests
         request.Headers.Add("Authorization", "Bearer secret");
         using (await fixture.Client.SendAsync(request)) { }
 
-        var exchange = Assert.Single(fixture.Recorder.Snapshot());
+        var exchange = Assert.Single(await fixture.RecordedAsync(1));
         Assert.Equal("?token=abc", exchange.QueryString);
         Assert.Equal("Bearer secret", exchange.RequestHeaders.Single(x => x.Name == "Authorization").Value);
     }
@@ -194,8 +194,12 @@ public class TrafficRecorderTests
     {
         await using var fixture = await Fixture.StartAsync(o => o.MaxExchanges = 2);
 
+        // Each waited for in turn, so they are added in the order they were made - which is what the order held is about.
         foreach (var name in new[] { "a", "b", "c" })
+        {
             using (await fixture.Client.GetAsync($"/api/hello?name={name}")) { }
+            await fixture.RecordedAsync(x => x.QueryString == $"?name={name}");
+        }
 
         Assert.Equal(["?name=c", "?name=b"], fixture.Recorder.Snapshot().Select(x => x.QueryString));
     }
@@ -210,7 +214,7 @@ public class TrafficRecorderTests
 
         fixture.Recorder.IsRecording = true;
         using (await fixture.Client.GetAsync("/api/hello")) { }
-        Assert.Single(fixture.Recorder.Snapshot());
+        Assert.Single(await fixture.RecordedAsync(1));
     }
 
     /// <summary>What was recorded is every header and body that crossed the server; off means gone.</summary>
@@ -219,6 +223,9 @@ public class TrafficRecorderTests
     {
         await using var fixture = await Fixture.StartAsync();
         using (await fixture.Client.GetAsync("/api/hello")) { }
+
+        // Waited for before counting: an exchange still being added would raise Changed once more.
+        await fixture.RecordedAsync(1);
 
         var changes = 0;
         fixture.Recorder.Changed += (_, _) => changes++;
@@ -234,7 +241,7 @@ public class TrafficRecorderTests
         await using var fixture = await Fixture.StartAsync();
         using (await fixture.Client.GetAsync("/api/hello")) { }
 
-        var id = Assert.Single(fixture.Recorder.Snapshot()).Id;
+        var id = Assert.Single(await fixture.RecordedAsync(1)).Id;
         Assert.NotNull(fixture.Recorder.Find(id));
 
         fixture.Recorder.Clear();
@@ -274,7 +281,9 @@ public class TrafficRecorderTests
             using var client = new HttpClient();
             using (await client.GetAsync(new Uri(origin, "/_bridge/host"))) { }
 
-            Assert.Equal("/_bridge/host", Assert.Single(recorder.Snapshot()).Path);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(10));
+            Assert.Equal("/_bridge/host", Assert.Single(await recorder.WaitUntilAsync(x => x.Count >= 1, timeout.Token)).Path);
         }
         finally
         {
@@ -315,10 +324,24 @@ public class TrafficRecorderTests
     {
         readonly TestApp app = new();
 
+        // A recorder that never records fails the test rather than hanging it.
+        readonly CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+
         public TrafficRecorder Recorder { get; private set; } = null!;
         public HttpClient Client { get; private set; } = null!;
         public WebAppHost? Host { get; private set; }
         public WebAppSession? Session { get; private set; }
+
+        /// <summary>
+        /// What is held once at least <paramref name="count"/> exchanges are. The recorder adds an exchange after its response
+        /// has gone out, so a test reading it straight after the request has to wait for it.
+        /// </summary>
+        public Task<IReadOnlyList<TrafficExchange>> RecordedAsync(int count)
+            => this.Recorder.WaitUntilAsync(x => x.Count >= count, this.timeout.Token);
+
+        /// <summary>The newest exchange matching <paramref name="match"/>, once there is one.</summary>
+        public Task<TrafficExchange> RecordedAsync(Func<TrafficExchange, bool> match)
+            => this.Recorder.WaitForAsync(match, this.timeout.Token);
 
         public static async Task<Fixture> StartAsync(Action<TrafficRecorderOptions>? configure = null, bool webView = false)
         {
@@ -365,6 +388,7 @@ public class TrafficRecorderTests
                 }
 
                 fixture.Recorder = server.Http.Services!.GetRequiredService<TrafficRecorder>();
+                fixture.timeout.CancelAfter(TimeSpan.FromSeconds(10));
                 fixture.Client = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() })
                 {
                     BaseAddress = server.Origin
@@ -381,6 +405,7 @@ public class TrafficRecorderTests
         public async ValueTask DisposeAsync()
         {
             this.Client?.Dispose();
+            this.timeout.Dispose();
 
             if (this.Host is not null)
                 await this.Host.DisposeAsync();

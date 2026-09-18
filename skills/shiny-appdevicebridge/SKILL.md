@@ -53,6 +53,8 @@ triggers:
   - AddTrafficRecorder
   - TrafficRecorder
   - TrafficRecorderOptions
+  - TrafficRecorder.WaitForAsync
+  - TrafficRecorder.WaitUntilAsync
   - TrafficMonitorPage
   - ShowTrafficMonitorAsync
   - TrafficText
@@ -367,7 +369,10 @@ In memory only (newest 300, text bodies up to 128 KB). `Authorization`, `Proxy-A
 and the `token`/`access_token` query parameters are redacted by default — that is what keeps the WebView's launch token
 and session cookie out of it; do not clear those sets in shipped code. Without MAUI: `http.AddTrafficRecorder()` and read
 `TrafficRecorder.Snapshot()` / `Changed`; `TrafficText` (`Status`, `Headers`, `Body`, `Filter`, `Describe`) formats an
-exchange the way the pages do. When overlaying a button on `WebAppHostPage`, set `page.Content = null` before
+exchange the way the pages do. An exchange is added only after its response has gone out, so a client can be back before
+it is there: to read one straight after making the request (a test, a tool), wait for it with
+`await recorder.WaitForAsync(x => x.Path == "/_bridge/wifi/connection", ct)` or `WaitUntilAsync(list => list.Count >= 3, ct)`
+— never `Snapshot()` right after the call. When overlaying a button on `WebAppHostPage`, set `page.Content = null` before
 putting `HostView` in a new layout — replacing the content un-parents the old one and the view's `Navigation` goes dead.
 
 ## Simulator (testing a page without a device)

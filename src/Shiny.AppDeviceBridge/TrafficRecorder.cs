@@ -188,10 +188,70 @@ public sealed class TrafficRecorder
     public event EventHandler? Changed;
 
     /// <summary>Everything held, newest first.</summary>
+    /// <remarks>
+    /// An exchange is added once the server has finished its request — after the last byte of the response has gone out,
+    /// because the response body is captured as it is written. A client can therefore have the whole response before its
+    /// exchange is here. To read an exchange straight after making the request, wait for it with <see cref="WaitForAsync"/>
+    /// or <see cref="WaitUntilAsync"/>.
+    /// </remarks>
     public IReadOnlyList<TrafficExchange> Snapshot()
     {
         lock (this.exchanges)
             return this.exchanges.ToArray();
+    }
+
+    /// <summary>
+    /// Waits until what is held satisfies <paramref name="condition"/>, and returns it as it was then, newest first.
+    /// Completes at once when it already does.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="condition"/> is checked on the thread that finished the request, whenever <see cref="Changed"/> is
+    /// raised; an exception from it fails this wait, never the request.
+    /// </remarks>
+    public async Task<IReadOnlyList<TrafficExchange>> WaitUntilAsync(
+        Func<IReadOnlyList<TrafficExchange>, bool> condition,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(condition);
+
+        var met = new TaskCompletionSource<IReadOnlyList<TrafficExchange>>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void Check(object? sender, EventArgs args)
+        {
+            try
+            {
+                var held = this.Snapshot();
+                if (condition(held))
+                    met.TrySetResult(held);
+            }
+            catch (Exception ex)
+            {
+                met.TrySetException(ex);
+            }
+        }
+
+        // Subscribed before the first look, so an exchange added between the two is not missed.
+        this.Changed += Check;
+        try
+        {
+            Check(null, EventArgs.Empty);
+            return await met.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            this.Changed -= Check;
+        }
+    }
+
+    /// <summary>Waits for an exchange matching <paramref name="match"/> and returns the newest such one.</summary>
+    /// <remarks>See <see cref="WaitUntilAsync"/>.</remarks>
+    public async Task<TrafficExchange> WaitForAsync(Func<TrafficExchange, bool> match, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(match);
+
+        var held = await this.WaitUntilAsync(x => x.Any(match), cancellationToken).ConfigureAwait(false);
+        return held.First(match);
     }
 
     public TrafficExchange? Find(string id)

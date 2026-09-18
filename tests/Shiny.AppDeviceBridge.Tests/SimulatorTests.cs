@@ -345,6 +345,11 @@ public class SimulatorServerTests : IAsyncLifetime
     {
         await this.Wifi.ConnectAsync(new WifiConnectRequest { Ssid = "Office", Passphrase = "hunter2" }, TestContext.Current.CancellationToken);
 
+        // The exchange is added after the response has gone out, so the client can be back before it is.
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        await this.host.Traffic.WaitForAsync(x => x.Path == "/_bridge/wifi/connection", timeout.Token);
+
         var exchange = Assert.Single(this.host.Traffic.Snapshot(), x => x.Path == "/_bridge/wifi/connection");
         Assert.Equal("POST", exchange.Method);
         Assert.Equal(200, exchange.StatusCode);
@@ -510,11 +515,20 @@ public class SimulatorTrailTests
         using var player = new TrailPlayer(state, trail);
         var done = player.Play();
 
+        // Advanced until each pass fires rather than once when the player looks ready: the player sets Position before it
+        // registers its delay with the clock, and on a later pass Position is already 0, so a single Advance can land before
+        // the delay exists and be lost. One delay is outstanding at a time, so each Advance fires at most one step.
         for (var i = 1; i <= 3; i++)
         {
-            await Eventually(() => player.Position == 0);
-            time.Advance(TimeSpan.FromMilliseconds(100));
-            await Eventually(() => state.FindEvent("wifi.changed")!.Fired == i);
+            var pass = i;
+            await Eventually(() =>
+            {
+                if (state.FindEvent("wifi.changed")!.Fired >= pass)
+                    return true;
+
+                time.Advance(TimeSpan.FromMilliseconds(100));
+                return false;
+            });
         }
 
         player.Stop();
