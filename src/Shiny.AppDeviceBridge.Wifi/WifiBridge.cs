@@ -25,28 +25,27 @@ public static class WifiBridgeExtensions
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-#if ANDROID || IOS || MACCATALYST || WINDOWS
+#if ANDROID || IOS || MACCATALYST || WINDOWS || MACOS
+#if MACOS
+        builder.Services.EnsureShinyCore();
+#else
         builder.EnsureShiny();
 #endif
+        builder.Services.AddWifi();
 
-        // Called as static methods: the net10.0 build references both Shiny.Net.Wifi and Shiny.Net.Wifi.Linux,
-        // which each define AddWifi, so extension syntax would be ambiguous there.
-#if WIFI_LINUX
+        if (hotspot)
+            builder.Services.AddWifiHotspot();
+#elif WIFI_LINUX
+        // Shiny.Net.Wifi has no implementation of its own for plain .NET: NetworkManager on Linux, and the bridge
+        // answers 501 anywhere else.
         if (OperatingSystem.IsLinux())
         {
-            global::Shiny.LinuxWifiServiceCollectionExtensions.AddWifi(builder.Services);
+            builder.Services.AddWifi();
 
             if (hotspot)
-                global::Shiny.LinuxWifiServiceCollectionExtensions.AddWifiHotspot(builder.Services);
+                builder.Services.AddWifiHotspot();
         }
-        else
 #endif
-        {
-            global::Shiny.WifiServiceCollectionExtensions.AddWifi(builder.Services);
-
-            if (hotspot)
-                global::Shiny.WifiServiceCollectionExtensions.AddWifiHotspot(builder.Services);
-        }
 
         builder.Services.AddWebAppBridge<WifiBridge>();
         return builder;

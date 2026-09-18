@@ -35,4 +35,5 @@ public sealed record EventStreamTopics(IReadOnlyList<string> Topics);
 
 /// <summary>Sent as <see cref="EventStreamProtocol.ErrorEvent"/> when the source behind a topic fails; the topic is dropped.</summary>
 /// <param name="Event">The topic whose source failed.</param>
+/// <param name="Message">What went wrong, for people.</param>
 public sealed record EventStreamError(string Event, string Message);

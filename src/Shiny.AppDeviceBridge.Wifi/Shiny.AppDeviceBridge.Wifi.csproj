@@ -4,10 +4,11 @@
     <!-- Cleared: src/Directory.Build.props sets the single target. -->
     <TargetFramework></TargetFramework>
 
-    <!-- AddWifi has one signature on every target, but Android's manager needs Shiny's host, and UseShiny only
-         exists in Shiny.Hosting.Maui's platform builds. The net10.0 build serves the maui-labs heads: macOS
-         resolves Shiny.Net.Wifi's own macOS build at runtime, Linux gets the NetworkManager implementation. -->
-    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <!-- Shiny.Net.Wifi declares AddWifi on its platform targets only, so the maui-labs macOS head gets a build of
+         its own. Android's manager needs Shiny's host, and UseShiny only exists in Shiny.Hosting.Maui's platform
+         builds; macOS has none of those and registers Shiny's core services directly. The net10.0 build serves the
+         Linux (GTK4) head with the NetworkManager implementation, and registers nothing anywhere else. -->
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
     <UseMaui>true</UseMaui>
@@ -18,6 +19,7 @@
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-macos'))">14.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
   </PropertyGroup>
 
@@ -36,9 +38,14 @@
     <DefineConstants>$(DefineConstants);WIFI_LINUX</DefineConstants>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0'">
+  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0' AND !$(TargetFramework.Contains('-macos'))">
     <PackageReference Include="Shiny.Hosting.Maui" />
     <Compile Include="../Shared/ShinyMauiHosting.cs" Link="ShinyMauiHosting.cs" />
+  </ItemGroup>
+
+  <!-- No Shiny.Hosting.Maui build exists for macOS, so its core services are registered directly. -->
+  <ItemGroup Condition="$(TargetFramework.Contains('-macos'))">
+    <Compile Include="../Shared/ShinyCoreHosting.cs" Link="ShinyCoreHosting.cs" />
   </ItemGroup>
 
   <ItemGroup>
