@@ -270,3 +270,22 @@ public class NativeCallTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }
+
+public class IndentedJsonTests
+{
+    [Fact]
+    public void Shows_text_as_written_indented()
+    {
+        using var document = System.Text.Json.JsonDocument.Parse("""{"ssid":"Harbourfront Café","note":"<a> & 'b'"}""");
+
+        var text = ((System.Text.Json.JsonElement?)document.RootElement).ToIndentedJson();
+
+        Assert.Contains("\"Harbourfront Café\"", text);
+        Assert.Contains("<a> & 'b'", text);
+        Assert.Contains("\n", text);
+    }
+
+    [Fact]
+    public void Says_so_when_there_is_nothing()
+        => Assert.Equal("(nothing)", ((System.Text.Json.JsonElement?)null).ToIndentedJson());
+}

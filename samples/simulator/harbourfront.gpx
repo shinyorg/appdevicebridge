@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Shiny.AppDeviceBridge sample" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Harbourfront ride</name>
+    <trkseg>
+      <trkpt lat="43.6387" lon="-79.3871"><ele>76</ele><time>2026-09-18T12:00:00Z</time></trkpt>
+      <trkpt lat="43.639" lon="-79.3858"><ele>77</ele><time>2026-09-18T12:00:20Z</time></trkpt>
+      <trkpt lat="43.6393" lon="-79.3845"><ele>78</ele><time>2026-09-18T12:00:40Z</time></trkpt>
+      <trkpt lat="43.6396" lon="-79.3832"><ele>76</ele><time>2026-09-18T12:01:00Z</time></trkpt>
+      <trkpt lat="43.6399" lon="-79.3819"><ele>77</ele><time>2026-09-18T12:01:20Z</time></trkpt>
+      <trkpt lat="43.6402" lon="-79.3806"><ele>78</ele><time>2026-09-18T12:01:40Z</time></trkpt>
+      <trkpt lat="43.6405" lon="-79.3793"><ele>76</ele><time>2026-09-18T12:02:00Z</time></trkpt>
+      <trkpt lat="43.6408" lon="-79.378"><ele>77</ele><time>2026-09-18T12:02:20Z</time></trkpt>
+      <trkpt lat="43.6411" lon="-79.3767"><ele>78</ele><time>2026-09-18T12:02:40Z</time></trkpt>
+      <trkpt lat="43.6415" lon="-79.3755"><ele>76</ele><time>2026-09-18T12:03:00Z</time></trkpt>
+      <trkpt lat="43.6419" lon="-79.3743"><ele>77</ele><time>2026-09-18T12:03:20Z</time></trkpt>
+      <trkpt lat="43.6423" lon="-79.3731"><ele>78</ele><time>2026-09-18T12:03:40Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>

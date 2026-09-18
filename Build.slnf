@@ -47,6 +47,7 @@
             "src/Shiny.AppDeviceBridge.Speech/Shiny.AppDeviceBridge.Speech.csproj",
             "src/Shiny.AppDeviceBridge.Tunnel/Shiny.AppDeviceBridge.Tunnel.csproj",
             "src/Shiny.AppDeviceBridge.WebView/Shiny.AppDeviceBridge.WebView.csproj",
+            "src/Shiny.AppDeviceBridge.Simulator/Shiny.AppDeviceBridge.Simulator.csproj",
             "src/Shiny.AppDeviceBridge.Wifi.Client/Shiny.AppDeviceBridge.Wifi.Client.csproj",
             "src/Shiny.AppDeviceBridge.Wifi/Shiny.AppDeviceBridge.Wifi.csproj",
             "src/Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj"

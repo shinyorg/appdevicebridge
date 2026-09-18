@@ -18,7 +18,10 @@ interface that `Shiny.AppDeviceBridge.Client.SourceGenerators` implements. The n
 contracts — a bridge change starts in its `.Client` project, never in a private DTO. The TypeScript clients in
 `clients/typescript/src` are generated from those assemblies by `tools/Shiny.AppDeviceBridge.TypeScript`
 (`dotnet run --project tools/Shiny.AppDeviceBridge.TypeScript`); a new `.Client` project is added to that tool's
-csproj, and `TypeScriptClientTests` fails until the output is regenerated and committed.
+csproj, and `TypeScriptClientTests` fails until the output is regenerated and committed. The simulator
+(`src/Shiny.AppDeviceBridge.Simulator`, the `shiny-bridge-sim` tool) serves every bridge from the same interfaces: a new
+`.Client` project is also added to its csproj and its interface to `BridgeCatalog`, and `SimulatorCatalogTests` fails
+until both are done.
 
 ## Removing or replacing code — no leftover cruft
 

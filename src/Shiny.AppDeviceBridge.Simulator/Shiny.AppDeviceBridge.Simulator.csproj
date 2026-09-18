@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A terminal app that stands in for the native app: every bridge's endpoints, simulated from the same [BridgeClient]
+    interfaces the typed clients are generated from, answering with values set in the TUI, a scenario file or a trail.
+    Ships as a .NET tool. Add a new bridge's .Client project here and its interface to BridgeCatalog; a test fails until
+    both are done.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Shiny.AppDeviceBridge.Simulator</RootNamespace>
+    <Description>A terminal simulator for Shiny.AppDeviceBridge web apps: every bridge's endpoints answering with values you set, events you fire and trails you play (GPX walks included), with a traffic monitor — so a page can be tested against a device that does exactly what the test needs. Install with dotnet tool install -g Shiny.AppDeviceBridge.Simulator; run shiny-bridge-sim.</Description>
+    <PackageTags>$(PackageTags) simulator tui testing</PackageTags>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>shiny-bridge-sim</ToolCommandName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="XenoAtom.Terminal.UI" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.AppSupport.Client/Shiny.AppDeviceBridge.AppSupport.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.BluetoothLE.Client/Shiny.AppDeviceBridge.BluetoothLE.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Calendar.Client/Shiny.AppDeviceBridge.Calendar.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Camera.Client/Shiny.AppDeviceBridge.Camera.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Contacts.Client/Shiny.AppDeviceBridge.Contacts.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Desktop.Client/Shiny.AppDeviceBridge.Desktop.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Discovery.Client/Shiny.AppDeviceBridge.Discovery.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Folders.Client/Shiny.AppDeviceBridge.Folders.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Health.Client/Shiny.AppDeviceBridge.Health.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.HttpTransfers.Client/Shiny.AppDeviceBridge.HttpTransfers.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Locations.Client/Shiny.AppDeviceBridge.Locations.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Notifications.Client/Shiny.AppDeviceBridge.Notifications.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Obd.Client/Shiny.AppDeviceBridge.Obd.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Photos.Client/Shiny.AppDeviceBridge.Photos.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Push.Client/Shiny.AppDeviceBridge.Push.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.RpiCamera.Client/Shiny.AppDeviceBridge.RpiCamera.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Speech.Client/Shiny.AppDeviceBridge.Speech.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Wifi.Client/Shiny.AppDeviceBridge.Wifi.Client.csproj" />
+  </ItemGroup>
+
+</Project>

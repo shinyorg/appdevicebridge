@@ -312,14 +312,17 @@ public sealed class WebAppNativeCalls(IJSRuntime js) : IAsyncDisposable
 
 public static class JsonElementExtensions
 {
-    /// <summary>Indented JSON for showing a result to a person.</summary>
+    /// <summary>
+    /// Indented JSON for showing a result to a person: "Café", not "Caf\u00E9". Shown as text, never put into a script or
+    /// markup unencoded, so the relaxed escaping is safe here.
+    /// </summary>
     public static string ToIndentedJson(this JsonElement? value)
     {
         if (value is not { } element)
             return "(nothing)";
 
         using var buffer = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true }))
+        using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Indented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
             element.WriteTo(writer);
 
         return Encoding.UTF8.GetString(buffer.ToArray());

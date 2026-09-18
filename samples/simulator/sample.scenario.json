@@ -1,0 +1,87 @@
+{
+  // A phone on café Wi-Fi with a healthy battery: the sample's pages show believable values in the simulator.
+  // shiny-bridge-sim --dev-server http://localhost:5288 --scenario samples/simulator/sample.scenario.json --trail samples/simulator/harbourfront.gpx
+  "platform": "ios",
+  "bridges": {
+    "app": {
+      "routes": {
+        "GET info": {
+          "value": {
+            "appVersion": "1.4.0",
+            "deviceManufacturer": "Apple",
+            "deviceModel": "iPhone 17 Pro",
+            "platformVersion": "26.1",
+            "platform": "iOS",
+            "deviceIdiom": "Phone",
+            "orientation": "Portrait",
+            "culture": "en-CA",
+            "timeZone": "America/Toronto"
+          }
+        },
+        "GET battery": {
+          "value": { "chargeLevel": 0.82, "state": "Discharging", "powerSource": "Battery", "energySaverStatus": "Off" }
+        },
+        "GET connectivity": {
+          "value": { "networkAccess": "Internet", "connectionProfiles": [ "WiFi" ] }
+        }
+      },
+      "events": {
+        "app.battery": { "chargeLevel": 0.81, "state": "Discharging", "powerSource": "Battery" }
+      }
+    },
+    "wifi": {
+      "routes": {
+        "GET current": {
+          "value": {
+            "interfaceName": "en0",
+            "ssid": "Harbourfront Café",
+            "bssid": "a4:83:e7:1c:22:90",
+            "security": "Wpa2Psk",
+            "ipAddresses": [ "192.168.1.42" ],
+            "dnsAddresses": [ "192.168.1.1" ],
+            "gateway": "192.168.1.1",
+            "subnetMask": "255.255.255.0",
+            "signalStrengthDbm": -52,
+            "signalStrengthPercent": 88,
+            "frequencyMhz": 5180,
+            "band": "FiveGhz",
+            "channel": 36
+          }
+        },
+        "GET networks": {
+          "value": [
+            { "ssid": "Harbourfront Café", "bssid": "a4:83:e7:1c:22:90", "security": "Wpa2Psk", "signalStrengthDbm": -52, "signalStrengthPercent": 88, "frequencyMhz": 5180, "band": "FiveGhz", "channel": 36, "isHidden": false, "isOpen": false },
+            { "ssid": "Ferry Terminal Guest", "security": "Open", "signalStrengthDbm": -71, "signalStrengthPercent": 49, "frequencyMhz": 2437, "band": "TwoPointFourGhz", "channel": 6, "isHidden": false, "isOpen": true },
+            { "ssid": "Queens Quay Lofts", "security": "Wpa3Psk", "signalStrengthDbm": -80, "signalStrengthPercent": 31, "frequencyMhz": 5745, "band": "FiveGhz", "channel": 149, "isHidden": false, "isOpen": false }
+          ]
+        }
+      }
+    },
+    "gps": {
+      "routes": {
+        "POST access": { "value": { "access": "Available" } },
+        "GET status": { "value": { "access": "Available" } }
+      }
+    },
+    "ble": {
+      "routes": {
+        "GET status": { "value": { "access": "Available", "isScanning": false } }
+      }
+    },
+    "tray": { "supported": false },
+    "quickentry": { "supported": false },
+    "rpicamera": { "supported": false }
+  },
+  "trails": [
+    {
+      "name": "Wi-Fi drops",
+      "steps": [
+        { "delayMs": 0, "note": "leave the café", "event": "wifi.changed", "payload": { "current": null } },
+        { "delayMs": 0, "bridge": "wifi", "route": "GET current", "mode": "null" },
+        { "delayMs": 0, "bridge": "app", "route": "GET connectivity", "value": { "networkAccess": "Internet", "connectionProfiles": [ "Cellular" ] } },
+        { "delayMs": 8000, "note": "back in range", "bridge": "app", "route": "GET connectivity", "value": { "networkAccess": "Internet", "connectionProfiles": [ "WiFi" ] } },
+        { "delayMs": 0, "bridge": "wifi", "route": "GET current", "mode": "value" }
+      ]
+    }
+  ]
+}

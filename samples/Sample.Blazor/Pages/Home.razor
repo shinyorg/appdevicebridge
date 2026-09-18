@@ -3,46 +3,101 @@
 @inject IHostBridge HostBridge
 @inject NavigationManager Navigation
 
-<h1>AppDeviceBridge + Blazor</h1>
+<section class="hero">
+    <div class="hero-text">
+        <span class="eyebrow">Shiny.AppDeviceBridge</span>
+        <h1>Your web app, with a device behind it</h1>
+        <p>A Blazor WebAssembly page calling native bridges through typed clients: sensors, location, Bluetooth, Wi-Fi, the camera and more.</p>
+    </div>
 
-@if (host is { } h)
-{
-    <p class="muted">web app @h.WebAppVersion (@h.WebAppOrigin) · host @h.HostVersion · @h.Platform</p>
-
-    @if (h.DevServer is { } dev)
+    @if (host is { } h)
     {
-        <p class="banner">Pages from dotnet watch at @dev — edit Sample.Blazor and save.</p>
+        <dl class="stats">
+            <div>
+                <dt>Platform</dt>
+                <dd>@h.Platform</dd>
+            </div>
+            <div>
+                <dt>Bridges</dt>
+                <dd>@h.Bridges.Count(x => x.IsSupported)<small> / @h.Bridges.Count</small></dd>
+            </div>
+            <div>
+                <dt>Web app</dt>
+                <dd>@(h.WebAppVersion ?? "dev")</dd>
+            </div>
+            <div>
+                <dt>Host</dt>
+                <dd>@h.HostVersion</dd>
+            </div>
+        </dl>
+    }
+</section>
+
+@if (host is { } info)
+{
+    @if (info.DevServer is { } dev)
+    {
+        <p class="banner"><Icon Name="bolt" /> Pages from dotnet watch at @dev. Edit Sample.Blazor and save.</p>
     }
 
-    @if (h.PendingVersion is { } pending)
+    @if (info.PendingVersion is { } pending)
     {
-        <div class="banner">Version @pending is ready. <button @onclick="ApplyUpdate">Reload now</button></div>
+        <div class="banner">
+            <span>Version @pending is ready.</span>
+            <button class="primary" @onclick="ApplyUpdate">Reload now</button>
+        </div>
     }
 
     <h2>Bridges</h2>
-    <ul class="chips">
-        @foreach (var bridge in h.Bridges)
+    <div class="bridge-grid">
+        @foreach (var bridge in info.Bridges.OrderBy(x => x.Name))
         {
-            <li class="@(bridge.IsSupported ? "" : "unsupported")">@bridge.Name</li>
+            var page = SampleNav.ForBridge(bridge.Name);
+            <a class="bridge-tile @(bridge.IsSupported ? "" : "off")" href="@(page?.Route ?? "")">
+                <span class="tile-icon"><Icon Name="@(page?.Icon ?? "chip")" /></span>
+                <span class="tile-text">
+                    <strong>@bridge.Name</strong>
+                    <small>@(bridge.IsSupported ? page?.Label ?? "built in" : "not on this platform")</small>
+                </span>
+                <span class="status-dot"></span>
+            </a>
         }
-    </ul>
+    </div>
 }
 
 <Output Error="@Error" />
 
 <h2>Live events</h2>
-<pre class="log">@log</pre>
+@if (events.Count == 0)
+{
+    <p class="empty">Nothing yet. Rotate the device, move around, or fire an event from the simulator.</p>
+}
+else
+{
+    <ol class="feed">
+        @foreach (var e in events)
+        {
+            <li>
+                <time>@e.At.ToString("T")</time>
+                <span class="event-name">@e.Name</span>
+                <code>@e.Payload</code>
+            </li>
+        }
+    </ol>
+}
 
 @code {
     // Raw events, for a page that only shows what arrives. Each bridge's typed client has the same events, typed.
     static readonly string[] EventNames =
     [
-        "app.orientation", "app.culture", "app.timezone", "gps.reading", "geofence.status", "ble.status", "ble.error",
+        "app.orientation", "app.culture", "app.timezone", "app.battery", "gps.reading", "geofence.status", "ble.status", "ble.error",
         "wifi.changed", "push.token", "push.received", "push.entry", "discovery.error", "discovery.stopped"
     ];
 
+    sealed record Received(DateTime At, string Name, string Payload);
+
     HostInfo? host;
-    string log = String.Empty;
+    readonly List<Received> events = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -50,7 +105,14 @@
         Output = null;
 
         foreach (var name in EventNames)
-            await Listen(name, e => log = Prepend(log, $"{DateTime.Now:T}  {name}  {e.GetRawText()}"));
+        {
+            await Listen(name, e =>
+            {
+                events.Insert(0, new Received(DateTime.Now, name, e.GetRawText()));
+                if (events.Count > 50)
+                    events.RemoveAt(events.Count - 1);
+            });
+        }
     }
 
     async Task ApplyUpdate()

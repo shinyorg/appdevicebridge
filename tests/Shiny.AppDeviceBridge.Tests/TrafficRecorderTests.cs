@@ -137,7 +137,7 @@ public class TrafficRecorderTests
 
         var token = fixture.Session!.Token;
         foreach (var exchange in exchanges)
-            Assert.DoesNotContain(token, TrafficExchangePage.Describe(exchange));
+            Assert.DoesNotContain(token, TrafficText.Describe(exchange));
 
         var launch = exchanges.Single(x => x.Path.EndsWith("/start", StringComparison.Ordinal));
         Assert.Equal("?token=(redacted)", launch.QueryString);
@@ -296,7 +296,7 @@ public class TrafficRecorderTests
             Exchange("GET", "/missing", 404)
         ];
 
-        Assert.Equal(expected, TrafficMonitorPage.Filter(exchanges, filter).Count);
+        Assert.Equal(expected, TrafficText.Filter(exchanges, filter).Count);
     }
 
     static TrafficExchange Exchange(string method, string path, int status) => new()

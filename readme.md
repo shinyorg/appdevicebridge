@@ -43,6 +43,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `@shinyorg/appdevicebridge` | a JavaScript or TypeScript web app | the same typed clients in TypeScript, generated from the same declarations (`clients/typescript`) |
 | `Shiny.AppDeviceBridge` | (dependency) | the bridge server: `http.AddAppDeviceBridge()` on Shiny.Net.HttpServer's `ShinyHttpServerBuilder`, `AppDeviceBridgeOptions` (mount points, allowed hosts, the bridge policy), bridge contracts, built-in settings, files and native-call endpoints; no MAUI dependency |
 | `Shiny.AppDeviceBridge.Tunnel` | the app, or a headless device | `http.AddAppDeviceBridgeTunnel()`: a public HTTPS address for the server, opened and closed while the app runs; everything through it is treated as a remote caller |
+| `Shiny.AppDeviceBridge.Simulator` | a .NET tool | `shiny-bridge-sim`: a terminal UI that serves every bridge with answers you set, events you fire and trails you play (GPX walks included), with a traffic monitor — test a page without a device. See [Simulator](#simulator) |
 | `Shiny.AppDeviceBridge.Core` | (dependency) | protocol contracts, version ordering, release signatures |
 | `Shiny.AppDeviceBridge.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
 | `Shiny.AppDeviceBridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, launch at login, share, haptics and vibration, connectivity, battery, screen and clipboard; and `/_bridge/sensors` — accelerometer, gyroscope, magnetometer, compass, barometer and orientation |
@@ -1385,7 +1386,30 @@ await page.HostView.ShowTrafficMonitorAsync();
 Kept in memory only: the newest 300 requests, text bodies up to 128 KB. Credential headers, cookies and `token` query
 parameters are always redacted, so the WebView's launch token and session cookie never appear. `RedactRequestBody`
 drops bodies you name, such as a login post. Without MAUI, `http.AddTrafficRecorder()` registers the same
-`TrafficRecorder`.
+`TrafficRecorder`, and `TrafficText` puts an exchange into words the way the pages do.
+
+## Simulator
+
+`shiny-bridge-sim` stands in for the native app while you build the page. It runs the real bridge server with every device
+bridge replaced by one built from its `[BridgeClient]` interface, so it answers exactly what the typed clients send, and
+you choose the answers.
+
+```bash
+dotnet tool install -g Shiny.AppDeviceBridge.Simulator
+shiny-bridge-sim --dev-server http://localhost:5288      # or --app ./publish/wwwroot
+```
+
+Open `http://127.0.0.1:5299/`. The page is served on the bridges' origin and needs no changes. In the terminal:
+
+- **Bridges**: set what each route answers (a value checked against its contract, a `204` null, or an error such as
+  `501 not_supported` or `403 access_denied`, after an optional delay), fire any event, switch a bridge off, pick the platform.
+- **Traffic**: every request and response, from the same recorder as the MAUI traffic monitor.
+- **Trails**: timed scripts of those steps. A `.gpx` file plays as a GPS walk at its recorded pace, and Ctrl+R records what
+  you do as a trail.
+- `"$now"`, `"$now-5m"` and `"$uuid"` in a value are filled in each time it's sent.
+
+Ctrl+S saves a scenario of the whole setup. `--scenario setup.json --trail walk.gpx --play walk --headless` replays it
+without the TUI, in CI. The server listens on loopback only, with the same bridge policy as a release build.
 
 ## Samples
 
@@ -1396,5 +1420,8 @@ drops bodies you name, such as a login post. Without MAUI, `http.AddTrafficRecor
   - `samples/Sample.MacOS`: AppKit.
   - `samples/Sample.Linux`: GTK4.
 - `samples/Sample.ReleaseServer`: run it, then `samples/publish-release.sh 1.1.0` publishes an update.
+- `samples/simulator`: a scenario and a GPX walk for running Sample.Blazor in the simulator, with no device:
+  `dotnet run --project samples/Sample.Blazor --launch-profile browser`, then
+  `shiny-bridge-sim --dev-server http://localhost:5288 --scenario samples/simulator/sample.scenario.json --trail samples/simulator/harbourfront.gpx`.
 
 The sample key pair in `samples/keys` is public. It's for development only.

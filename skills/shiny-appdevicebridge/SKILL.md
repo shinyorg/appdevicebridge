@@ -54,6 +54,12 @@ triggers:
   - TrafficRecorderOptions
   - TrafficMonitorPage
   - ShowTrafficMonitorAsync
+  - TrafficText
+  - Shiny.AppDeviceBridge.Simulator
+  - shiny-bridge-sim
+  - bridge simulator
+  - simulate bridges
+  - GPX trail
   - traffic monitor
   - WebAppNativeCalls
   - WebAppEvents
@@ -326,8 +332,29 @@ traffic.Clicked += async (_, _) => await page.HostView.ShowTrafficMonitorAsync()
 In memory only (newest 300, text bodies up to 128 KB). `Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`
 and the `token`/`access_token` query parameters are redacted by default — that is what keeps the WebView's launch token
 and session cookie out of it; do not clear those sets in shipped code. Without MAUI: `http.AddTrafficRecorder()` and read
-`TrafficRecorder.Snapshot()` / `Changed`. When overlaying a button on `WebAppHostPage`, set `page.Content = null` before
+`TrafficRecorder.Snapshot()` / `Changed`; `TrafficText` (`Status`, `Headers`, `Body`, `Filter`, `Describe`) formats an
+exchange the way the pages do. When overlaying a button on `WebAppHostPage`, set `page.Content = null` before
 putting `HostView` in a new layout — replacing the content un-parents the old one and the view's `Navigation` goes dead.
+
+## Simulator (testing a page without a device)
+
+`shiny-bridge-sim` (.NET tool `Shiny.AppDeviceBridge.Simulator`) serves every bridge from its `[BridgeClient]` interface,
+answering with values set in its TUI, a scenario file or a trail. Recommend it for testing a page's behavior against
+specific device states (offline, permission denied, `501` on a platform, a GPS walk) — no page changes:
+
+```bash
+shiny-bridge-sim --dev-server http://localhost:5288            # or --app <published wwwroot>; page at http://127.0.0.1:5299/
+shiny-bridge-sim --scenario setup.json --trail walk.gpx --play walk --speed 4 --headless   # CI
+```
+
+- A route answers `value` (JSON validated against the contract; a file for byte routes), `null` (204) or `error`
+  (status + `code` + `message`, e.g. `403 access_denied`), with optional `DelayMs`. A bridge can be switched off (all `501`).
+- Values may hold `"$now"`, `"$now-5m"`, `"$now+2h"`, `"$uuid"`, filled in when sent.
+- Trail JSON: `{ "name": "...", "loop": false, "steps": [ { "delayMs": 0, "event": "wifi.changed", "payload": {...} },
+  { "delayMs": 5000, "bridge": "wifi", "route": "GET current", "mode": "null" }, { "bridge": "ble", "supported": false } ] }`.
+  Route keys are `"<METHOD> <pattern>"` from the interface (`GET current`, `DELETE regions/{identifier}`, `GET` for the root).
+- `.gpx` loads as `gps.reading` events plus `GET gps/current`/`GET gps/last` values at the recorded pace.
+- A new bridge must be added to `BridgeCatalog` and the simulator's csproj; `SimulatorCatalogTests` fail until it is.
 
 ## A Blazor page
 

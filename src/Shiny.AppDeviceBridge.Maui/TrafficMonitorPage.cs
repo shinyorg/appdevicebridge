@@ -158,7 +158,7 @@ public class TrafficMonitorPage : ContentPage
     void Refresh()
     {
         var all = this.recorder.Snapshot();
-        var shown = Filter(all, this.filter.Text);
+        var shown = TrafficText.Filter(all, this.filter.Text);
 
         this.list.ItemsSource = shown;
         this.recordSwitch.IsToggled = this.recorder.IsRecording;
@@ -174,7 +174,7 @@ public class TrafficMonitorPage : ContentPage
 
         this.totals.Text = shown.Count == 0
             ? ""
-            : $"↑ {TrafficFormat.Size(shown.Sum(x => x.RequestBody.ByteCount))} · ↓ {TrafficFormat.Size(shown.Sum(x => x.ResponseBody.ByteCount))}";
+            : $"↑ {TrafficText.Size(shown.Sum(x => x.RequestBody.ByteCount))} · ↓ {TrafficText.Size(shown.Sum(x => x.ResponseBody.ByteCount))}";
 
         this.empty.Text = all.Count > 0
             ? "No request matches the filter."
@@ -184,21 +184,6 @@ public class TrafficMonitorPage : ContentPage
 
         this.empty.IsVisible = shown.Count == 0;
         this.list.IsVisible = shown.Count > 0;
-    }
-
-    internal static IReadOnlyList<TrafficExchange> Filter(IReadOnlyList<TrafficExchange> exchanges, string? text)
-    {
-        if (String.IsNullOrWhiteSpace(text))
-            return exchanges;
-
-        var term = text.Trim();
-        return
-        [
-            .. exchanges.Where(x =>
-                x.Target.Contains(term, StringComparison.OrdinalIgnoreCase)
-                || x.Method.Equals(term, StringComparison.OrdinalIgnoreCase)
-                || x.StatusCode.ToString().StartsWith(term, StringComparison.Ordinal))
-        ];
     }
 
     static View CreateRow()
@@ -231,12 +216,12 @@ public class TrafficMonitorPage : ContentPage
                 return;
 
             status.Text = exchange.StatusCode.ToString();
-            var (light, dark) = TrafficFormat.StatusColors(exchange.StatusCode, exchange.Error is not null);
+            var (light, dark) = TrafficColors.Status(exchange.StatusCode, exchange.Error is not null);
             status.SetAppThemeColor(Label.TextColorProperty, light, dark);
 
             target.Text = exchange.Target;
-            size.Text = TrafficFormat.Size(exchange.ResponseBody.ByteCount);
-            detail.Text = $"{exchange.Method}  {exchange.StartedOn.ToLocalTime():HH:mm:ss} · {TrafficFormat.Origin(exchange.Origin)} · {TrafficFormat.Duration(exchange.Elapsed)}";
+            size.Text = TrafficText.Size(exchange.ResponseBody.ByteCount);
+            detail.Text = $"{exchange.Method}  {exchange.StartedOn.ToLocalTime():HH:mm:ss} · {TrafficText.Origin(exchange.Origin)} · {TrafficText.Duration(exchange.Elapsed)}";
         };
 
         return row;
@@ -250,30 +235,11 @@ public class TrafficMonitorPage : ContentPage
            ?? throw new InvalidOperationException("TrafficRecorder is not registered. Call UseTrafficMonitor in MauiProgram.");
 }
 
-/// <summary>How the traffic pages put numbers into words.</summary>
-static class TrafficFormat
+/// <summary>How the traffic pages colour a status. The words are <see cref="TrafficText"/>'s.</summary>
+static class TrafficColors
 {
-    public static string Size(long bytes) => bytes switch
-    {
-        < 1024 => $"{bytes} B",
-        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
-        _ => $"{bytes / (1024.0 * 1024):0.#} MB"
-    };
-
-    public static string Duration(TimeSpan elapsed) => elapsed.TotalMilliseconds < 1000
-        ? $"{elapsed.TotalMilliseconds:F0} ms"
-        : $"{elapsed.TotalSeconds:F1} s";
-
-    public static string Origin(TrafficOrigin origin) => origin switch
-    {
-        TrafficOrigin.Device => "this device",
-        TrafficOrigin.Network => "network",
-        TrafficOrigin.Tunnel => "tunnel",
-        _ => "unknown"
-    };
-
     /// <summary>Ink for a status code, light theme then dark: what is being scanned for is the one request that went wrong.</summary>
-    public static (Color Light, Color Dark) StatusColors(int statusCode, bool failed)
+    public static (Color Light, Color Dark) Status(int statusCode, bool failed)
     {
         var (light, dark) = failed ? ("#DC2626", "#F87171") : statusCode switch
         {
@@ -286,28 +252,4 @@ static class TrafficFormat
 
         return (Color.FromArgb(light), Color.FromArgb(dark));
     }
-
-    public static string Reason(int status) => status switch
-    {
-        200 => "OK",
-        201 => "Created",
-        204 => "No Content",
-        206 => "Partial Content",
-        301 => "Moved Permanently",
-        302 => "Found",
-        304 => "Not Modified",
-        307 => "Temporary Redirect",
-        400 => "Bad Request",
-        401 => "Unauthorized",
-        403 => "Forbidden",
-        404 => "Not Found",
-        405 => "Method Not Allowed",
-        409 => "Conflict",
-        413 => "Payload Too Large",
-        421 => "Misdirected Request",
-        500 => "Internal Server Error",
-        501 => "Not Implemented",
-        503 => "Service Unavailable",
-        _ => ""
-    };
 }
