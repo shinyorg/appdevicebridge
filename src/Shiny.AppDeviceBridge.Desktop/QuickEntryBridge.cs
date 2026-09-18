@@ -7,6 +7,7 @@ using Shiny.AppDeviceBridge.Desktop.Client;
 using Shiny.Maui.Controls.Desktop.QuickEntry;
 using Shiny.Maui.Controls.QuickEntry;
 using Shiny.Net.HttpServer;
+using Shiny.AppDeviceBridge.Maui;
 using Contracts = Shiny.AppDeviceBridge.Desktop.Client;
 using ControlEntry = Shiny.Maui.Controls.QuickEntry;
 
@@ -34,7 +35,7 @@ public static class QuickEntryBridgeExtensions
     /// Adds <c>/_bridge/quickentry</c>: Shiny's quick entry prompt as a window that opens over other applications, driven by
     /// the page.
     /// <code>
-    /// builder.AddQuickEntryBridge(
+    /// bridge.AddQuickEntryBridge(
     ///     o => o.HotKey = OperatingSystem.IsMacOS() ? "Cmd+Opt+Space" : "Ctrl+Alt+Space",
     ///     quickEntry => quickEntry.ScreenGlow = ScreenGlowTrigger.WhileBusy
     /// );
@@ -47,24 +48,24 @@ public static class QuickEntryBridgeExtensions
     /// </summary>
     /// <param name="configure">The bridge's own options: the starting hotkey and the page's limits.</param>
     /// <param name="quickEntry">The quick entry control's options — size, placement, dismissal, glow — as the app starts.</param>
-    public static MauiAppBuilder AddQuickEntryBridge(
-        this MauiAppBuilder builder,
+    public static MauiAppDeviceBridgeBuilder AddQuickEntryBridge(
+        this MauiAppDeviceBridgeBuilder bridge,
         Action<QuickEntryBridgeOptions>? configure = null,
         Action<QuickEntryOptions>? quickEntry = null
     )
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
         var options = new QuickEntryBridgeOptions();
         configure?.Invoke(options);
 
-        if (!builder.Services.Any(x => x.ServiceType == typeof(IQuickEntryService)))
-            builder.UseShinyControls();
+        if (!bridge.Services.Any(x => x.ServiceType == typeof(IQuickEntryService)))
+            bridge.Maui.UseShinyControls();
 
-        if (!builder.Services.Any(x => x.ServiceType == typeof(IGlobalHotKeyService)))
-            builder.UseDesktopQuickEntry();
+        if (!bridge.Services.Any(x => x.ServiceType == typeof(IGlobalHotKeyService)))
+            bridge.Maui.UseDesktopQuickEntry();
 
-        if (builder.Services.FirstOrDefault(x => x.ServiceType == typeof(QuickEntryOptions))?.ImplementationInstance is QuickEntryOptions controlOptions)
+        if (bridge.Services.FirstOrDefault(x => x.ServiceType == typeof(QuickEntryOptions))?.ImplementationInstance is QuickEntryOptions controlOptions)
         {
             controlOptions.Presentation = ControlEntry.QuickEntryPresentation.Desktop;
             quickEntry?.Invoke(controlOptions);
@@ -77,11 +78,11 @@ public static class QuickEntryBridgeExtensions
             controlOptions.HotKey = null;
         }
 
-        builder.Services.TryAddSingleton(options);
-        builder.Services.TryAddSingleton<QuickEntryBridge>();
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IWebAppBridge, QuickEntryBridge>(sp => sp.GetRequiredService<QuickEntryBridge>()));
-        builder.Services.AddSingleton<IMauiInitializeService, QuickEntryBridgeStartup>();
-        return builder;
+        bridge.Services.TryAddSingleton(options);
+        bridge.Services.TryAddSingleton<QuickEntryBridge>();
+        bridge.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IWebAppBridge, QuickEntryBridge>(sp => sp.GetRequiredService<QuickEntryBridge>()));
+        bridge.Services.AddSingleton<IMauiInitializeService, QuickEntryBridgeStartup>();
+        return bridge;
     }
 }
 

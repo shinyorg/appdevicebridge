@@ -12,7 +12,7 @@ app, served from the device itself, updated from your own server, and able to ca
   into the app, then checked against its SHA-256 and size before it can be served. Old releases are
   never reinstalled.
 - **Bridged.** Native services become same-origin HTTP endpoints under `/_bridge`, plus one
-  Server-Sent Events stream. Each bridge is its own package and takes one extension method.
+  Server-Sent Events stream. Each bridge is its own package and takes one extension method on the bridge builder.
 - **Every head.** Android, iOS, Mac Catalyst and Windows, plus the
   [maui-labs](https://github.com/dotnet/maui-labs) macOS (AppKit) and Linux (GTK4) backends.
 
@@ -35,14 +35,14 @@ app, served from the device itself, updated from your own server, and able to ca
 
 | Package | Use it in | What it does |
 | --- | --- | --- |
-| `Shiny.AppDeviceBridge.Maui` | the app | `UseAppDeviceBridge`: `AddShinyHttpServer` with the bridges on it, started with the app and restarted on resume; `UseTrafficMonitor` and `TrafficMonitorPage` for debugging |
-| `Shiny.AppDeviceBridge.WebView` | the app | `UseWebAppHost`, `WebAppHostView`, `WebAppHostPage`, `AllowWebPermissions`: the web app in a WebView, over-the-air updates, the dev server proxy, the launch session and `background.js` |
+| `Shiny.AppDeviceBridge.Maui` | the app | `UseAppDeviceBridge(bridge => …)`: `AddShinyHttpServer` with the bridges on it, started with the app and restarted on resume; `MauiAppDeviceBridgeBuilder`, which the MAUI bridges extend; it also calls `UseShiny()` and supplies the app's UI thread; `UseTrafficMonitor` and `TrafficMonitorPage` for debugging |
+| `Shiny.AppDeviceBridge.WebView` | the app | `UseAppDeviceBridge(bridge => …, webApp => …)`, `WebAppHostView`, `WebAppHostPage`, `AllowWebPermissions`: the web app in a WebView, over-the-air updates, the dev server proxy, the launch session and `background.js` |
 | `Shiny.AppDeviceBridge.Blazor` | the Blazor WebAssembly app | `AddWebAppHostClient()`: the page's transport, typed clients for the built-in bridges (`IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge`), `WebAppEvents`, `WebAppNativeCalls` (typed C# handlers for jobs, GPS, geofences and push), and `WebAppBridge` for endpoints of your own |
 | `Shiny.AppDeviceBridge.Client` | (dependency) | the typed-client foundation: `IBridgeTransport`, `BridgeException`, the `[BridgeClient]` attributes and the generator that implements them, and the built-in bridges' contracts |
 | `Shiny.AppDeviceBridge.{Bridge}.Client` | the web app | one per bridge: its contracts and typed client — `ICalendarBridge`, `IWifiBridge`, … — registered with `Add{Bridge}BridgeClient()` |
 | `@shinyorg/appdevicebridge` | a JavaScript or TypeScript web app | the same typed clients in TypeScript, generated from the same declarations (`clients/typescript`) |
-| `Shiny.AppDeviceBridge` | (dependency) | the bridge server: `http.AddAppDeviceBridge()` on Shiny.Net.HttpServer's `ShinyHttpServerBuilder`, `AppDeviceBridgeOptions` (mount points, allowed hosts, the bridge policy), bridge contracts, built-in settings, files and native-call endpoints; no MAUI dependency |
-| `Shiny.AppDeviceBridge.Tunnel` | the app, or a headless device | `http.AddAppDeviceBridgeTunnel()`: a public HTTPS address for the server, opened and closed while the app runs; everything through it is treated as a remote caller |
+| `Shiny.AppDeviceBridge` | (dependency) | the bridge server: `http.AddAppDeviceBridge(bridge => …)` on Shiny.Net.HttpServer's `ShinyHttpServerBuilder`, `AppDeviceBridgeBuilder` (`Configure`, `AddBridge<T>()`), `AppDeviceBridgeOptions` (mount points, allowed hosts, the bridge policy), bridge contracts, built-in settings, files and native-call endpoints; no MAUI dependency |
+| `Shiny.AppDeviceBridge.Tunnel` | the app, or a headless device | `bridge.AddTunnel()`: a public HTTPS address for the server, opened and closed while the app runs; everything through it is treated as a remote caller |
 | `Shiny.AppDeviceBridge.Simulator` | a .NET tool | `shiny-bridge-sim`: a terminal UI that serves every bridge with answers you set, events you fire and trails you play (GPX walks included), with a traffic monitor — test a page without a device. See [Simulator](#simulator) |
 | `Shiny.AppDeviceBridge.Core` | (dependency) | protocol contracts, version ordering, release signatures |
 | `Shiny.AppDeviceBridge.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
@@ -66,28 +66,40 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Photos` | the app | `AddPhotosBridge()`: the system photo picker, and the photo library — pages, thumbnails and full-size exports — as files in a file root |
 | `Shiny.AppDeviceBridge.Folders` | the app | `AddFoldersBridge()`: the platform's folder picker, and `FolderRoots` for folders the app adds by path — each remembered as a file root across launches |
 | `Shiny.AppDeviceBridge.Desktop` | the app | `AddTrayIconBridge()`: system tray / menu bar icons, menus, badges, notifications and animation. `AddQuickEntryBridge()`: a prompt window that opens over other applications from a global hotkey. Both hand what the user does back to the web app |
-| `Shiny.AppDeviceBridge.RpiCamera` | the app, or a headless Pi | `http.AddRpiCameraBridge()` on the server's builder: Raspberry Pi cameras through libcamera — snapshots, captures into a file root, sensor controls and a shared live MJPEG stream; `camera.StreamToAsync(stream)` streams framed JPEGs into any `Stream`, such as a Bluetooth LE L2CAP channel, for `ReadFramesAsync` to read |
+| `Shiny.AppDeviceBridge.RpiCamera` | the app, or a headless Pi | `bridge.AddRpiCameraBridge()`, on a MAUI or headless bridge builder: Raspberry Pi cameras through libcamera — snapshots, captures into a file root, sensor controls and a shared live MJPEG stream; `camera.StreamToAsync(stream)` streams framed JPEGs into any `Stream`, such as a Bluetooth LE L2CAP channel, for `ReadFramesAsync` to read |
+
+AppSupport, AppSupport.Linux, AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
+`Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Obd, Discovery, Wifi,
+HttpTransfers, Jobs, Locations, Notifications, Push, Speech, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
+only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
 ## The app
 
 ```csharp
 builder
     .UseMauiApp<App>()
-    .UseAppDeviceBridge(o => o.AppId = "field-app")
-    .UseWebAppHost(o =>
-    {
-        o.UseBaseline(typeof(App).Assembly, "webapp.zip", "1.0.0");   // runs offline on first launch
-        o.UpdateServer = new Uri("https://api.example.com/webapps");
-        o.PublicKey = """
-            -----BEGIN PUBLIC KEY-----
-            ...
-            -----END PUBLIC KEY-----
-            """;
-    })
-    .AddAppSupportBridge()
-    .AddLocationBridges()
-    .AddBluetoothLEBridge();
+    .UseAppDeviceBridge(
+        bridge => bridge
+            .Configure(o => o.AppId = "field-app")
+            .AddAppSupportBridge()
+            .AddLocationBridges()
+            .AddBluetoothLEBridge(),
+        webApp =>
+        {
+            webApp.UseBaseline(typeof(App).Assembly, "webapp.zip", "1.0.0");   // runs offline on first launch
+            webApp.UpdateServer = new Uri("https://api.example.com/webapps");
+            webApp.PublicKey = """
+                -----BEGIN PUBLIC KEY-----
+                ...
+                -----END PUBLIC KEY-----
+                """;
+        }
+    );
 ```
+
+With a second delegate for the web app's options, `UseAppDeviceBridge` serves the web app too. Its first delegate gets the bridge builder: `Configure` sets the
+bridge server's options, and each bridge package adds one extension to it. Host, settings, files and native calls are
+built in; everything else — `AddAppSupportBridge()` included — is a package you add.
 
 ```csharp
 public class App : Application
@@ -101,19 +113,30 @@ simply serves the zip compiled into it — which is a complete setup on its own:
 
 ```csharp
 builder
-    .UseAppDeviceBridge(o => o.AppId = "field-app")
-    .UseWebAppHost(o => o.UseBaseline(typeof(App).Assembly, "webapp.zip"));   // version defaults to 1.0.0
+    .UseAppDeviceBridge(
+        bridge => bridge.Configure(o => o.AppId = "field-app"),
+        webApp => webApp.UseBaseline(typeof(App).Assembly, "webapp.zip"));   // version defaults to 1.0.0
 ```
 
-No web app at all? `UseAppDeviceBridge` alone serves the bridges to callers on the device (any caller in a debug build),
-and the server's own builder and `AuthorizeBridges` decide the rest. See [Security](#security-model).
+No web app at all? The other `UseAppDeviceBridge` overload takes only the bridge delegate and serves the bridges to callers on the device
+(any caller in a debug build); the server's own builder and `AuthorizeBridges` decide the rest.
+
+```csharp
+builder.UseAppDeviceBridge(bridge => bridge
+    .Configure(o => o.AppId = "kiosk")
+    .AddGpsBridge());
+```
+
+Calling `UseAppDeviceBridge` again adds to the same server — a desktop head adding its own bridges, say:
+`builder.UseAppDeviceBridge(bridge => bridge.AddTrayIconBridge())`. See [Security](#security-model).
 
 There is no manifest, no signing key and no network at any point; the install directory is never even
 created. Add `UpdateServer` and `PublicKey` later and the embedded build becomes the floor that
 downloads are compared against, which is when the `version` argument starts to matter.
 
-Each bridge extension also registers the Shiny service behind it, and calls `UseShiny()` if nothing
-has yet. Don't add `AddGps()`, `AddGeofencing()` or `AddBluetoothLE()` yourself. Where a platform has
+Each bridge extension also registers the Shiny service behind it, and `UseAppDeviceBridge` calls
+`UseShiny()` for you (once — an app that already calls it is fine). Don't add `AddGps()`, `AddGeofencing()` or
+`AddBluetoothLE()` yourself. Where a platform has
 no implementation, that bridge's endpoints return `501` and `GET /_bridge/host` reports it as
 unsupported.
 
@@ -130,7 +153,7 @@ so an update is never hidden behind a cached `index.html`; every other file carr
 fingerprinted assets for a year and still leave the entry document to revalidate:
 
 ```csharp
-o.OnPrepareResponse = x =>
+webApp.OnPrepareResponse = x =>
 {
     // Your rule for which names carry a content hash, such as dotnet.runtime.zbexyp8zrs.js.
     if (MyCachePolicy.IsFingerprinted(x.File.Name))
@@ -150,13 +173,16 @@ Plus the usage descriptions and permissions for whichever bridges you add.
 
 ### The bridge server
 
-The bridges live on **your app's own Shiny.Net.HttpServer**. `http.AddAppDeviceBridge()` puts them on it, on the same
-`ShinyHttpServerBuilder` you configure the server with — address, port, TLS, limits, authentication, endpoints of your
-own. `UseAppDeviceBridge` (from `Shiny.AppDeviceBridge.Maui`) does that for a MAUI app, starts the server with the app
-and restarts it on resume:
+The bridges live on **your app's own Shiny.Net.HttpServer**. `http.AddAppDeviceBridge(bridge => …)` puts them on it, on
+the same `ShinyHttpServerBuilder` you configure the server with — address, port, TLS, limits, authentication, endpoints
+of your own. The delegate gets an `AppDeviceBridgeBuilder`: `Configure` for the options below, `AddBridge<T>()` for a
+bridge of your own, and one extension per bridge package. `UseAppDeviceBridge` (from `Shiny.AppDeviceBridge.Maui`) does
+that for a MAUI app: it hands out a `MauiAppDeviceBridgeBuilder` (the bridges that need MAUI extend it; the rest take
+either builder), calls `UseShiny()`, supplies the app's dispatcher as `IWebAppMainThread`, starts the server with the
+app and restarts it on resume. The web app overload, `UseAppDeviceBridge(bridge => …, webApp => …)`, does the same:
 
 ```csharp
-builder.UseAppDeviceBridge(o => o.AppId = "field-app");
+builder.UseAppDeviceBridge(bridge => bridge.Configure(o => o.AppId = "field-app"));
 
 // The same server, configured wherever suits — before UseAppDeviceBridge or after.
 builder.Services.AddShinyHttpServer(http =>
@@ -169,9 +195,9 @@ builder.Services.AddShinyHttpServer(http =>
 Without MAUI — a headless device, a test — it's the builder alone:
 
 ```csharp
-services.AddShinyHttpServer(http => http
-    .AddAppDeviceBridge(o => o.AppId = "greenhouse")
-    .AddRpiCameraBridge());
+services.AddShinyHttpServer(http => http.AddAppDeviceBridge(bridge => bridge
+    .Configure(o => o.AppId = "greenhouse")
+    .AddRpiCameraBridge()));
 ```
 
 | Option | Default | Why |
@@ -198,8 +224,8 @@ services.AddShinyHttpServer(http => http
 
 ### The web app host
 
-`UseWebAppHost` (from `Shiny.AppDeviceBridge.WebView`) serves a web app from that server and shows it in
-`WebAppHostView`:
+`UseAppDeviceBridge(bridge => …, webApp => …)` (from `Shiny.AppDeviceBridge.WebView`) serves a web app from that server
+and shows it in `WebAppHostView`. One delegate registers the bridges alone; a second configures the web app. Its options:
 
 | Option | Default | Why |
 | --- | --- | --- |
@@ -222,11 +248,11 @@ services.AddShinyHttpServer(http => http
 The app is served at `/` and the bridges at `/_bridge`. Both move:
 
 ```csharp
-builder.UseAppDeviceBridge(o =>
+builder.UseAppDeviceBridge(bridge => bridge.Configure(o =>
 {
     o.BasePath = "/kiosk";          // http://127.0.0.1:5780/kiosk/
     o.BridgePrefix = "/_native";    // http://127.0.0.1:5780/kiosk/_native/app/info
-});
+}));
 ```
 
 - **`_host` doesn't move.** `{base}/_host/start`, `/ping` and `/config` stay directly under `BasePath`,
@@ -278,11 +304,11 @@ The host picks one for every request, documents and assets alike, because `_fram
 with different bytes:
 
 ```csharp
-builder.UseWebAppHost(o =>
+builder.UseAppDeviceBridge(bridge => { … }, webApp =>
 {
-    o.UseBaseline(typeof(App).Assembly, "webapp.zip");   // mobile/…, desktop/…
-    o.Variants("mobile", "desktop");                      // folders in the zip; the first is the default
-    o.SelectVariant = ctx =>
+    webApp.UseBaseline(typeof(App).Assembly, "webapp.zip");   // mobile/…, desktop/…
+    webApp.Variants("mobile", "desktop");                      // folders in the zip; the first is the default
+    webApp.SelectVariant = ctx =>
         ctx.Request.Cookies["view"]
         ?? (ctx.Request.Headers["Sec-CH-UA-Mobile"].ToString() == "?1" ? "mobile" : "desktop");
 });
@@ -316,7 +342,7 @@ ask for the runtime permission. Say which ones the web app may use:
 
 ```csharp
 builder
-    .UseWebAppHost(o => { … })
+    .UseAppDeviceBridge(bridge => { … }, webApp => { … })
     .AllowWebPermissions(WebAppWebPermissions.Camera | WebAppWebPermissions.Microphone | WebAppWebPermissions.Geolocation);
 ```
 
@@ -426,8 +452,8 @@ builder.Services.AddShinyHttpServer(http =>
     http.AddAuthentication().AddApiKey(k => k.AddKey(key, "kiosk", "kiosk"));
 
     // This device's callers, or anyone presenting the kiosk key.
-    http.AddAppDeviceBridge(o => o.AuthorizeBridges(p => p.RequireAssertion(ctx =>
-        BridgeCallers.IsOnDevice(ctx.HttpContext) || ctx.User.IsInRole("kiosk"))));
+    http.AddAppDeviceBridge(bridge => bridge.Configure(o => o.AuthorizeBridges(p => p.RequireAssertion(ctx =>
+        BridgeCallers.IsOnDevice(ctx.HttpContext) || ctx.User.IsInRole("kiosk")))));
 }, autoStart: false);
 ```
 
@@ -449,10 +475,10 @@ release build.
 builder.Services.AddShinyHttpServer(http =>
 {
     http.Options.Address = IPAddress.Any;                              // reachable from the network
-    http.AddAppDeviceBridge(o => o.AllowedHosts.Add("kiosk.local"));   // an mDNS name you control, besides IP addresses
+    http.AddAppDeviceBridge(bridge => bridge.Configure(o => o.AllowedHosts.Add("kiosk.local")));   // an mDNS name you control, besides IP addresses
 }, autoStart: false);
 
-builder.UseWebAppHost(o => o.ServeWebAppRemotely = true);   // optional: the app's own pages too
+builder.UseAppDeviceBridge(bridge => { … }, webApp => webApp.ServeWebAppRemotely = true);   // optional: the app's own pages too
 ```
 
 A browser on the device itself — the same machine opening `http://127.0.0.1:5780/` — has no launch session, so in a
@@ -476,7 +502,7 @@ Pinggy, in managed code, so it works on phones as well as desktops. The app turn
 are no routes for it, so where that switch lives, and who may flip it, is the app's decision.
 
 ```csharp
-builder.Services.AddShinyHttpServer(http => http.AddAppDeviceBridgeTunnel(), autoStart: false);
+builder.UseAppDeviceBridge(bridge => bridge.AddTunnel());   // or in the bridge delegate next to the web app's options
 
 public sealed class Sharing(AppDeviceBridgeTunnel tunnel)
 {
@@ -656,7 +682,7 @@ await new AppBridge().share({ files: [{ root: "data", path: "photos/cat.jpg" }] 
 `app.connectivity`, `app.battery` and `app.energysaver` only run while a page listens to them, and a head without the
 feature answers the subscription with `bridge.error`. Battery comes from the `IBattery` registered in the container when there is one, else `Battery.Default`. The
 macOS (AppKit) head gets it from `AddMacOSEssentials()`, without energy saver. The Linux (GTK4) head needs
-`Shiny.AppDeviceBridge.AppSupport.Linux`'s `AddAppSupportLinux()`: UPower for charge, state and power source,
+`Shiny.AppDeviceBridge.AppSupport.Linux`'s `bridge.AddAppSupportLinux()`: UPower for charge, state and power source,
 power-profiles-daemon for energy saver, with change events. The maui-labs GTK4 battery never raises its events. On Android,
 vibration needs `VIBRATE`, and battery needs `BATTERY_STATS` in the manifest (without it, `GET app/battery`
 returns `403`). `vibrate` is capped at 5 seconds.
@@ -823,7 +849,7 @@ OS, and `POST app/startup/settings` opens the screen where they do. Pass argumen
 OS-started launch:
 
 ```csharp
-builder.AddAppSupportBridge(startup: o => o.Arguments.Add("--autostart"));
+bridge.AddAppSupportBridge(startup: o => o.Arguments.Add("--autostart"));
 ```
 
 **Photos:**
@@ -889,11 +915,10 @@ configures it, hears what's submitted and writes the answer back. Desktop only: 
 Linux; `501` elsewhere.
 
 ```csharp
-builder
-    .AddQuickEntryBridge(
-        o => o.HotKey = "Ctrl+Alt+Space",                         // toggles the window from anywhere
-        quickEntry => quickEntry.ScreenGlow = ScreenGlowTrigger.WhileBusy
-    );
+bridge.AddQuickEntryBridge(
+    o => o.HotKey = "Ctrl+Alt+Space",                         // toggles the window from anywhere
+    quickEntry => quickEntry.ScreenGlow = ScreenGlowTrigger.WhileBusy
+);
 ```
 
 - **Opening it:** the global hotkey, `POST quickentry/show` or `toggle`, or a tray click that calls one. `PUT
@@ -926,7 +951,7 @@ page: that's `getUserMedia` (see [Camera, microphone and location in the page](#
 Android, iOS, Mac Catalyst, macOS and Windows, through Shiny's `CameraView`; Linux has no camera and answers `501`.
 
 ```csharp
-builder.AddCameraBridge(o =>
+bridge.AddCameraBridge(o =>
 {
     o.Root = "data";                 // captures are filed here…
     o.Folder = "camera";             // …as camera/IMG_20260916-201502.jpg, camera/VID_….mov
@@ -989,20 +1014,21 @@ sensors.onCompass(({ heading }) => needle.style.rotate = `${-heading}deg`);
 await sensors.start("Compass", { speed: "UI", minIntervalMs: 50 });
 ```
 
-**Pi camera** (`Shiny.AppDeviceBridge.RpiCamera`, `http.AddRpiCameraBridge()`): Raspberry Pi cameras through libcamera, with no
+**Pi camera** (`Shiny.AppDeviceBridge.RpiCamera`, `bridge.AddRpiCameraBridge()`): Raspberry Pi cameras through libcamera, with no
 `rpicam-apps` process to launch. Linux with the native shim only; everywhere else `GET rpicamera` says why there is no
 camera and the rest answer `501`.
 
 ```csharp
-// The server's own builder: a camera appliance is usually a headless Pi, running the bridge server with no MAUI.
-services.AddShinyHttpServer(http => http
-    .AddAppDeviceBridge(o => o.AppId = "greenhouse")
+// A camera appliance is usually a headless Pi, running the bridge server with no MAUI. It chains in a MAUI app's bridge
+// builder the same way.
+services.AddShinyHttpServer(http => http.AddAppDeviceBridge(bridge => bridge
+    .Configure(o => o.AppId = "greenhouse")
     .AddRpiCameraBridge(o =>
     {
         o.StreamWidth = 1280;
         o.StreamHeight = 720;
         o.Camera.NativeLibraryPath = "/opt/greenhouse/native";
-    }));
+    })));
 
 await services.BuildServiceProvider().GetRequiredService<AppDeviceBridgeServer>().StartAsync();
 ```
@@ -1171,14 +1197,25 @@ public sealed class ClipboardBridge(IClipboard clipboard) : IWebAppBridge
         .MapGet("", async ctx => await WebAppBridgeResults.Json(ctx, new Clip(await clipboard.GetTextAsync()), MyJson.Default.Clip));
 }
 
-public static MauiAppBuilder AddClipboardBridge(this MauiAppBuilder builder)
+// IClipboard is MAUI Essentials, so this one extends the MAUI builder and registers what it needs through bridge.Maui.
+public static MauiAppDeviceBridgeBuilder AddClipboardBridge(this MauiAppDeviceBridgeBuilder bridge)
 {
-    builder.Services.AddWebAppBridge<ClipboardBridge>();
-    return builder;
+    bridge.Maui.Services.TryAddSingleton(Clipboard.Default);
+    bridge.AddBridge<ClipboardBridge>();
+    return bridge;
 }
 ```
 
-A bridge with no MAUI dependency hangs off the server's builder instead: `http.AddWebAppBridge<ClipboardBridge>()`.
+Or skip the extension and register it where the others are: `bridge.AddBridge<ClipboardBridge>()`.
+
+- **No MAUI, no MAUI builder.** A bridge that needs no MAUI takes any builder and returns the one it was given, so it
+  chains in a MAUI app and runs headless too:
+  `public static TBuilder AddOrdersBridge<TBuilder>(this TBuilder bridge) where TBuilder : AppDeviceBridgeBuilder`.
+- **UI goes through `IWebAppMainThread`.** For a permission prompt or a picker, resolve `IWebAppMainThread` and run the
+  call in `InvokeAsync`. A MAUI host routes it to the app's dispatcher; headless, it runs where it is. Don't reach for
+  `Application.Current.Dispatcher`.
+- **Startup work.** An `IAppDeviceBridgeServerExtension` gets `Initialize(IServiceProvider)` once, when the container
+  builds the server, before any request.
 
 Use source-generated JSON contexts (`JsonTypeInfo`). The packages are trim and AOT clean, and bridges
 should stay that way.
@@ -1273,7 +1310,7 @@ then the handler. It gets `BackgroundScriptTimeout` (25 s) and 64 MB.
 
 | Source | Handler | Registered by |
 | --- | --- | --- |
-| Background job | `job:{name}` with `{ name }` | `builder.AddWebAppJob("sync", job => job.WithInternet(InternetAccess.Any))` (Bridge.Jobs) |
+| Background job | `job:{name}` with `{ name }` | `bridge.AddWebAppJob("sync", job => job.WithInternet(InternetAccess.Any))` (Bridge.Jobs) |
 | GPS reading delivered in the background | `gps` with a reading | `AddGpsBridge()` |
 | Geofence transition | `geofence` with `{ identifier, state }` | `AddGeofenceBridge()` |
 | Push | `push.received`, `push.entry` with `{ data, title, message }` | `AddPushBridge(o => o.DispatchToWebApp = true)` (Bridge.Push) |
@@ -1304,7 +1341,9 @@ It answers `{ "id": 7 }`. Sending needs no UI, so `background.js` can notify fro
   platform supports: `badge`, `entry`, `received`, `geofences` and `images`.
 - **Ownership:** only notifications the web app sent reach its handlers, unless you set
   `AddNotificationsBridge(o => o.Dispatch = WebAppNotificationDispatch.All)`. The bridge marks its notifications
-  with a `appdevicebridge.source` data key, which the page never sees and can't set.
+  with a `appdevicebridge.source` data key, which the page never sees and can't set. To decide per notification,
+  subclass `WebAppNotificationDelegate`, override `ShouldDispatch`, and pass it with
+  `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())`.
 - **Taps:** reach `notification.entry` on Android, iOS and Mac Catalyst. Windows and Linux have no tap callback,
   and on the macOS (AppKit) head nothing runs Shiny's startup tasks, so neither handler fires there yet.
 - **Linux:** scheduled notifications only fire while the app runs, and repeating ones don't fire at all in

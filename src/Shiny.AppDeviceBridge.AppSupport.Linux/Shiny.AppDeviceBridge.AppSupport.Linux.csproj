@@ -6,12 +6,16 @@
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.AppSupport.Linux</RootNamespace>
-    <Description>Battery and energy saver for Shiny.AppDeviceBridge.AppSupport on the Linux (GTK4) head, as a .NET MAUI Essentials IBattery over D-Bus — UPower for the charge, state and power source, power-profiles-daemon for energy saver — raising change events as UPower reports them. One call on the Linux head: builder.AddAppSupportLinux().</Description>
+    <Description>Battery and energy saver for Shiny.AppDeviceBridge.AppSupport on the Linux (GTK4) head, as a .NET MAUI Essentials IBattery over D-Bus — UPower for the charge, state and power source, power-profiles-daemon for energy saver — raising change events as UPower reports them. One call on the Linux head: bridge.AddAppSupportLinux().</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Tmds.DBus.Protocol" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Maui/Shiny.AppDeviceBridge.Maui.csproj" />
   </ItemGroup>
 
   <ItemGroup>

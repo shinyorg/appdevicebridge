@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>Shiny.AppDeviceBridge.RpiCamera</RootNamespace>
-    <Description>Raspberry Pi cameras for Shiny.AppDeviceBridge: a binding to libcamera through a small C shim (native/shinyrpi-camera) — frames from the capture pipeline with no rpicam-apps process to launch — and a bridge serving cameras, JPEG snapshots, captures into a file root, sensor controls and a shared live MJPEG stream. Plain net10.0 with no MAUI, so it runs on a headless Pi. Requires libshinyrpi_camera.so built against the device's libcamera. One call: http.AddRpiCameraBridge().</Description>
+    <Description>Raspberry Pi cameras for Shiny.AppDeviceBridge: a binding to libcamera through a small C shim (native/shinyrpi-camera) — frames from the capture pipeline with no rpicam-apps process to launch — and a bridge serving cameras, JPEG snapshots, captures into a file root, sensor controls and a shared live MJPEG stream. Plain net10.0 with no MAUI, so it runs on a headless Pi. Requires libshinyrpi_camera.so built against the device's libcamera. One call: bridge.AddRpiCameraBridge().</Description>
 
     <!-- Frame data is a pointer into a memory-mapped capture buffer; copying it out is the entire hot path and there is
          no safe way to express it. -->

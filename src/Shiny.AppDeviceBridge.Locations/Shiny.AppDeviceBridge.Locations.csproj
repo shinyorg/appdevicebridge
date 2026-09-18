@@ -11,10 +11,8 @@
     <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
-    <UseMaui>true</UseMaui>
-    <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.Locations</RootNamespace>
-    <Description>GPS and geofencing endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Locations — permissions, current and last position, a listener streamed to the page as events, geofence regions, and motion activity. One call each: builder.AddGpsBridge(), builder.AddGeofenceBridge(), builder.AddMotionActivityBridge().</Description>
+    <Description>GPS and geofencing endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Locations — permissions, current and last position, a listener streamed to the page as events, geofence regions, and motion activity. One call each: bridge.AddGpsBridge(), bridge.AddGeofenceBridge(), bridge.AddMotionActivityBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -23,13 +21,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Shiny.Locations" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0'">
-    <PackageReference Include="Shiny.Hosting.Maui" />
-    <Compile Include="../Shared/ShinyMauiHosting.cs" Link="ShinyMauiHosting.cs" />
   </ItemGroup>
 
   <ItemGroup>

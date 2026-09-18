@@ -12,7 +12,7 @@
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.Folders</RootNamespace>
-    <Description>Folders the user picks for a Shiny.AppDeviceBridge web app — the platform's own folder picker, and the folder remembered as a file root the page reads and writes through the files bridge, across launches. One call: builder.AddFoldersBridge().</Description>
+    <Description>Folders the user picks for a Shiny.AppDeviceBridge web app — the platform's own folder picker, and the folder remembered as a file root the page reads and writes through the files bridge, across launches. One call: bridge.AddFoldersBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -41,7 +41,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Maui/Shiny.AppDeviceBridge.Maui.csproj" />
     <ProjectReference Include="../Shiny.AppDeviceBridge.Folders.Client/Shiny.AppDeviceBridge.Folders.Client.csproj" />
   </ItemGroup>
 

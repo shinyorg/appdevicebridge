@@ -13,7 +13,7 @@ namespace Shiny.AppDeviceBridge;
 /// services.AddShinyHttpServer(http =>
 /// {
 ///     http.Options.Port = 5780;
-///     http.AddAppDeviceBridge(o => o.AppId = "field-app");
+///     http.AddAppDeviceBridge(bridge => bridge.Configure(o => o.AppId = "field-app"));
 ///     http.Configure(server => server.MapGet("/api/orders", ...));
 /// });
 /// </code>
@@ -119,7 +119,7 @@ public sealed class AppDeviceBridgeOptions
     /// for are the ones added to the server's builder.
     /// <code>
     /// http.AddAuthentication().AddApiKey(k => k.AddKey(key, "kiosk"));
-    /// http.AddAppDeviceBridge(o => o.AuthorizeBridges(p => p.RequireAuthenticatedUser()));
+    /// http.AddAppDeviceBridge(bridge => bridge.Configure(o => o.AuthorizeBridges(p => p.RequireAuthenticatedUser())));
     ///
     /// o.AuthorizeBridges(p => p.RequireAssertion(ctx => BridgeCallers.IsOnDevice(ctx.HttpContext) || ctx.User.IsInRole("admin")));
     /// </code>

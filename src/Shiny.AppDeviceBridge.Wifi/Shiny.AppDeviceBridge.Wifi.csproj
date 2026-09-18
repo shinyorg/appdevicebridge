@@ -5,16 +5,13 @@
     <TargetFramework></TargetFramework>
 
     <!-- Shiny.Net.Wifi declares AddWifi on its platform targets only, so the maui-labs macOS head gets a build of
-         its own. Android's manager needs Shiny's host, and UseShiny only exists in Shiny.Hosting.Maui's platform
-         builds; macOS has none of those and registers Shiny's core services directly. The net10.0 build serves the
-         Linux (GTK4) head with the NetworkManager implementation, and registers nothing anywhere else. -->
+         its own. The net10.0 build serves Linux with the NetworkManager implementation, and registers nothing
+         anywhere else. No MAUI: the app's host starts Shiny where its managers need it. -->
     <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
-    <UseMaui>true</UseMaui>
-    <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.Wifi</RootNamespace>
-    <Description>Wi-Fi endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Net.Wifi — the current network and its changes, scanning, connecting, known networks, the radio, and optionally a hotspot. One call: builder.AddWifiBridge().</Description>
+    <Description>Wi-Fi endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Net.Wifi — the current network and its changes, scanning, connecting, known networks, the radio, and optionally a hotspot. One call: bridge.AddWifiBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -24,7 +21,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Shiny.Net.Wifi" />
   </ItemGroup>
 
@@ -38,12 +34,7 @@
     <DefineConstants>$(DefineConstants);WIFI_LINUX</DefineConstants>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0' AND !$(TargetFramework.Contains('-macos'))">
-    <PackageReference Include="Shiny.Hosting.Maui" />
-    <Compile Include="../Shared/ShinyMauiHosting.cs" Link="ShinyMauiHosting.cs" />
-  </ItemGroup>
-
-  <!-- No Shiny.Hosting.Maui build exists for macOS, so its core services are registered directly. -->
+  <!-- On macOS no Shiny host is started for the app, so the bridge registers Shiny's core services itself. -->
   <ItemGroup Condition="$(TargetFramework.Contains('-macos'))">
     <Compile Include="../Shared/ShinyCoreHosting.cs" Link="ShinyCoreHosting.cs" />
   </ItemGroup>

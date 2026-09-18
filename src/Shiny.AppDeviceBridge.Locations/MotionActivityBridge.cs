@@ -61,9 +61,7 @@ public sealed class MotionActivityBridge(IServiceProvider services) : IWebAppBri
         }
 
         // The permission prompt is UI.
-        var access = Application.Current?.Dispatcher is { } dispatcher
-            ? await dispatcher.DispatchAsync(m.RequestAccess)
-            : await m.RequestAccess();
+        var access = await services.GetRequiredService<IWebAppMainThread>().InvokeAsync(m.RequestAccess);
 
         await WebAppBridgeResults.Json(context, ToContract(access), Contracts.LocationsJsonContext.Default.LocationAccessResult);
     }
@@ -154,16 +152,16 @@ public static class MotionActivityBridgeExtensions
     /// request terminates the app, and <c>ACTIVITY_RECOGNITION</c> with Google Play Services on Android.
     /// Other platforms answer 501.
     /// </summary>
-    public static MauiAppBuilder AddMotionActivityBridge(this MauiAppBuilder builder)
+    public static TBuilder AddMotionActivityBridge<TBuilder>(this TBuilder bridge)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
 #if ANDROID || IOS || MACCATALYST
-        builder.EnsureShiny();
-        builder.Services.AddMotionActivity<WebAppMotionActivityDelegate>();
+        bridge.Services.AddMotionActivity<WebAppMotionActivityDelegate>();
 #endif
 
-        builder.Services.AddWebAppBridge<MotionActivityBridge>();
-        return builder;
+        bridge.AddBridge<MotionActivityBridge>();
+        return bridge;
     }
 }

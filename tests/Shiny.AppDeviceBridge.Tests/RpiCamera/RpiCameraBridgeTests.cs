@@ -143,7 +143,7 @@ public class RpiCameraBridgeTests
         Assert.SkipWhen(OperatingSystem.IsLinux(), "On Linux the native shim decides, which depends on the machine.");
 
         var collection = new ServiceCollection();
-        collection.AddShinyHttpServer(http => http.AddRpiCameraBridge(), autoStart: false);
+        collection.AddShinyHttpServer(http => http.AddAppDeviceBridge(bridge => bridge.AddRpiCameraBridge()), autoStart: false);
         var services = collection.BuildServiceProvider();
         var cameras = services.GetRequiredService<ICameraService>();
 
@@ -155,7 +155,7 @@ public class RpiCameraBridgeTests
     [InlineData(0)]
     [InlineData(101)]
     public void Refuses_options_it_cannot_honour(int quality)
-        => Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddShinyHttpServer(http => http.AddRpiCameraBridge(o => o.StreamQuality = quality), autoStart: false));
+        => Assert.Throws<InvalidOperationException>(() => new ServiceCollection().AddShinyHttpServer(http => http.AddAppDeviceBridge(bridge => bridge.AddRpiCameraBridge(o => o.StreamQuality = quality)), autoStart: false));
 
     [Fact]
     public void Maps_every_contract_enum()

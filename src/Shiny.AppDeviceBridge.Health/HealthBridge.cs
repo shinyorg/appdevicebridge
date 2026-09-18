@@ -16,7 +16,7 @@ public static class HealthBridgeExtensions
     /// Adds <c>/_bridge/health</c> and registers Shiny's health service on iOS (HealthKit) and Android (Health
     /// Connect) — there is nothing else to call. Other platforms have no health store: the bridge answers 501 there.
     /// <code>
-    /// builder.AddHealthBridge();
+    /// bridge.AddHealthBridge();
     /// </code>
     /// <para>
     /// The platform setup is Shiny.Health's: the HealthKit entitlement and the <c>NSHealthShareUsageDescription</c>
@@ -25,19 +25,18 @@ public static class HealthBridgeExtensions
     /// activity on Android.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddHealthBridge(this MauiAppBuilder builder)
+    public static TBuilder AddHealthBridge<TBuilder>(this TBuilder bridge)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
 #if ANDROID || IOS
-        builder.EnsureShiny();
-
-        if (!builder.Services.Any(x => x.ServiceType == typeof(IHealthService)))
-            builder.Services.AddHealthIntegration();
+        if (!bridge.Services.Any(x => x.ServiceType == typeof(IHealthService)))
+            bridge.Services.AddHealthIntegration();
 #endif
 
-        builder.Services.AddWebAppBridge<HealthBridge>();
-        return builder;
+        bridge.AddBridge<HealthBridge>();
+        return bridge;
     }
 }
 
@@ -73,12 +72,16 @@ public sealed class HealthBridge : IWebAppBridge, IDisposable
     static readonly TimeSpan MaxRange = TimeSpan.FromDays(366);
 
     readonly IHealthService? health;
+    readonly IWebAppMainThread mainThread;
     readonly WebAppEventSource<Contracts.HealthReading> readings = new();
     readonly WebAppEventSource<Contracts.HealthListenerStopped> stopped = new();
     readonly ConcurrentDictionary<DataType, CancellationTokenSource> listeners = new();
 
     public HealthBridge(IServiceProvider services)
-        => this.health = services.GetOptionalService<IHealthService>();
+    {
+        this.health = services.GetOptionalService<IHealthService>();
+        this.mainThread = services.GetRequiredService<IWebAppMainThread>();
+    }
 
     public string Name => "health";
 
@@ -123,9 +126,7 @@ public sealed class HealthBridge : IWebAppBridge, IDisposable
         var requested = permissions.Select(x => (Convert(x.Access), Convert(x.Type))).Distinct().ToArray();
 
         // The HealthKit sheet and the Health Connect activity are UI.
-        var results = Application.Current?.Dispatcher is { } dispatcher
-            ? await dispatcher.DispatchAsync(() => h.RequestPermissions(requested))
-            : await h.RequestPermissions(requested);
+        var results = await this.mainThread.InvokeAsync(() => h.RequestPermissions(requested));
 
         await WebAppBridgeResults.Json(
             context,

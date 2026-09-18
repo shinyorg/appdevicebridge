@@ -15,7 +15,7 @@ public static class CalendarBridgeExtensions
     /// <summary>
     /// Adds <c>/_bridge/calendar</c> and registers Shiny's calendar store — there is nothing else to call.
     /// <code>
-    /// builder.AddCalendarBridge();
+    /// bridge.AddCalendarBridge();
     /// </code>
     /// <para>
     /// Shiny.Calendar has Android, iOS, Mac Catalyst, macOS and Windows implementations; on Linux the endpoints
@@ -25,23 +25,22 @@ public static class CalendarBridgeExtensions
     /// <c>appointments</c> capability on Windows.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddCalendarBridge(this MauiAppBuilder builder)
+    public static TBuilder AddCalendarBridge<TBuilder>(this TBuilder bridge)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
-#if ANDROID || IOS || MACCATALYST || WINDOWS
-        builder.EnsureShiny();
-#elif MACOS
-        builder.Services.EnsureShinyCore();
+#if MACOS
+        bridge.Services.EnsureShinyCore();
 #endif
 
 #if ANDROID || IOS || MACCATALYST || MACOS || WINDOWS
-        if (!builder.Services.Any(x => x.ServiceType == typeof(ICalendarStore)))
-            builder.Services.AddCalendarStore();
+        if (!bridge.Services.Any(x => x.ServiceType == typeof(ICalendarStore)))
+            bridge.Services.AddCalendarStore();
 #endif
 
-        builder.Services.AddWebAppBridge<CalendarBridge>();
-        return builder;
+        bridge.AddBridge<CalendarBridge>();
+        return bridge;
     }
 }
 
@@ -114,9 +113,7 @@ public sealed class CalendarBridge(IServiceProvider services) : IWebAppBridge
         var type = BridgeEnum.Convert<Contracts.CalendarAccessType, CalendarAccessType>(requested);
 
         // The permission prompt is UI.
-        var access = Application.Current?.Dispatcher is { } dispatcher
-            ? await dispatcher.DispatchAsync(() => s.RequestAccess(type, context.RequestAborted))
-            : await s.RequestAccess(type, context.RequestAborted);
+        var access = await services.GetRequiredService<IWebAppMainThread>().InvokeAsync(() => s.RequestAccess(type, context.RequestAborted));
 
         await WebAppBridgeResults.Json(context, ToContract(access), Contracts.CalendarJsonContext.Default.CalendarAccessResult);
     }

@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shiny.AppDeviceBridge.Camera.Client;
 using Shiny.Net.HttpServer;
+using Shiny.AppDeviceBridge.Maui;
 
 namespace Shiny.AppDeviceBridge.Camera;
 
@@ -12,7 +13,7 @@ public static class CameraBridgeExtensions
     /// Adds <c>/_bridge/camera</c>: the device's own camera, driven from a page anywhere — a viewfinder, the shutter, video,
     /// lens, zoom, torch and effects.
     /// <code>
-    /// builder.AddCameraBridge(o => o.Folder = "photographer");
+    /// bridge.AddCameraBridge(o => o.Folder = "photographer");
     /// </code>
     /// <para>
     /// The camera runs on a camera screen: the bridge shows its own when a page asks the device to open one, or put a
@@ -25,11 +26,11 @@ public static class CameraBridgeExtensions
     /// and <c>microphone</c> capabilities on Windows. Linux has no camera: 501.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddCameraBridge(this MauiAppBuilder builder, Action<CameraBridgeOptions>? configure = null)
+    public static MauiAppDeviceBridgeBuilder AddCameraBridge(this MauiAppDeviceBridgeBuilder bridge, Action<CameraBridgeOptions>? configure = null)
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
-        var services = builder.Services;
+        var services = bridge.Services;
         var options = services.FirstOrDefault(x => x.ServiceType == typeof(CameraBridgeOptions))?.ImplementationInstance as CameraBridgeOptions;
         if (options is null)
         {
@@ -41,9 +42,9 @@ public static class CameraBridgeExtensions
         options.Validate();
 
         if (services.Any(x => x.ServiceType == typeof(CameraBridgeSession)))
-            return builder;
+            return bridge;
 
-        builder.UseShinyCamera();
+        bridge.Maui.UseShinyCamera();
 
         services.TryAddSingleton<ICameraCaptureStore>(sp => new FileRootCameraCaptureStore(
             sp.GetRequiredService<WebAppFileRoots>(),
@@ -55,9 +56,9 @@ public static class CameraBridgeExtensions
             options,
             sp.GetRequiredService<ICameraBridgePresenter>()
         ));
-        services.AddWebAppBridge<CameraBridge>();
+        bridge.AddBridge<CameraBridge>();
 
-        return builder;
+        return bridge;
     }
 }
 

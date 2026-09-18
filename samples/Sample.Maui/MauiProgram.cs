@@ -9,11 +9,11 @@ public static class MauiProgram
     public static MauiApp CreateMauiApp() => MauiApp
         .CreateBuilder()
         .UseMauiApp<global::Sample.App>()
-        .ConfigureSample()
-
         // The tray bridge is desktop only, and Windows is the only desktop this head builds.
 #if WINDOWS
-        .AddTrayIconBridge()
+        .ConfigureSample(bridge => bridge.AddTrayIconBridge())
+#else
+        .ConfigureSample()
 #endif
         .Build();
 }

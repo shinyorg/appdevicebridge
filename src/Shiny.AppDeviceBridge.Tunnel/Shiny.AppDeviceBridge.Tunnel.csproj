@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>Shiny.AppDeviceBridge.Tunnel</RootNamespace>
-    <Description>A public HTTPS address for a Shiny.AppDeviceBridge server, opened and closed while the app runs — an SSH tunnel to a public host such as pinggy, in managed code, so it works on phones as well as desktops. Everything arriving through it is treated as a caller from the network: never on the device, never the WebView. Plain net10.0 with no MAUI. One call: http.AddAppDeviceBridgeTunnel().</Description>
+    <Description>A public HTTPS address for a Shiny.AppDeviceBridge server, opened and closed while the app runs — an SSH tunnel to a public host such as pinggy, in managed code, so it works on phones as well as desktops. Everything arriving through it is treated as a caller from the network: never on the device, never the WebView. Plain net10.0 with no MAUI. One call: bridge.AddTunnel().</Description>
   </PropertyGroup>
 
   <ItemGroup>

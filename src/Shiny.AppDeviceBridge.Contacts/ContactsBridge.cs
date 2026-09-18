@@ -18,7 +18,7 @@ public static class ContactsBridgeExtensions
     /// <summary>
     /// Adds <c>/_bridge/contacts</c> and registers Shiny's contact store — there is nothing else to call.
     /// <code>
-    /// builder.AddContactsBridge();
+    /// bridge.AddContactsBridge();
     /// </code>
     /// <para>
     /// Shiny.Contacts has Android and iOS implementations; everywhere else the endpoints answer 501. The platform
@@ -26,19 +26,18 @@ public static class ContactsBridgeExtensions
     /// on iOS.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddContactsBridge(this MauiAppBuilder builder)
+    public static TBuilder AddContactsBridge<TBuilder>(this TBuilder bridge)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
 #if ANDROID || IOS
-        builder.EnsureShiny();
-
-        if (!builder.Services.Any(x => x.ServiceType == typeof(IContactStore)))
-            builder.Services.AddContactStore();
+        if (!bridge.Services.Any(x => x.ServiceType == typeof(IContactStore)))
+            bridge.Services.AddContactStore();
 #endif
 
-        builder.Services.AddWebAppBridge<ContactsBridge>();
-        return builder;
+        bridge.AddBridge<ContactsBridge>();
+        return bridge;
     }
 }
 
@@ -95,9 +94,7 @@ public sealed class ContactsBridge(IServiceProvider services) : IWebAppBridge
         }
 
         // The permission prompt is UI.
-        var access = Application.Current?.Dispatcher is { } dispatcher
-            ? await dispatcher.DispatchAsync(() => s.RequestAccess(context.RequestAborted))
-            : await s.RequestAccess(context.RequestAborted);
+        var access = await services.GetRequiredService<IWebAppMainThread>().InvokeAsync(() => s.RequestAccess(context.RequestAborted));
 
         await WebAppBridgeResults.Json(context, ToContract(access), Contracts.ContactsJsonContext.Default.ContactsAccessResult);
     }

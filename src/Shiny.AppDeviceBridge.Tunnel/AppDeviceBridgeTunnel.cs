@@ -16,10 +16,10 @@ public static class AppDeviceBridgeTunnelExtensions
     /// it. There are no routes — turning it on is a decision for the app's own screens or endpoints, behind whatever
     /// authorization the app requires.
     /// <code>
-    /// services.AddShinyHttpServer(http => http
-    ///     .AddAppDeviceBridge(o => o.AppId = "devicecloud")
-    ///     .AddAppDeviceBridgeTunnel(o => o.Host = QuickTunnelHost.Pinggy)
-    /// );
+    /// services.AddShinyHttpServer(http => http.AddAppDeviceBridge(bridge => bridge
+    ///     .Configure(o => o.AppId = "devicecloud")
+    ///     .AddTunnel(o => o.Host = QuickTunnelHost.Pinggy)
+    /// ));
     ///
     /// public sealed class SharingEndpoints(AppDeviceBridgeTunnel tunnel)
     /// {
@@ -34,12 +34,12 @@ public static class AppDeviceBridgeTunnelExtensions
     /// themselves, as they do for any remote caller.
     /// </para>
     /// </summary>
-    public static ShinyHttpServerBuilder AddAppDeviceBridgeTunnel(this ShinyHttpServerBuilder http, Action<AppDeviceBridgeTunnelOptions>? configure = null)
+    public static TBuilder AddTunnel<TBuilder>(this TBuilder bridge, Action<AppDeviceBridgeTunnelOptions>? configure = null)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(http);
+        ArgumentNullException.ThrowIfNull(bridge);
 
-        http.AddAppDeviceBridge();
-        var services = http.Services;
+        var services = bridge.Services;
 
         var options = services.FirstOrDefault(x => x.ServiceType == typeof(AppDeviceBridgeTunnelOptions))?.ImplementationInstance as AppDeviceBridgeTunnelOptions;
         if (options is null)
@@ -57,7 +57,7 @@ public static class AppDeviceBridgeTunnelExtensions
         ));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppDeviceBridgeTunnel, AppDeviceBridgeTunnel>(sp => sp.GetRequiredService<AppDeviceBridgeTunnel>()));
 
-        return http;
+        return bridge;
     }
 }
 

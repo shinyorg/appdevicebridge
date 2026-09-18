@@ -11,60 +11,75 @@ namespace Shiny.AppDeviceBridge.WebView;
 public static class WebAppHostExtensions
 {
     /// <summary>
-    /// Serves a web app from the bridge server and shows it in <see cref="WebAppHostView"/>. Registers the bridge server
-    /// too, if <see cref="AppDeviceBridgeMauiExtensions.UseAppDeviceBridge"/> has not — its options (the app id, who may call
-    /// the bridges) are set there, and the server's own (the port) on <c>AddShinyHttpServer</c>.
+    /// Registers the bridge server with a web app on it: <paramref name="bridge"/> configures the bridge server the page
+    /// calls (the app id, who may call the bridges) and adds its device bridges, one extension each, and
+    /// <paramref name="webApp"/> the web app — served from the bridge server and shown in <see cref="WebAppHostView"/>. The
+    /// server's own settings (the port) are on <c>AddShinyHttpServer</c>. With no web app, the overload taking only
+    /// <paramref name="bridge"/> (<c>Shiny.AppDeviceBridge.Maui</c>) registers the bridges alone; the two can't be confused,
+    /// because this one needs both delegates.
     /// <code>
-    /// builder
-    ///     .UseAppDeviceBridge(o => o.AppId = "field-app")
-    ///     .UseWebAppHost(o =>
+    /// builder.UseAppDeviceBridge(
+    ///     bridge => bridge
+    ///         .Configure(o => o.AppId = "field-app")
+    ///         .AddAppSupportBridge()
+    ///         .AddLocationBridges(),
+    ///     webApp =>
     ///     {
-    ///         o.UpdateServer = new Uri("https://api.example.com/webapps");
-    ///         o.PublicKey = WebAppKeys.Public;
-    ///         o.UseBaseline(typeof(App).Assembly, "webapp.zip", "1.0.0");
-    ///     });
+    ///         webApp.UpdateServer = new Uri("https://api.example.com/webapps");
+    ///         webApp.PublicKey = WebAppKeys.Public;
+    ///         webApp.UseBaseline(typeof(App).Assembly, "webapp.zip", "1.0.0");
+    ///     }
+    /// );
     /// </code>
     /// </summary>
-    public static MauiAppBuilder UseWebAppHost(this MauiAppBuilder builder, Action<WebAppHostOptions> configure)
+    public static MauiAppBuilder UseAppDeviceBridge(this MauiAppBuilder builder, Action<MauiAppDeviceBridgeBuilder> bridge, Action<WebAppHostOptions> webApp)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        ArgumentNullException.ThrowIfNull(configure);
+        ArgumentNullException.ThrowIfNull(bridge);
+        ArgumentNullException.ThrowIfNull(webApp);
 
-        builder.UseAppDeviceBridge();
-        new ShinyHttpServerBuilder(builder.Services).AddWebAppHost(configure);
+        AppDeviceBridgeMauiExtensions.UseAppDeviceBridge(builder, bridge);
+        AddWebAppHost(new ShinyHttpServerBuilder(builder.Services), webApp);
         return builder;
     }
 
     /// <summary>
-    /// Registers <see cref="WebAppHost"/> on the app's server, without MAUI's startup — for tests, or a host of your own. Adds
-    /// the bridges if they are not there yet. Every call configures the same options, which are validated when the host is
-    /// created.
+    /// Registers the bridge server with a web app on it on the app's server, without MAUI's startup — for tests, or a host of
+    /// your own. <paramref name="bridge"/> configures the bridge server and adds bridges, and <paramref name="webApp"/>
+    /// configures <see cref="WebAppHost"/>. Every call configures the same options, which are validated when the host is
+    /// created. With no web app, the overload taking only <paramref name="bridge"/> registers the bridges alone.
     /// <para>
     /// The WebView's launch session is added to the server as an authentication scheme, and
     /// <see cref="WebAppPolicies.Session"/> as a policy, so the app's own endpoints can recognise the page — through the
     /// app's <c>UseAuthentication</c> and <c>UseAuthorization</c>, as for any other scheme.
     /// </para>
     /// </summary>
-    public static ShinyHttpServerBuilder AddWebAppHost(this ShinyHttpServerBuilder http, Action<WebAppHostOptions> configure)
+    public static ShinyHttpServerBuilder AddAppDeviceBridge(this ShinyHttpServerBuilder http, Action<AppDeviceBridgeBuilder> bridge, Action<WebAppHostOptions> webApp)
     {
         ArgumentNullException.ThrowIfNull(http);
-        ArgumentNullException.ThrowIfNull(configure);
+        ArgumentNullException.ThrowIfNull(bridge);
+        ArgumentNullException.ThrowIfNull(webApp);
 
-        http.AddAppDeviceBridge();
+        AppDeviceBridgeHttpServerBuilderExtensions.AddAppDeviceBridge(http, bridge);
+        AddWebAppHost(http, webApp);
+        return http;
+    }
 
+    static void AddWebAppHost(ShinyHttpServerBuilder http, Action<WebAppHostOptions> webApp)
+    {
         var services = http.Services;
         if (services.FirstOrDefault(x => x.ServiceType == typeof(WebAppHostOptions))?.ImplementationInstance is WebAppHostOptions existing)
         {
-            configure(existing);
+            webApp(existing);
 
             // An instance registered up front still needs everything below, once.
             if (services.Any(x => x.ServiceType == typeof(WebAppHost)))
-                return http;
+                return;
         }
         else
         {
             existing = new WebAppHostOptions();
-            configure(existing);
+            webApp(existing);
             services.AddSingleton(existing);
         }
 
@@ -86,8 +101,6 @@ public static class WebAppHostExtensions
 
         http.AddAuthentication().AddScheme(sp => new WebAppSessionAuthenticationHandler(sp.GetRequiredService<WebAppSession>()));
         http.AddAuthorization(o => o.AddPolicy(WebAppPolicies.Session, p => p.RequireClaim(WebAppSessionAuthenticationHandler.SessionClaim)));
-
-        return http;
     }
 
     /// <summary>
@@ -96,7 +109,7 @@ public static class WebAppHostExtensions
     /// call every such request is denied. Calling it again replaces the earlier set.
     /// <code>
     /// builder
-    ///     .UseWebAppHost(o => { … })
+    ///     .UseAppDeviceBridge(bridge => { … }, webApp => { … })
     ///     .AllowWebPermissions(WebAppWebPermissions.Camera | WebAppWebPermissions.Microphone);
     /// </code>
     /// <para>

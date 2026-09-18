@@ -319,7 +319,7 @@ public class CameraBridgeView : ContentView, ICameraBridgeController
 
     public CameraStatus Snapshot() => new(
         Supported: false,
-        Access: AccessState.Unknown,
+        Access: Shiny.AppDeviceBridge.Client.AccessState.Unknown,
         Live: true,
         Active: this.IsCameraActive,
         VideoMode: this.IsVideoMode,

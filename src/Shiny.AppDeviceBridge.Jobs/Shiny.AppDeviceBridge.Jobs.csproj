@@ -1,33 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- Cleared: src/Directory.Build.props sets the single target. -->
-    <TargetFramework></TargetFramework>
-
-    <!-- AddJob has one signature everywhere, but Shiny's jobs only run inside a Shiny host, and UseShiny
-         only exists in Shiny.Hosting.Maui's platform builds — so this is multi-targeted to call it. -->
-    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
-    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
-
-    <UseMaui>true</UseMaui>
-    <SingleProject>false</SingleProject>
+    <!-- net10.0 only: AddJob has one signature everywhere, so each head's own platform build of Shiny.Jobs is what
+         runs. Shiny's jobs run inside a Shiny host, which the app's host starts (UseAppDeviceBridge does on MAUI). -->
     <RootNamespace>Shiny.AppDeviceBridge.Jobs</RootNamespace>
-    <Description>Background jobs for a Shiny.AppDeviceBridge web app, scheduled by Shiny.Jobs and handled by the page when it is open or by background.js when it is not. One call per job: builder.AddWebAppJob("sync", job => job.WithInternet(InternetAccess.Any)).</Description>
-
-    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
-    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
-    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
-    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
+    <Description>Background jobs for a Shiny.AppDeviceBridge web app, scheduled by Shiny.Jobs and handled by the page when it is open or by background.js when it is not. One call per job: bridge.AddWebAppJob("sync", job => job.WithInternet(InternetAccess.Any)).</Description>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Shiny.Jobs" />
-  </ItemGroup>
-
-  <ItemGroup Condition="'$(TargetFramework)' != 'net10.0'">
-    <PackageReference Include="Shiny.Hosting.Maui" />
-    <Compile Include="../Shared/ShinyMauiHosting.cs" Link="ShinyMauiHosting.cs" />
   </ItemGroup>
 
   <ItemGroup>

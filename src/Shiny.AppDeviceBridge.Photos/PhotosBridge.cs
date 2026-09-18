@@ -2,6 +2,7 @@ using System.Buffers.Text;
 using System.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Shiny.AppDeviceBridge.Client;
+using Shiny.AppDeviceBridge.Maui;
 using Shiny.AppDeviceBridge.Photos.Client;
 using Shiny.Net.HttpServer;
 using ContractAccess = Shiny.AppDeviceBridge.Client.AccessState;
@@ -13,7 +14,7 @@ public static class PhotosBridgeExtensions
     /// <summary>
     /// Adds <c>/_bridge/photos</c>: the system photo picker, and the photo library — there is nothing else to call.
     /// <code>
-    /// builder.AddPhotosBridge();
+    /// bridge.AddPhotosBridge();
     /// </code>
     /// <para>
     /// The picker needs no permission. The library needs <c>NSPhotoLibraryUsageDescription</c> on Apple platforms (plus
@@ -22,11 +23,11 @@ public static class PhotosBridgeExtensions
     /// Pictures folder. Linux has no photo library, so its library endpoints answer 501.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddPhotosBridge(this MauiAppBuilder builder)
+    public static MauiAppDeviceBridgeBuilder AddPhotosBridge(this MauiAppDeviceBridgeBuilder bridge)
     {
-        ArgumentNullException.ThrowIfNull(builder);
-        builder.Services.AddWebAppBridge<PhotosBridge>();
-        return builder;
+        ArgumentNullException.ThrowIfNull(bridge);
+        bridge.AddBridge<PhotosBridge>();
+        return bridge;
     }
 }
 

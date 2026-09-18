@@ -48,8 +48,8 @@ public static class HttpTransfersBridgeExtensions
     /// Adds <c>/_bridge/transfers</c> and registers Shiny's background transfer service for the platform — there
     /// is nothing else to call.
     /// <code>
-    /// builder.AddHttpTransfersBridge();
-    /// builder.AddHttpTransfersBridge(o => o.AllowUrl = uri => uri.Host == "api.example.com");
+    /// bridge.AddHttpTransfersBridge();
+    /// bridge.AddHttpTransfersBridge(o => o.AllowUrl = uri => uri.Host == "api.example.com");
     /// </code>
     /// <para>
     /// Platform setup: <c>FOREGROUND_SERVICE</c> and <c>FOREGROUND_SERVICE_DATA_SYNC</c> on Android. On iOS and
@@ -57,51 +57,50 @@ public static class HttpTransfersBridgeExtensions
     /// finish while the app is not running are delivered.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddHttpTransfersBridge(this MauiAppBuilder builder, Action<WebAppTransferOptions>? configure = null)
+    public static TBuilder AddHttpTransfersBridge<TBuilder>(this TBuilder bridge, Action<WebAppTransferOptions>? configure = null)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
         var options = new WebAppTransferOptions();
         configure?.Invoke(options);
-        builder.Services.TryAddSingleton(options);
+        bridge.Services.TryAddSingleton(options);
 
 #if ANDROID || IOS || MACCATALYST || WINDOWS
-        builder.EnsureShiny();
-
         if (options.RegisterTransferService)
-            builder.Services.AddHttpTransfers<WebAppTransferDelegate>();
+            bridge.Services.AddHttpTransfers<WebAppTransferDelegate>();
         else
-            AddDelegate(builder.Services);
+            AddDelegate(bridge.Services);
 #elif MACOS
         // Shiny.Net.Http has no macOS build, so the net10.0 one's managed loop runs over Shiny.Core's connectivity.
-        builder.Services.EnsureShinyCore();
+        bridge.Services.EnsureShinyCore();
 
         if (options.RegisterTransferService)
         {
-            builder.Services.AddConnectivity();
-            builder.Services.AddHttpClientTransfers<WebAppTransferDelegate>();
+            bridge.Services.AddConnectivity();
+            bridge.Services.AddHttpClientTransfers<WebAppTransferDelegate>();
         }
         else
         {
-            AddDelegate(builder.Services);
+            AddDelegate(bridge.Services);
         }
 #elif TRANSFERS_LINUX
         if (OperatingSystem.IsLinux())
         {
             if (options.RegisterTransferService)
             {
-                global::Shiny.LinuxHttpServiceCollectionExtensions.AddConnectivity(builder.Services);
-                builder.Services.AddHttpClientTransfers<WebAppTransferDelegate>();
+                global::Shiny.LinuxHttpServiceCollectionExtensions.AddConnectivity(bridge.Services);
+                bridge.Services.AddHttpClientTransfers<WebAppTransferDelegate>();
             }
             else
             {
-                AddDelegate(builder.Services);
+                AddDelegate(bridge.Services);
             }
         }
 #endif
 
-        builder.Services.AddWebAppBridge<HttpTransfersBridge>();
-        return builder;
+        bridge.AddBridge<HttpTransfersBridge>();
+        return bridge;
     }
 
     static void AddDelegate(IServiceCollection services)

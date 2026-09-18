@@ -894,22 +894,21 @@ public static class ObdBridgeExtensions
     /// else to call, and it sits happily beside <c>AddBluetoothLEBridge()</c>. Wi-Fi adapters work on every
     /// platform; Bluetooth LE adapters wherever Shiny.BluetoothLE does, which excludes Linux.
     /// </summary>
-    public static MauiAppBuilder AddObdBridge(this MauiAppBuilder builder)
+    public static TBuilder AddObdBridge<TBuilder>(this TBuilder bridge)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
-#if ANDROID || IOS || MACCATALYST || WINDOWS
-        builder.EnsureShiny();
-#elif MACOS
-        builder.Services.EnsureShinyCore();
+#if MACOS
+        bridge.Services.EnsureShinyCore();
 #endif
 
 #if ANDROID || IOS || MACCATALYST || MACOS || WINDOWS
         // Registers once however many bridges call it: Shiny checks for an existing BleManager first.
-        builder.Services.AddBluetoothLE();
+        bridge.Services.AddBluetoothLE();
 #endif
 
-        builder.Services.AddWebAppBridge<ObdBridge>();
-        return builder;
+        bridge.AddBridge<ObdBridge>();
+        return bridge;
     }
 }

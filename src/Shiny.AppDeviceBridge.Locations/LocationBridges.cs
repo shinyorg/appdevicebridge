@@ -338,41 +338,42 @@ public static class LocationBridgeExtensions
     /// Adds <c>/_bridge/gps</c> and registers Shiny's GPS service for the platform — there is nothing
     /// else to call. Where the platform has no GPS support the endpoints answer 501.
     /// </summary>
-    public static MauiAppBuilder AddGpsBridge(this MauiAppBuilder builder)
+    public static TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
 #if ANDROID || IOS || MACCATALYST || WINDOWS
         // The delegate is how a reading reaches the web app while it is in the background. Shiny runs every
         // registered delegate, so the app's own keep working alongside it.
-        builder.EnsureShiny();
-        builder.Services.AddGps<WebAppGpsDelegate>();
+        bridge.Services.AddGps<WebAppGpsDelegate>();
 #endif
 
-        builder.Services.AddWebAppBridge<GpsBridge>();
-        return builder;
+        bridge.AddBridge<GpsBridge>();
+        return bridge;
     }
 
     /// <summary>
     /// Adds <c>/_bridge/geofences</c> and registers Shiny's geofencing with
     /// <see cref="WebAppGeofenceDelegate"/>, so transitions reach the page as <c>geofence.status</c>.
     /// </summary>
-    public static MauiAppBuilder AddGeofenceBridge(this MauiAppBuilder builder)
+    public static TBuilder AddGeofenceBridge<TBuilder>(this TBuilder bridge)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
 #if ANDROID || IOS || MACCATALYST || WINDOWS
-        builder.EnsureShiny();
-        builder.Services.AddGeofencing<WebAppGeofenceDelegate>();
+        bridge.Services.AddGeofencing<WebAppGeofenceDelegate>();
 #endif
 
-        builder.Services.AddWebAppBridge<GeofenceBridge>();
-        return builder;
+        bridge.AddBridge<GeofenceBridge>();
+        return bridge;
     }
 
     /// <summary><see cref="AddGpsBridge"/> and <see cref="AddGeofenceBridge"/>.</summary>
-    public static MauiAppBuilder AddLocationBridges(this MauiAppBuilder builder)
-        => builder.AddGpsBridge().AddGeofenceBridge();
+    public static TBuilder AddLocationBridges<TBuilder>(this TBuilder bridge)
+        where TBuilder : AppDeviceBridgeBuilder
+        => bridge.AddGpsBridge().AddGeofenceBridge();
 }
 
 /// <summary>

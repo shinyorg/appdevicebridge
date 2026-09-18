@@ -191,6 +191,9 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
         this.tunnels = [.. this.services.GetServices<IAppDeviceBridgeTunnel>()];
         this.authentication = [.. this.services.GetServices<IAuthenticationHandler>()];
 
+        foreach (var extension in this.extensions)
+            extension.Initialize(this.services);
+
         // Raised whatever is registered. The limit is the server's, checked before any route is chosen, so a file too big
         // for it is refused with 413 before the files bridge, a bridge taking a photo or an app's own upload endpoint ever
         // sees it. Only ever raised: a limit the app set higher, or turned off, stands.

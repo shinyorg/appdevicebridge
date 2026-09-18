@@ -7,6 +7,9 @@ using Shiny.AppDeviceBridge.Client;
 
 namespace Shiny.AppDeviceBridge.Tests;
 
+// Inside the namespace: Shiny.Core's own AccessState is otherwise found first, through the enclosing Shiny namespace.
+using AccessState = Shiny.AppDeviceBridge.Client.AccessState;
+
 /// <summary>
 /// The device camera bridge, with a fake camera screen attached: everything between a request and the camera control —
 /// the session, the refusals, the viewfinder stream, the events, and the filing. The control itself is platform UI, checked

@@ -26,6 +26,13 @@
     <PackageReference Include="Microsoft.Maui.Controls" />
   </ItemGroup>
 
+  <!-- Shiny's host, which the bridges' Shiny services need, is started here once rather than by each bridge. No build of it
+       exists for macOS or plain net10.0; the bridges register Shiny's core services themselves there. -->
+  <ItemGroup Condition="$(TargetFramework.Contains('-android')) OR $(TargetFramework.Contains('-ios')) OR $(TargetFramework.Contains('-maccatalyst')) OR $(TargetFramework.Contains('-windows'))">
+    <PackageReference Include="Shiny.Hosting.Maui" />
+    <Compile Include="../Shared/ShinyMauiHosting.cs" Link="ShinyMauiHosting.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
   </ItemGroup>

@@ -11,14 +11,13 @@ public static class MauiProgram
         .CreateBuilder()
         .UseMauiAppLinuxGtk4<global::Sample.App>()
         .AddLinuxGtk4Essentials()
-        .ConfigureSample()
+        .ConfigureSample(bridge => bridge
+            // The battery from UPower and power-profiles-daemon: the GTK4 Essentials one never raises its change events.
+            .AddAppSupportLinux()
 
-        // The battery from UPower and power-profiles-daemon: the GTK4 Essentials one never raises its change events.
-        .AddAppSupportLinux()
-
-        // Desktop only, so each desktop head adds them rather than Sample.App: the bridges' dependency has no
-        // Android or iOS build worth dragging into those heads.
-        .AddTrayIconBridge()
-        .AddQuickEntryBridge(o => o.HotKey = "Ctrl+Alt+Space")
+            // Desktop only, so each desktop head adds them rather than Sample.App: the bridges' dependency has no
+            // Android or iOS build worth dragging into those heads.
+            .AddTrayIconBridge()
+            .AddQuickEntryBridge(o => o.HotKey = "Ctrl+Alt+Space"))
         .Build();
 }

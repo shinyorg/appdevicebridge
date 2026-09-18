@@ -25,7 +25,7 @@ public static class SpeechBridgeExtensions
     /// Adds <c>/_bridge/speech</c> and registers Shiny.Speech's on-device services for the platform — there is nothing
     /// else to call.
     /// <code>
-    /// builder.AddSpeechBridge();
+    /// bridge.AddSpeechBridge();
     /// </code>
     /// <para>
     /// Platform setup: <c>RECORD_AUDIO</c> on Android; <c>NSSpeechRecognitionUsageDescription</c> and
@@ -33,27 +33,25 @@ public static class SpeechBridgeExtensions
     /// entitlement where the app is sandboxed. Linux has no OS speech engine, so its endpoints answer 501.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddSpeechBridge(this MauiAppBuilder builder, Action<WebAppSpeechOptions>? configure = null)
+    public static TBuilder AddSpeechBridge<TBuilder>(this TBuilder bridge, Action<WebAppSpeechOptions>? configure = null)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
         var options = new WebAppSpeechOptions();
         configure?.Invoke(options);
 
-#if ANDROID || IOS || MACCATALYST || WINDOWS
-        // Android's microphone permission request goes through the AndroidPlatform that UseShiny registers.
-        builder.EnsureShiny();
-#elif MACOS
-        builder.Services.EnsureShinyCore();
+#if MACOS
+        bridge.Services.EnsureShinyCore();
 #endif
 
 #if ANDROID || IOS || MACCATALYST || MACOS || WINDOWS
         if (options.RegisterSpeechServices)
-            builder.Services.AddSpeechServices();
+            bridge.Services.AddSpeechServices();
 #endif
 
-        builder.Services.AddWebAppBridge<SpeechBridge>();
-        return builder;
+        bridge.AddBridge<SpeechBridge>();
+        return bridge;
     }
 }
 
@@ -104,8 +102,11 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
     SpeechListener? listener;
     CancellationTokenSource? utterance;
 
+    readonly IWebAppMainThread mainThread;
+
     public SpeechBridge(IServiceProvider services)
     {
+        this.mainThread = services.GetRequiredService<IWebAppMainThread>();
         this.stt = services.GetOptionalService<ISpeechToTextService>();
         this.tts = services.GetOptionalService<ITextToSpeechService>();
 
@@ -399,7 +400,7 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
         }
     }
 
-    static async Task<bool> EnsureAccessAsync(HttpContext context, ISpeechToTextService service)
+    async Task<bool> EnsureAccessAsync(HttpContext context, ISpeechToTextService service)
     {
         var access = await OnMainThread(service.RequestAccess);
 
@@ -644,11 +645,11 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
     }
 
     /// <summary>Permission prompts are UI, and Android's recognizer has to be driven from the main thread.</summary>
-    static Task<T> OnMainThread<T>(Func<Task<T>> action)
-        => Application.Current?.Dispatcher is { } dispatcher ? dispatcher.DispatchAsync(action) : action();
+    Task<T> OnMainThread<T>(Func<Task<T>> action)
+        => this.mainThread.InvokeAsync(action);
 
-    static Task OnMainThread(Func<Task> action)
-        => Application.Current?.Dispatcher is { } dispatcher ? dispatcher.DispatchAsync(action) : action();
+    Task OnMainThread(Func<Task> action)
+        => this.mainThread.InvokeAsync(action);
 
     public void Dispose()
     {

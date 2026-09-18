@@ -11,7 +11,7 @@ public static class WebAppJobExtensions
     /// Schedules a background job the web app handles as <c>job:{name}</c> — in the page when it is open
     /// and listening, in <c>background.js</c> otherwise.
     /// <code>
-    /// builder
+    /// bridge
     ///     .AddWebAppJob("sync", job => job.WithInternet(InternetAccess.Any))
     ///     .AddWebAppJob("cleanup", job => job.WithCharging());
     /// </code>
@@ -27,23 +27,20 @@ public static class WebAppJobExtensions
     /// <c>processing</c> background mode.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddWebAppJob(
-        this MauiAppBuilder builder,
+    public static TBuilder AddWebAppJob<TBuilder>(
+        this TBuilder bridge,
         string name,
         Func<JobRegistration, JobRegistration>? configure = null
     )
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
         if (!WebAppJobCatalog.IsValidName(name))
             throw new ArgumentException($"'{name}' is not a valid job name. Use letters, digits, '.', '_' and '-'.", nameof(name));
 
         var requested = configure?.Invoke(new JobRegistration(typeof(WebAppJob))) ?? new JobRegistration(typeof(WebAppJob));
-        var catalog = WebAppJobCatalog.GetOrAdd(builder.Services);
-
-#if ANDROID || IOS || MACCATALYST || WINDOWS
-        builder.EnsureShiny();
-#endif
+        var catalog = WebAppJobCatalog.GetOrAdd(bridge.Services);
 
         if (catalog.Add(name, requested, out var jobType))
         {
@@ -57,16 +54,16 @@ public static class WebAppJobExtensions
             };
 
             if (jobType == typeof(WebAppJob))
-                builder.Services.AddJob<WebAppJob>(apply);
+                bridge.Services.AddJob<WebAppJob>(apply);
             else if (jobType == typeof(WebAppNetworkJob))
-                builder.Services.AddJob<WebAppNetworkJob>(apply);
+                bridge.Services.AddJob<WebAppNetworkJob>(apply);
             else if (jobType == typeof(WebAppChargingJob))
-                builder.Services.AddJob<WebAppChargingJob>(apply);
+                bridge.Services.AddJob<WebAppChargingJob>(apply);
             else
-                builder.Services.AddJob<WebAppChargingNetworkJob>(apply);
+                bridge.Services.AddJob<WebAppChargingNetworkJob>(apply);
         }
 
-        return builder;
+        return bridge;
     }
 }
 

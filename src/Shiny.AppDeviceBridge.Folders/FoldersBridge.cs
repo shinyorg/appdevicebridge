@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Maui.LifecycleEvents;
 using Shiny.AppDeviceBridge.Folders.Client;
 using Shiny.Net.HttpServer;
+using Shiny.AppDeviceBridge.Maui;
 
 namespace Shiny.AppDeviceBridge.Folders;
 
@@ -15,7 +16,7 @@ public static class FoldersBridgeExtensions
     /// page uses through <c>/_bridge/files</c> — there is nothing else to call. Also registers <see cref="FolderRoots"/>, for
     /// the app to keep folders of its own by path.
     /// <code>
-    /// builder.AddFoldersBridge();
+    /// bridge.AddFoldersBridge();
     /// </code>
     /// <para>
     /// Android keeps access through a persisted Storage Access Framework grant, so a picked folder is not a path there:
@@ -23,20 +24,20 @@ public static class FoldersBridgeExtensions
     /// images) cannot use it. Apple platforms keep a security-scoped bookmark; Windows and Linux keep the path.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddFoldersBridge(this MauiAppBuilder builder)
+    public static MauiAppDeviceBridgeBuilder AddFoldersBridge(this MauiAppDeviceBridgeBuilder bridge)
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
 #if ANDROID
         // The picker is an activity; its answer comes back through the activity that started it.
-        builder.ConfigureLifecycleEvents(events => events.AddAndroid(android => android
+        bridge.Maui.ConfigureLifecycleEvents(events => events.AddAndroid(android => android
             .OnActivityResult((_, requestCode, resultCode, data) => FolderPlatform.OnActivityResult(requestCode, resultCode, data))
         ));
 #endif
 
-        builder.Services.TryAddSingleton<FolderRoots>();
-        builder.Services.AddWebAppBridge<FoldersBridge>();
-        return builder;
+        bridge.Services.TryAddSingleton<FolderRoots>();
+        bridge.AddBridge<FoldersBridge>();
+        return bridge;
     }
 }
 

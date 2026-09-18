@@ -233,13 +233,14 @@ public class TunnelTests
     }
 
     [Fact]
-    public async Task Registers_on_the_servers_builder()
+    public async Task Registers_on_the_bridge_builder()
     {
         var services = new ServiceCollection();
         services.AddShinyHttpServer(
             http => http
-                .AddAppDeviceBridge(o => o.AppId = TestApp.AppId)
-                .AddAppDeviceBridgeTunnel(o => o.Host = QuickTunnelHost.Serveo),
+                .AddAppDeviceBridge(bridge => bridge
+                    .Configure(o => o.AppId = TestApp.AppId)
+                    .AddTunnel(o => o.Host = QuickTunnelHost.Serveo)),
             autoStart: false
         );
 

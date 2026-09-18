@@ -12,7 +12,7 @@
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.AppLinks</RootNamespace>
-    <Description>Deep links and universal/app links for a Shiny.AppDeviceBridge web app — custom schemes and verified https hosts routed to the page as events, a pending link after a cold start, and optionally a first load straight at the link's route. One call: builder.AddAppLinksBridge(o => o.Schemes.Add("myapp")).</Description>
+    <Description>Deep links and universal/app links for a Shiny.AppDeviceBridge web app — custom schemes and verified https hosts routed to the page as events, a pending link after a cold start, and optionally a first load straight at the link's route. One call: bridge.AddAppLinksBridge(o => o.Schemes.Add("myapp")).</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -26,7 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Maui/Shiny.AppDeviceBridge.Maui.csproj" />
   </ItemGroup>
 
 </Project>

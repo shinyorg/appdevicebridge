@@ -335,7 +335,7 @@ public class BridgeCallerTests
     }
 }
 
-/// <summary>The container wiring an app gets from AddAppDeviceBridge and AddWebAppHost on the server's builder.</summary>
+/// <summary>The container wiring an app gets from AddAppDeviceBridge, with a web app, on the server's builder.</summary>
 public class RegistrationTests
 {
     [Fact]
@@ -349,15 +349,16 @@ public class RegistrationTests
         services.AddShinyHttpServer(
             http =>
             {
-                http.AddAppDeviceBridge(o => o.AppId = TestApp.AppId);
-                http.AddWebAppHost(o =>
-                {
-                    var configured = app.Options();
-                    o.UpdateServer = configured.UpdateServer;
-                    o.PublicKey = configured.PublicKey;
-                    o.InstallDirectory = configured.InstallDirectory;
-                    o.HttpMessageHandlerFactory = configured.HttpMessageHandlerFactory;
-                });
+                http.AddAppDeviceBridge(
+                    bridge => bridge.Configure(o => o.AppId = TestApp.AppId),
+                    webApp =>
+                    {
+                        var configured = app.Options();
+                        webApp.UpdateServer = configured.UpdateServer;
+                        webApp.PublicKey = configured.PublicKey;
+                        webApp.InstallDirectory = configured.InstallDirectory;
+                        webApp.HttpMessageHandlerFactory = configured.HttpMessageHandlerFactory;
+                    });
             },
             autoStart: false
         );
@@ -367,11 +368,11 @@ public class RegistrationTests
             http =>
             {
                 http.Options.Port = 0;
-                http.AddAppDeviceBridge(o =>
+                http.AddAppDeviceBridge(bridge => bridge.Configure(o =>
                 {
                     o.IsDebug = false;
                     o.DataDirectory = app.InstallDirectory;
-                });
+                }));
             },
             autoStart: false
         );
@@ -406,7 +407,7 @@ public class RegistrationTests
     public async Task RunsWithoutAWebViewAndReportsNativeCallsUnhandled()
     {
         var services = new ServiceCollection();
-        services.AddShinyHttpServer(http => http.AddAppDeviceBridge(o => o.AppId = "bridges-only"), autoStart: false);
+        services.AddShinyHttpServer(http => http.AddAppDeviceBridge(bridge => bridge.Configure(o => o.AppId = "bridges-only")), autoStart: false);
 
         await using var provider = services.BuildServiceProvider();
         var result = await provider.GetRequiredService<WebAppInvoker>().InvokeAsync("job:sync", "{}");

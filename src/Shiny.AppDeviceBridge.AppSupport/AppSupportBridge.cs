@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Shiny.AppDeviceBridge.Client;
+using Shiny.AppDeviceBridge.Maui;
 using Shiny.Net.HttpServer;
 using Contracts = Shiny.AppDeviceBridge.AppSupport.Client;
 
@@ -281,7 +282,7 @@ public static class AppSupportBridgeExtensions
     /// and orientation), and registers <c>IAppSupport</c> and <c>IStartupService</c> — there is nothing else to call. Pass <paramref name="appStore"/> to register <c>IAppStore</c> too and light up the store
     /// endpoints, and <paramref name="startup"/> to configure the launch-at-login entry.
     /// <code>
-    /// builder.AddAppSupportBridge(
+    /// bridge.AddAppSupportBridge(
     ///     store => store.AppleAppId = "123456789",
     ///     startup => startup.Arguments.Add("--autostart")
     /// );
@@ -292,22 +293,22 @@ public static class AppSupportBridgeExtensions
     /// unsupported rather than disappearing, so a shared web app can keep the call in and hide the UI.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddAppSupportBridge(
-        this MauiAppBuilder builder,
+    public static MauiAppDeviceBridgeBuilder AddAppSupportBridge(
+        this MauiAppDeviceBridgeBuilder bridge,
         Action<AppStoreOptions>? appStore = null,
         Action<StartupServiceOptions>? startup = null
     )
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
-        builder.AddAppSupport();
-        builder.AddStartupService(startup);
+        bridge.Maui.AddAppSupport();
+        bridge.Maui.AddStartupService(startup);
 
         if (appStore is not null)
-            builder.AddAppStore(appStore);
+            bridge.Maui.AddAppStore(appStore);
 
-        builder.Services.AddWebAppBridge<AppSupportBridge>();
-        builder.Services.AddWebAppBridge<SensorsBridge>();
-        return builder;
+        bridge.AddBridge<AppSupportBridge>();
+        bridge.AddBridge<SensorsBridge>();
+        return bridge;
     }
 }

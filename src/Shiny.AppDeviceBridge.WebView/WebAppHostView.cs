@@ -122,7 +122,7 @@ public class WebAppHostView : ContentView
         if (this.host is null)
         {
             if (services is not null)
-                this.ShowError("WebAppHost is not registered. Call UseWebAppHost in MauiProgram.");
+                this.ShowError("WebAppHost is not registered. Call UseAppDeviceBridge with the web app's options in MauiProgram.");
 
             return;
         }

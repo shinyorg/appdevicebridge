@@ -31,39 +31,38 @@ public static class PushBridgeExtensions
     /// Adds <c>/_bridge/push</c> and registers Shiny's push service for the platform — there is nothing else
     /// to call.
     /// <code>
-    /// builder.AddPushBridge();                                  // register, unregister, token
-    /// builder.AddPushBridge(o => o.DispatchToWebApp = true);    // …and the web app handles pushes
+    /// bridge.AddPushBridge();                                  // register, unregister, token
+    /// bridge.AddPushBridge(o => o.DispatchToWebApp = true);    // …and the web app handles pushes
     /// </code>
     /// <para>
     /// The platform setup is Shiny.Push's: the <c>aps-environment</c> entitlement and the
     /// <c>remote-notification</c> background mode on Apple platforms; google-services.json on Android.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddPushBridge(this MauiAppBuilder builder, Action<WebAppPushOptions>? configure = null)
+    public static TBuilder AddPushBridge<TBuilder>(this TBuilder bridge, Action<WebAppPushOptions>? configure = null)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
         var options = new WebAppPushOptions();
         configure?.Invoke(options);
-        builder.Services.TryAddSingleton(options);
+        bridge.Services.TryAddSingleton(options);
 
-#if ANDROID || IOS || MACCATALYST || WINDOWS
-        builder.EnsureShiny();
-#elif MACOS
-        builder.Services.EnsureShinyCore();
+#if MACOS
+        bridge.Services.EnsureShinyCore();
 #endif
 
 #if ANDROID || IOS || MACCATALYST || MACOS || WINDOWS
         // The delegate is registered either way: token changes reach the page as events even when the app
         // registered the push service itself. Shiny runs every registered delegate.
         if (options.RegisterPushService)
-            builder.Services.AddPush<WebAppPushDelegate>();
+            bridge.Services.AddPush<WebAppPushDelegate>();
         else
-            builder.Services.AddSingleton<IPushDelegate, WebAppPushDelegate>();
+            bridge.Services.AddSingleton<IPushDelegate, WebAppPushDelegate>();
 #endif
 
-        builder.Services.AddWebAppBridge<PushBridge>();
-        return builder;
+        bridge.AddBridge<PushBridge>();
+        return bridge;
     }
 }
 
@@ -129,9 +128,7 @@ public sealed class PushBridge(IServiceProvider services) : IWebAppBridge
         }
 
         // The permission prompt is UI.
-        var state = Application.Current?.Dispatcher is { } dispatcher
-            ? await dispatcher.DispatchAsync(() => p.RequestAccess(context.RequestAborted))
-            : await p.RequestAccess(context.RequestAborted);
+        var state = await services.GetRequiredService<IWebAppMainThread>().InvokeAsync(() => p.RequestAccess(context.RequestAborted));
 
         await WebAppBridgeResults.Json(
             context,

@@ -110,9 +110,7 @@ public sealed class NotificationsBridge(IServiceProvider services, WebAppFileRoo
             flags |= AccessRequestFlags.LocationAware;
 
         // The permission prompt is UI.
-        var access = Application.Current?.Dispatcher is { } dispatcher
-            ? await dispatcher.DispatchAsync(() => n.RequestAccess(flags))
-            : await n.RequestAccess(flags);
+        var access = await services.GetRequiredService<IWebAppMainThread>().InvokeAsync(() => n.RequestAccess(flags));
 
         await WebAppBridgeResults.Json(context, new Contracts.NotificationAccessResult(BridgeEnum.Convert<AccessState, ContractAccess>(access)), Contracts.NotificationsJsonContext.Default.NotificationAccessResult);
     }

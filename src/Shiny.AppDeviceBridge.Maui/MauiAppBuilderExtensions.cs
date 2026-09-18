@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Maui.Hosting;
 using Microsoft.Maui.LifecycleEvents;
@@ -11,14 +12,16 @@ public static class AppDeviceBridgeMauiExtensions
 {
     /// <summary>
     /// Registers Shiny.Net.HttpServer with the bridges on it — <c>AddShinyHttpServer</c> and <c>AddAppDeviceBridge</c> in one
-    /// call. The host version defaults to the app's display version. Call it as often as you like; every call configures the
-    /// same options. Bridges come from their own packages, one extension each, and a WebView host from
-    /// <c>Shiny.AppDeviceBridge.WebView</c>:
+    /// call — and hands <paramref name="bridge"/> the <see cref="MauiAppDeviceBridgeBuilder"/> the bridges are registered on.
+    /// It does the host work every MAUI app needs once, so no bridge has to: Shiny's host (<c>UseShiny</c>) on Android, iOS,
+    /// Mac Catalyst and Windows, and the app's dispatcher as <see cref="IWebAppMainThread"/> for permission prompts.
+    /// The host version defaults to the app's display version. Call it as often as you like; every call configures the same
+    /// options. Bridges come from their own packages, one extension each on the builder. An app with a web app calls the
+    /// overload that also takes the web app's options (<c>Shiny.AppDeviceBridge.WebView</c>), with the same builder:
     /// <code>
-    /// builder
-    ///     .UseAppDeviceBridge(o => o.AppId = "field-app")
-    ///     .UseWebAppHost(o => o.UseBaseline(typeof(App).Assembly, "webapp.zip"))
-    ///     .AddLocationBridges();
+    /// builder.UseAppDeviceBridge(bridge => bridge
+    ///     .Configure(o => o.AppId = "kiosk")
+    ///     .AddLocationBridges());
     ///
     /// // The server itself, and anything else on it, on the same builder — before or after:
     /// builder.Services.AddShinyHttpServer(http =>
@@ -47,7 +50,7 @@ public static class AppDeviceBridgeMauiExtensions
     /// </list>
     /// </para>
     /// </summary>
-    public static MauiAppBuilder UseAppDeviceBridge(this MauiAppBuilder builder, Action<AppDeviceBridgeOptions>? configure = null, bool startWithApp = true)
+    public static MauiAppBuilder UseAppDeviceBridge(this MauiAppBuilder builder, Action<MauiAppDeviceBridgeBuilder>? bridge = null, bool startWithApp = true)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
@@ -63,17 +66,26 @@ public static class AppDeviceBridgeMauiExtensions
                 // is suddenly empty. A port the app set later still wins, because its configure runs later.
                 if (http.Options.Port == LibraryDefaultPort)
                     http.Options.Port = DefaultPort;
-
-                http.AddAppDeviceBridge(o =>
-                {
-                    if (first && TryGetAppVersion() is { } version)
-                        o.HostVersion = version;
-
-                    configure?.Invoke(o);
-                });
             },
             autoStart: false
         );
+
+        var bridgeBuilder = new MauiAppDeviceBridgeBuilder(builder, new ShinyHttpServerBuilder(builder.Services));
+
+        if (first)
+        {
+#if ANDROID || IOS || MACCATALYST || WINDOWS
+            // The bridges' Shiny services — GPS, BLE, notifications, jobs — need Shiny's host on these platforms.
+            builder.EnsureShiny();
+#endif
+            builder.Services.Replace(ServiceDescriptor.Singleton<IWebAppMainThread, MauiWebAppMainThread>());
+        }
+
+        // Before the app's own delegate, so a host version it sets wins.
+        if (first && TryGetAppVersion() is { } version)
+            bridgeBuilder.Configure(o => o.HostVersion = version);
+
+        bridge?.Invoke(bridgeBuilder);
 
         if (first && startWithApp)
         {
@@ -177,5 +189,18 @@ sealed class AppDeviceBridgeStartup : IMauiInitializeService
         {
             logger?.LogError(ex, "The bridge server failed to start");
         }
+    }
+}
+
+/// <summary>Permission prompts and pickers on the app's UI thread, through its dispatcher.</summary>
+sealed class MauiWebAppMainThread : IWebAppMainThread
+{
+    public Task<T> InvokeAsync<T>(Func<Task<T>> action)
+    {
+        ArgumentNullException.ThrowIfNull(action);
+
+        return Application.Current?.Dispatcher is { } dispatcher
+            ? dispatcher.DispatchAsync(action)
+            : action();
     }
 }

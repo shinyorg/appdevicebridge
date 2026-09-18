@@ -1,4 +1,5 @@
 using Microsoft.Maui.LifecycleEvents;
+using Shiny.AppDeviceBridge.Maui;
 #if ANDROID
 using Android.Content;
 #elif IOS || MACCATALYST
@@ -17,7 +18,7 @@ public static class AppLinksBridgeExtensions
     /// Adds <c>/_bridge/links</c> and routes the app's incoming links to the web app — there is nothing else to
     /// call in code.
     /// <code>
-    /// builder.AddAppLinksBridge(o =>
+    /// bridge.AddAppLinksBridge(o =>
     /// {
     ///     o.Schemes.Add("myapp");               // myapp://orders/42  → /orders/42
     ///     o.Hosts.Add("app.example.com");       // https://app.example.com/orders/42 → /orders/42
@@ -30,17 +31,17 @@ public static class AppLinksBridgeExtensions
     /// registration on Windows, <c>x-scheme-handler</c> in the .desktop file on Linux.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddAppLinksBridge(this MauiAppBuilder builder, Action<WebAppLinkOptions> configure)
+    public static MauiAppDeviceBridgeBuilder AddAppLinksBridge(this MauiAppDeviceBridgeBuilder bridge, Action<WebAppLinkOptions> configure)
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
         ArgumentNullException.ThrowIfNull(configure);
 
-        var links = builder.Services.GetOrAddWebAppLinks();
+        var links = bridge.Services.GetOrAddWebAppLinks();
         configure(links.Options);
         AppLinks.Attach(links);
 
 #if ANDROID
-        builder.ConfigureLifecycleEvents(events => events.AddAndroid(android => android
+        bridge.Maui.ConfigureLifecycleEvents(events => events.AddAndroid(android => android
             // A saved state means the activity is being recreated, and its intent is the link it already handled.
             .OnCreate((activity, state) =>
             {
@@ -52,7 +53,7 @@ public static class AppLinksBridgeExtensions
 #elif IOS || MACCATALYST
         // Launch options are not read: when FinishedLaunching returns true, iOS delivers the same link to
         // OpenUrl or ContinueUserActivity straight after.
-        builder.ConfigureLifecycleEvents(events => events.AddiOS(ios => ios
+        bridge.Maui.ConfigureLifecycleEvents(events => events.AddiOS(ios => ios
             .OpenUrl((_, url, _) => Receive(links, url))
             .ContinueUserActivity((_, activity, _) => Receive(links, activity))
             .SceneWillConnect((_, _, connection) =>
@@ -76,7 +77,7 @@ public static class AppLinksBridgeExtensions
 #elif MACOS
         AppleEventLinkHandler.Register(links);
 #elif WINDOWS
-        builder.ConfigureLifecycleEvents(events => events.AddWindows(windows => windows
+        bridge.Maui.ConfigureLifecycleEvents(events => events.AddWindows(windows => windows
             .OnLaunched((_, _) =>
             {
                 var instance = AppInstance.GetCurrent();
@@ -95,7 +96,7 @@ public static class AppLinksBridgeExtensions
         }
 #endif
 
-        return builder;
+        return bridge;
     }
 
 #if ANDROID

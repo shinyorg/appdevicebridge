@@ -94,7 +94,7 @@ sealed class TestApp : IAsyncDisposable
         {
             builder.Services.AddSingleton(web);
             builder.Services.AddSingleton(session ?? new WebAppSession());
-            builder.AddWebAppHost(_ => { });
+            builder.AddAppDeviceBridge(_ => { }, _ => { });
             http?.Invoke(builder);
         });
 

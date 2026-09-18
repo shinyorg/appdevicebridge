@@ -412,22 +412,21 @@ public static class BleBridgeExtensions
     /// Adds <c>/_bridge/ble</c> and registers Shiny's Bluetooth LE service for the platform — there is
     /// nothing else to call. On Linux the endpoints answer 501.
     /// </summary>
-    public static MauiAppBuilder AddBluetoothLEBridge(this MauiAppBuilder builder)
+    public static TBuilder AddBluetoothLEBridge<TBuilder>(this TBuilder bridge)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
-#if ANDROID || IOS || MACCATALYST || WINDOWS
-        builder.EnsureShiny();
-#elif MACOS
-        builder.Services.EnsureShinyCore();
+#if MACOS
+        bridge.Services.EnsureShinyCore();
 #endif
 
 #if ANDROID || IOS || MACCATALYST || MACOS || WINDOWS
-        builder.Services.AddBluetoothLE();
+        bridge.Services.AddBluetoothLE();
 #endif
 
-        builder.Services.AddWebAppBridge<BleBridge>();
-        return builder;
+        bridge.AddBridge<BleBridge>();
+        return bridge;
     }
 }
 

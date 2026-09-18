@@ -21,34 +21,33 @@ public static class WifiBridgeExtensions
     /// Hotspot Configuration entitlements on iOS.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddWifiBridge(this MauiAppBuilder builder, bool hotspot = false)
+    public static TBuilder AddWifiBridge<TBuilder>(this TBuilder bridge, bool hotspot = false)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
 #if ANDROID || IOS || MACCATALYST || WINDOWS || MACOS
 #if MACOS
-        builder.Services.EnsureShinyCore();
-#else
-        builder.EnsureShiny();
+        bridge.Services.EnsureShinyCore();
 #endif
-        builder.Services.AddWifi();
+        bridge.Services.AddWifi();
 
         if (hotspot)
-            builder.Services.AddWifiHotspot();
+            bridge.Services.AddWifiHotspot();
 #elif WIFI_LINUX
         // Shiny.Net.Wifi has no implementation of its own for plain .NET: NetworkManager on Linux, and the bridge
         // answers 501 anywhere else.
         if (OperatingSystem.IsLinux())
         {
-            builder.Services.AddWifi();
+            bridge.Services.AddWifi();
 
             if (hotspot)
-                builder.Services.AddWifiHotspot();
+                bridge.Services.AddWifiHotspot();
         }
 #endif
 
-        builder.Services.AddWebAppBridge<WifiBridge>();
-        return builder;
+        bridge.AddBridge<WifiBridge>();
+        return bridge;
     }
 }
 
@@ -82,8 +81,11 @@ public sealed class WifiBridge : IWebAppBridge
     readonly Lock gate = new();
     IHotspotSession? session;
 
+    readonly IWebAppMainThread mainThread;
+
     public WifiBridge(IServiceProvider services)
     {
+        this.mainThread = services.GetRequiredService<IWebAppMainThread>();
         this.wifi = services.GetOptionalService<IWifiManager>();
         this.hotspot = services.GetOptionalService<IWifiHotspot>();
     }
@@ -179,7 +181,7 @@ public sealed class WifiBridge : IWebAppBridge
         );
     }
 
-    static async ValueTask ConnectAsync(HttpContext context, IWifiManager wifi)
+    async ValueTask ConnectAsync(HttpContext context, IWifiManager wifi)
     {
         var body = await WebAppBridgeResults.ReadBodyAsync(context, Contracts.WifiJsonContext.Default.WifiConnectRequest);
 
@@ -362,8 +364,8 @@ public sealed class WifiBridge : IWebAppBridge
     static ValueTask Json<T>(HttpContext context, T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo)
         => WebAppBridgeResults.Json(context, value, typeInfo);
 
-    static Task<T> OnMainThread<T>(Func<Task<T>> action)
-        => Application.Current?.Dispatcher is { } dispatcher ? dispatcher.DispatchAsync(action) : action();
+    Task<T> OnMainThread<T>(Func<Task<T>> action)
+        => this.mainThread.InvokeAsync(action);
 }
 
 static class WifiContractMapping

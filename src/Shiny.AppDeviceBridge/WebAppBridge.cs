@@ -25,7 +25,7 @@ namespace Shiny.AppDeviceBridge;
 ///         .MapGet("", async ctx => await WebAppBridgeResults.Json(ctx, new Text(await clipboard.GetTextAsync()), MyJson.Default.Text));
 /// }
 ///
-/// http.AddWebAppBridge&lt;ClipboardBridge&gt;();
+/// http.AddAppDeviceBridge(bridge => bridge.AddBridge&lt;ClipboardBridge&gt;());
 /// </code>
 /// </summary>
 public interface IWebAppBridge
@@ -155,20 +155,23 @@ public static class WebAppBridgeResults
 public static class AppDeviceBridgeHttpServerBuilderExtensions
 {
     /// <summary>
-    /// Puts the bridges on the app's Shiny.Net.HttpServer, with the built-in settings, files and native-call bridges. Call it
-    /// as often as you like — every call configures the same <see cref="AppDeviceBridgeOptions"/>, which are validated when
-    /// the server is built. Bridge packages add their bridges with an extension of their own.
+    /// Puts the bridges on the app's Shiny.Net.HttpServer, with the built-in settings, files and native-call bridges, and
+    /// hands <paramref name="bridge"/> the <see cref="AppDeviceBridgeBuilder"/> the bridges are registered on. Call it as
+    /// often as you like — every call configures the same <see cref="AppDeviceBridgeOptions"/>, which are validated when the
+    /// server is built. Bridge packages add their bridges with an extension of their own on the builder.
     /// <code>
     /// services.AddShinyHttpServer(http =>
     /// {
     ///     http.Options.Address = IPAddress.Any;
     ///     http.AddAuthentication().AddApiKey(k => k.AddKey(key, "kiosk"));
-    ///     http.AddAppDeviceBridge(o =>
-    ///     {
-    ///         o.AppId = "field-app";
-    ///         o.AllowedHosts.Add("kiosk.local");
-    ///         o.AuthorizeBridges(p => p.RequireAssertion(ctx => BridgeCallers.IsOnDevice(ctx.HttpContext) || ctx.User.Identity?.IsAuthenticated == true));
-    ///     });
+    ///     http.AddAppDeviceBridge(bridge => bridge
+    ///         .Configure(o =>
+    ///         {
+    ///             o.AppId = "field-app";
+    ///             o.AllowedHosts.Add("kiosk.local");
+    ///             o.AuthorizeBridges(p => p.RequireAssertion(ctx => BridgeCallers.IsOnDevice(ctx.HttpContext) || ctx.User.Identity?.IsAuthenticated == true));
+    ///         })
+    ///         .AddRpiCameraBridge());
     ///     http.Configure(server => server.MapGet("/api/orders", ...));
     /// });
     /// </code>
@@ -178,20 +181,28 @@ public static class AppDeviceBridgeHttpServerBuilderExtensions
     /// need, and which the bridges leave to the app.
     /// </para>
     /// </summary>
-    public static ShinyHttpServerBuilder AddAppDeviceBridge(this ShinyHttpServerBuilder http, Action<AppDeviceBridgeOptions>? configure = null)
+    public static ShinyHttpServerBuilder AddAppDeviceBridge(this ShinyHttpServerBuilder http, Action<AppDeviceBridgeBuilder>? bridge = null)
     {
         ArgumentNullException.ThrowIfNull(http);
 
+        var builder = new AppDeviceBridgeBuilder(http);
+        bridge?.Invoke(builder);
+        return http;
+    }
+
+    /// <summary>Registers the bridge server once, and returns the one options instance every call configures.</summary>
+    internal static AppDeviceBridgeOptions Register(ShinyHttpServerBuilder http)
+    {
         var services = http.Services;
         var options = GetOrAddOptions(services);
-        configure?.Invoke(options);
 
         if (services.Any(x => x.ServiceType == typeof(AppDeviceBridgeRegistration)))
-            return http;
+            return options;
 
         services.AddSingleton(new AppDeviceBridgeRegistration());
         services.TryAddSingleton<WebAppEventHub>();
         services.TryAddSingleton<WebAppFileRoots>();
+        services.TryAddSingleton<IWebAppMainThread, InlineWebAppMainThread>();
         services.TryAddSingleton(sp => new AppDeviceBridgeServer(
             sp.GetRequiredService<AppDeviceBridgeOptions>(),
             sp.GetServices<IWebAppBridge>(),
@@ -235,21 +246,7 @@ public static class AppDeviceBridgeHttpServerBuilderExtensions
         // Runs as the container builds the server, so the bridges are on it before it can serve a request.
         http.Configure(server => server.Services!.GetRequiredService<AppDeviceBridgeServer>().Compose(server));
 
-        return http;
-    }
-
-    /// <summary>
-    /// Registers a bridge of your own on the server. Its routes are mapped when the server is built, so the order relative to
-    /// <see cref="AddAppDeviceBridge"/> does not matter, and adding the same bridge twice is harmless.
-    /// </summary>
-    public static ShinyHttpServerBuilder AddWebAppBridge<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TBridge>(
-        this ShinyHttpServerBuilder http
-    ) where TBridge : class, IWebAppBridge
-    {
-        ArgumentNullException.ThrowIfNull(http);
-
-        http.Services.AddWebAppBridge<TBridge>();
-        return http;
+        return options;
     }
 
     /// <summary>The one options instance every <see cref="AddAppDeviceBridge"/> call configures. An instance registered beforehand is used.</summary>
@@ -267,20 +264,17 @@ public static class AppDeviceBridgeHttpServerBuilderExtensions
     sealed class AppDeviceBridgeRegistration;
 }
 
-public static class AppDeviceBridgeServiceCollectionExtensions
+static class AppDeviceBridgeServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers a bridge. Its routes are mapped when the server is built, so the order relative to
-    /// <see cref="AppDeviceBridgeHttpServerBuilderExtensions.AddAppDeviceBridge"/> does not matter, and adding the same
-    /// bridge twice is harmless. For bridge packages whose own extension hangs off something other than the server's
-    /// builder — a <c>MauiAppBuilder</c> — and so reaches the services directly.
+    /// Registers a bridge. Its routes are mapped when the server is built, so the order relative to the bridge server's
+    /// registration does not matter, and adding the same bridge twice is harmless. <see cref="AppDeviceBridgeBuilder.AddBridge{TBridge}"/>
+    /// is the public way in.
     /// </summary>
     public static IServiceCollection AddWebAppBridge<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TBridge>(
         this IServiceCollection services
     ) where TBridge : class, IWebAppBridge
     {
-        ArgumentNullException.ThrowIfNull(services);
-
         // Registered here as well: services a bridge registers alongside itself — a geofence delegate, say — publish
         // through the hub, whichever call came first.
         services.TryAddSingleton<WebAppEventHub>();

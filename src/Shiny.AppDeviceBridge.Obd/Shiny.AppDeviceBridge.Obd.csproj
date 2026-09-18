@@ -10,10 +10,8 @@
     <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
-    <UseMaui>true</UseMaui>
-    <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.Obd</RootNamespace>
-    <Description>OBD-II vehicle diagnostics for a Shiny.AppDeviceBridge web app, backed by Shiny.Obd — find Bluetooth LE adapters, connect over BLE or Wi-Fi, read decoded PIDs, the VIN and trouble codes, and stream readings to the page as events. One call: builder.AddObdBridge().</Description>
+    <Description>OBD-II vehicle diagnostics for a Shiny.AppDeviceBridge web app, backed by Shiny.Obd — find Bluetooth LE adapters, connect over BLE or Wi-Fi, read decoded PIDs, the VIN and trouble codes, and stream readings to the page as events. One call: bridge.AddObdBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -23,17 +21,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Shiny.BluetoothLE" />
     <PackageReference Include="Shiny.Obd" />
     <PackageReference Include="Shiny.Obd.Ble" />
     <PackageReference Include="Shiny.Obd.Wifi" />
-  </ItemGroup>
-
-  <!-- Shiny.Hosting.Maui has no macOS build; there the BLE registration stands on its own. -->
-  <ItemGroup Condition="$(TargetFramework.Contains('-android')) OR $(TargetFramework.Contains('-ios')) OR $(TargetFramework.Contains('-maccatalyst')) OR $(TargetFramework.Contains('-windows'))">
-    <PackageReference Include="Shiny.Hosting.Maui" />
-    <Compile Include="../Shared/ShinyMauiHosting.cs" Link="ShinyMauiHosting.cs" />
   </ItemGroup>
 
   <ItemGroup Condition="$(TargetFramework.Contains('-macos'))">

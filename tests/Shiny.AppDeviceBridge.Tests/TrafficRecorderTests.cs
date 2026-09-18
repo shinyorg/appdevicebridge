@@ -256,7 +256,7 @@ public class TrafficRecorderTests
     public async Task UseTrafficMonitorRecordsTheServer()
     {
         var builder = MauiApp.CreateBuilder(useDefaults: false);
-        builder.UseAppDeviceBridge(o => o.AppId = TestApp.AppId, startWithApp: false);
+        builder.UseAppDeviceBridge(bridge => bridge.Configure(o => o.AppId = TestApp.AppId), startWithApp: false);
         builder.UseTrafficMonitor(o => o.MaxExchanges = 5);
         builder.UseTrafficMonitor(o => o.MaxBodyBytes = 7);
         builder.Services.AddShinyHttpServer(http => http.Options.Port = 0, autoStart: false);

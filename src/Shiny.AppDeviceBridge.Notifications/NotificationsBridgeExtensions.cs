@@ -38,6 +38,23 @@ public sealed class WebAppNotificationOptions
     /// your own <c>IosConfiguration</c>. It is skipped anyway when the app registered it before adding the bridge.
     /// </summary>
     public bool RegisterNotificationService { get; set; } = true;
+
+    /// <summary>
+    /// Your own delegate, deciding per notification, in place of <see cref="WebAppNotificationDelegate"/>: subclass it
+    /// and override <see cref="WebAppNotificationDelegate.ShouldDispatch"/>.
+    /// <code>
+    /// bridge.AddNotificationsBridge(o => o.UseDelegate&lt;MyNotificationDelegate&gt;());
+    /// </code>
+    /// </summary>
+    public WebAppNotificationOptions UseDelegate<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TDelegate>()
+        where TDelegate : WebAppNotificationDelegate
+    {
+        this.RegisterDelegate = services => services.TryAddEnumerable(ServiceDescriptor.Singleton<INotificationDelegate, TDelegate>());
+        return this;
+    }
+
+    internal Action<IServiceCollection> RegisterDelegate { get; private set; }
+        = services => services.TryAddEnumerable(ServiceDescriptor.Singleton<INotificationDelegate, WebAppNotificationDelegate>());
 }
 
 public static class NotificationsBridgeExtensions
@@ -46,8 +63,9 @@ public static class NotificationsBridgeExtensions
     /// Adds <c>/_bridge/notifications</c> and registers Shiny's notification service for the platform — there is
     /// nothing else to call.
     /// <code>
-    /// builder.AddNotificationsBridge();
-    /// builder.AddNotificationsBridge(o => o.Dispatch = WebAppNotificationDispatch.All);
+    /// bridge.AddNotificationsBridge();
+    /// bridge.AddNotificationsBridge(o => o.Dispatch = WebAppNotificationDispatch.All);
+    /// bridge.AddNotificationsBridge(o => o.UseDelegate&lt;MyNotificationDelegate&gt;());
     /// </code>
     /// <para>
     /// The platform setup is Shiny.Notifications': <c>POST_NOTIFICATIONS</c>, and <c>SCHEDULE_EXACT_ALARM</c> for
@@ -55,55 +73,47 @@ public static class NotificationsBridgeExtensions
     /// Location usage descriptions for geofence triggers.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddNotificationsBridge(this MauiAppBuilder builder, Action<WebAppNotificationOptions>? configure = null)
-        => builder.AddNotificationsBridge<WebAppNotificationDelegate>(configure);
-
-    /// <summary>As <see cref="AddNotificationsBridge(MauiAppBuilder, Action{WebAppNotificationOptions}?)"/>, with your own delegate deciding per notification.</summary>
-    public static MauiAppBuilder AddNotificationsBridge<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] TDelegate>(
-        this MauiAppBuilder builder,
-        Action<WebAppNotificationOptions>? configure = null
-    ) where TDelegate : WebAppNotificationDelegate
+    public static TBuilder AddNotificationsBridge<TBuilder>(this TBuilder bridge, Action<WebAppNotificationOptions>? configure = null)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
         var options = new WebAppNotificationOptions();
         configure?.Invoke(options);
-        builder.Services.TryAddSingleton(options);
+        bridge.Services.TryAddSingleton(options);
 
-#if ANDROID || IOS || MACCATALYST || WINDOWS
-        builder.EnsureShiny();
-#elif MACOS
-        builder.Services.EnsureShinyCore();
+#if MACOS
+        bridge.Services.EnsureShinyCore();
 #endif
 
         // Shiny registers its manager as every interface it implements — on Apple platforms, one of them is the
         // lifecycle notification handler — so a second registration would answer every notification twice.
-        var registered = builder.Services.Any(x => x.ServiceType == typeof(INotificationManager));
+        var registered = bridge.Services.Any(x => x.ServiceType == typeof(INotificationManager));
 
         if (options.RegisterNotificationService && !registered)
         {
             // Called as static methods: extension syntax would bind to whichever AddNotifications is in scope.
 #if ANDROID || IOS || MACCATALYST || MACOS || WINDOWS
-            global::Shiny.NotificationsServiceCollectionExtensions.AddNotifications(builder.Services);
+            global::Shiny.NotificationsServiceCollectionExtensions.AddNotifications(bridge.Services);
 #else
             if (OperatingSystem.IsLinux())
             {
-                global::Shiny.NotificationLinuxServiceCollectionExtensions.AddNotifications(builder.Services);
-                builder.Services.AddSingleton<IMauiInitializeService, LinuxNotificationStarter>();
+                global::Shiny.NotificationLinuxServiceCollectionExtensions.AddNotifications(bridge.Services);
+                bridge.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppDeviceBridgeServerExtension, LinuxNotificationStarter>());
             }
 #endif
         }
 
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<INotificationDelegate, TDelegate>());
+        options.RegisterDelegate(bridge.Services);
 
 #if IOS || MACCATALYST
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<global::Shiny.Hosting.IIosLifecycle.INotificationHandler, WebAppNotificationPresenter>());
+        bridge.Services.TryAddEnumerable(ServiceDescriptor.Singleton<global::Shiny.Hosting.IIosLifecycle.INotificationHandler, WebAppNotificationPresenter>());
 #elif MACOS
-        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<global::Shiny.Hosting.IMacLifecycle.INotificationHandler, WebAppNotificationPresenter>());
+        bridge.Services.TryAddEnumerable(ServiceDescriptor.Singleton<global::Shiny.Hosting.IMacLifecycle.INotificationHandler, WebAppNotificationPresenter>());
 #endif
 
-        builder.Services.AddWebAppBridge<NotificationsBridge>();
-        return builder;
+        bridge.AddBridge<NotificationsBridge>();
+        return bridge;
     }
 }
 
@@ -302,9 +312,10 @@ sealed class WebAppNotificationPresenter(IServiceProvider services, ILogger<WebA
 
 #if !(ANDROID || IOS || MACCATALYST || MACOS || WINDOWS)
 /// <summary>
-/// The Linux manager schedules from a startup task, and no Shiny host runs startup tasks under the GTK4 backend.
+/// The Linux manager schedules from a startup task, and no Shiny host runs startup tasks on Linux — under the GTK4 backend
+/// or headless. Started with the bridge server instead.
 /// </summary>
-sealed class LinuxNotificationStarter : IMauiInitializeService
+sealed class LinuxNotificationStarter : IAppDeviceBridgeServerExtension
 {
     public void Initialize(IServiceProvider services)
     {

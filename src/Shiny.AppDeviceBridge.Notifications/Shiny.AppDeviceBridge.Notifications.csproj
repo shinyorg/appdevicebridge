@@ -4,16 +4,13 @@
     <!-- Cleared: src/Directory.Build.props sets the single target. -->
     <TargetFramework></TargetFramework>
 
-    <!-- Multi-targeted because Shiny.Notifications only registers a real manager in its platform builds, and
-         UseShiny only exists in Shiny.Hosting.Maui's. The net10.0 build serves the GTK4 head through
-         Shiny.Notifications.Linux. -->
+    <!-- Multi-targeted because Shiny.Notifications only registers a real manager in its platform builds. The
+         net10.0 build serves Linux through Shiny.Notifications.Linux. -->
     <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
-    <UseMaui>true</UseMaui>
-    <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.Notifications</RootNamespace>
-    <Description>Local notifications for a Shiny.AppDeviceBridge web app, backed by Shiny.Notifications — send now or on a schedule, pending notifications, badges, channels, and taps handed to the page or background.js. One call: builder.AddNotificationsBridge().</Description>
+    <Description>Local notifications for a Shiny.AppDeviceBridge web app, backed by Shiny.Notifications — send now or on a schedule, pending notifications, badges, channels, and taps handed to the page or background.js. One call: bridge.AddNotificationsBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -23,7 +20,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Shiny.Notifications" />
   </ItemGroup>
 
@@ -31,12 +27,7 @@
     <PackageReference Include="Shiny.Notifications.Linux" />
   </ItemGroup>
 
-  <ItemGroup Condition="$(TargetFramework.Contains('-android')) OR $(TargetFramework.Contains('-ios')) OR $(TargetFramework.Contains('-maccatalyst')) OR $(TargetFramework.Contains('-windows'))">
-    <PackageReference Include="Shiny.Hosting.Maui" />
-    <Compile Include="../Shared/ShinyMauiHosting.cs" Link="ShinyMauiHosting.cs" />
-  </ItemGroup>
-
-  <!-- No Shiny.Hosting.Maui build exists for macOS, so its core services are registered directly. -->
+  <!-- On macOS no Shiny host is started for the app, so the bridge registers Shiny's core services itself. -->
   <ItemGroup Condition="$(TargetFramework.Contains('-macos'))">
     <Compile Include="../Shared/ShinyCoreHosting.cs" Link="ShinyCoreHosting.cs" />
   </ItemGroup>

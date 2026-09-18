@@ -9,10 +9,8 @@
          answers 501. -->
     <TargetFrameworks>net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
 
-    <UseMaui>true</UseMaui>
-    <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.Health</RootNamespace>
-    <Description>Health data for a Shiny.AppDeviceBridge web app, backed by Shiny.Health — Apple HealthKit and Android Health Connect: permissions, bucketed reads, writes and live observation. One call: builder.AddHealthBridge().</Description>
+    <Description>Health data for a Shiny.AppDeviceBridge web app, backed by Shiny.Health — Apple HealthKit and Android Health Connect: permissions, bucketed reads, writes and live observation. One call: bridge.AddHealthBridge().</Description>
 
     <!-- Health Connect's client library requires API 26. -->
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">26.0</SupportedOSPlatformVersion>
@@ -20,13 +18,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Shiny.Health" />
-  </ItemGroup>
-
-  <ItemGroup Condition="$(TargetFramework.Contains('-android')) OR $(TargetFramework.Contains('-ios'))">
-    <PackageReference Include="Shiny.Hosting.Maui" />
-    <Compile Include="../Shared/ShinyMauiHosting.cs" Link="ShinyMauiHosting.cs" />
   </ItemGroup>
 
   <ItemGroup>

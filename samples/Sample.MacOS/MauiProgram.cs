@@ -10,11 +10,10 @@ public static class MauiProgram
         .CreateBuilder()
         .UseMauiAppMacOS<global::Sample.App>()
         .AddMacOSEssentials()
-        .ConfigureSample()
-
         // Desktop only, so each desktop head adds them rather than Sample.App: the bridges' dependency has no
         // Android or iOS build worth dragging into those heads.
-        .AddTrayIconBridge()
-        .AddQuickEntryBridge(o => o.HotKey = "Ctrl+Alt+Space")
+        .ConfigureSample(bridge => bridge
+            .AddTrayIconBridge()
+            .AddQuickEntryBridge(o => o.HotKey = "Ctrl+Alt+Space"))
         .Build();
 }

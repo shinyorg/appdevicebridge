@@ -12,7 +12,7 @@
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.Camera</RootNamespace>
-    <Description>The device's own camera for a Shiny.AppDeviceBridge web app, driven from a page anywhere — a live MJPEG viewfinder, the shutter, video recording, lens, zoom, torch and effects, with captures filed into a file root. A camera screen the bridge shows on request, or one of your own with CameraBridgeView. One call: builder.AddCameraBridge().</Description>
+    <Description>The device's own camera for a Shiny.AppDeviceBridge web app, driven from a page anywhere — a live MJPEG viewfinder, the shutter, video recording, lens, zoom, torch and effects, with captures filed into a file root. A camera screen the bridge shows on request, or one of your own with CameraBridgeView. One call: bridge.AddCameraBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -31,7 +31,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Maui/Shiny.AppDeviceBridge.Maui.csproj" />
     <ProjectReference Include="../Shiny.AppDeviceBridge.Camera.Client/Shiny.AppDeviceBridge.Camera.Client.csproj" />
   </ItemGroup>
 

@@ -7,6 +7,9 @@ using Contracts = Shiny.AppDeviceBridge.AppSupport.Client;
 
 namespace Shiny.AppDeviceBridge.Tests;
 
+// Inside the namespace: Shiny.Core's own BatteryState is otherwise found first, through the enclosing Shiny namespace.
+using BatteryState = Microsoft.Maui.Devices.BatteryState;
+
 /// <summary>
 /// The app bridge's battery comes from the <see cref="IBattery"/> in the container when there is one — how the maui-labs
 /// heads and <see cref="UPowerBattery"/> supply theirs — and its events are hooked only while a page listens.

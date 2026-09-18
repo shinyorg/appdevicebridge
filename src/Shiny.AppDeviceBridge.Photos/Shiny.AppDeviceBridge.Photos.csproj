@@ -12,7 +12,7 @@
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.Photos</RootNamespace>
-    <Description>Photos for a Shiny.AppDeviceBridge web app — the system photo picker, and browsing the photo library with thumbnails and full-size exports, delivered as files the page reads through the files bridge. One call: builder.AddPhotosBridge().</Description>
+    <Description>Photos for a Shiny.AppDeviceBridge web app — the system photo picker, and browsing the photo library with thumbnails and full-size exports, delivered as files the page reads through the files bridge. One call: bridge.AddPhotosBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -30,7 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Maui/Shiny.AppDeviceBridge.Maui.csproj" />
     <ProjectReference Include="../Shiny.AppDeviceBridge.Photos.Client/Shiny.AppDeviceBridge.Photos.Client.csproj" />
   </ItemGroup>
 

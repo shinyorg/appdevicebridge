@@ -38,21 +38,22 @@ public static class DiscoveryBridgeExtensions
     /// <c>CHANGE_WIFI_MULTICAST_STATE</c> for SSDP and WS-Discovery.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddDiscoveryBridge(this MauiAppBuilder builder, DiscoveryProtocols protocols = DiscoveryProtocols.All)
+    public static TBuilder AddDiscoveryBridge<TBuilder>(this TBuilder bridge, DiscoveryProtocols protocols = DiscoveryProtocols.All)
+        where TBuilder : AppDeviceBridgeBuilder
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
         if (protocols.HasFlag(DiscoveryProtocols.Mdns))
-            builder.Services.AddMdns();
+            bridge.Services.AddMdns();
 
         if (protocols.HasFlag(DiscoveryProtocols.Ssdp))
-            builder.Services.AddSsdp();
+            bridge.Services.AddSsdp();
 
         if (protocols.HasFlag(DiscoveryProtocols.WsDiscovery))
-            builder.Services.AddWsDiscovery();
+            bridge.Services.AddWsDiscovery();
 
-        builder.Services.AddWebAppBridge<DiscoveryBridge>();
-        return builder;
+        bridge.AddBridge<DiscoveryBridge>();
+        return bridge;
     }
 }
 

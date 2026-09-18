@@ -25,7 +25,7 @@ public class InvocationTests
         appdevicebridge.on("page-or-script", () => "script");
         """;
 
-    /// <summary>A host whose invoker is wired the way AddWebAppHost wires it, with in-memory settings.</summary>
+    /// <summary>A host whose invoker is wired the way AddAppDeviceBridge wires it with a web app, with in-memory settings.</summary>
     static async Task<(WebAppHost Host, WebAppInvoker Invoker, WebAppEventHub Events)> CreateAsync(TestApp app, WebAppHostOptions options, AppDeviceBridgeOptions? bridgeOptions = null)
     {
         app.Store.Add("1.0.0", TestApp.Zip("1.0.0", backgroundScript: BackgroundScript));

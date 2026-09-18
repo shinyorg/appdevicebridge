@@ -107,6 +107,12 @@ public interface IAppDeviceBridgeServerExtension
     bool AdmitsBridgeCaller(HttpContext context) => true;
 
     /// <summary>
+    /// Called once, when the container builds the server — as a MAUI app starts, or when a headless host first resolves it —
+    /// before any request. For work that has to happen at startup whatever the host, such as starting a native manager.
+    /// </summary>
+    void Initialize(IServiceProvider services) { }
+
+    /// <summary>
     /// Adds middleware, after the bridge server's own guard. It sees every request the app's server takes, so it should
     /// pass through anything that is not its own.
     /// </summary>

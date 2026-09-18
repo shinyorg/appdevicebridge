@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Shiny.AppDeviceBridge.Desktop.Client;
 using Shiny.Maui.Controls.Desktop.TrayIcon;
 using Shiny.Net.HttpServer;
+using Shiny.AppDeviceBridge.Maui;
 
 namespace Shiny.AppDeviceBridge.Desktop;
 
@@ -13,7 +14,7 @@ public static class TrayIconBridgeExtensions
     /// Adds <c>/_bridge/tray</c> and registers <c>ITrayIconFactory</c> for the platform — there is nothing
     /// else to call.
     /// <code>
-    /// builder.AddTrayIconBridge(o => o.MaxIcons = 1);
+    /// bridge.AddTrayIconBridge(o => o.MaxIcons = 1);
     /// </code>
     /// <para>
     /// Desktop only: NSStatusItem on macOS and Mac Catalyst, Shell_NotifyIcon on Windows, and
@@ -22,17 +23,17 @@ public static class TrayIconBridgeExtensions
     /// hide the UI.
     /// </para>
     /// </summary>
-    public static MauiAppBuilder AddTrayIconBridge(this MauiAppBuilder builder, Action<TrayIconBridgeOptions>? configure = null)
+    public static MauiAppDeviceBridgeBuilder AddTrayIconBridge(this MauiAppDeviceBridgeBuilder bridge, Action<TrayIconBridgeOptions>? configure = null)
     {
-        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(bridge);
 
         var options = new TrayIconBridgeOptions();
         configure?.Invoke(options);
 
-        builder.UseTrayIcon();
-        builder.Services.TryAddSingleton(options);
-        builder.Services.AddWebAppBridge<TrayIconBridge>();
-        return builder;
+        bridge.Maui.UseTrayIcon();
+        bridge.Services.TryAddSingleton(options);
+        bridge.AddBridge<TrayIconBridge>();
+        return bridge;
     }
 }
 
