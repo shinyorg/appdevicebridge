@@ -16,17 +16,15 @@ namespace Shiny.AppDeviceBridge.Camera;
 public sealed class CameraBridgeSession
 {
     readonly CameraBridgeOptions options;
-    readonly WebAppEventHub events;
     readonly ICameraBridgePresenter presenter;
     readonly Lock gate = new();
     ICameraBridgeController? controller;
     int publishing;
     int dirty;
 
-    internal CameraBridgeSession(CameraBridgeOptions options, WebAppEventHub events, ICameraBridgePresenter presenter)
+    internal CameraBridgeSession(CameraBridgeOptions options, ICameraBridgePresenter presenter)
     {
         this.options = options;
-        this.events = events;
         this.presenter = presenter;
 
         // The preview outlives every camera screen, so it asks the session, which forwards to whichever is attached.
@@ -36,6 +34,9 @@ public sealed class CameraBridgeSession
             return Task.CompletedTask;
         });
     }
+
+    /// <summary><c>camera.status</c>, mapped by <see cref="CameraBridge"/>.</summary>
+    internal WebAppEventSource<CameraStatus> Statuses { get; } = new();
 
     /// <summary>The viewfinder's frames. A camera screen publishes to it while <see cref="CameraPreview.HasViewers"/>.</summary>
     public CameraPreview Preview { get; } = new();
@@ -92,11 +93,12 @@ public sealed class CameraBridgeSession
 
     /// <summary>
     /// Tells the page the camera changed. A camera screen calls it whenever anything a viewer would draw differently moves.
-    /// Coalesced: a burst of changes becomes the latest status, once.
+    /// Coalesced: a burst of changes becomes the latest status, once. Nothing is read while nobody listens for
+    /// <c>camera.status</c>.
     /// </summary>
     public void NotifyChanged()
     {
-        if (!this.events.HasSubscribers)
+        if (!this.Statuses.HasListeners)
             return;
 
         Interlocked.Exchange(ref this.dirty, 1);
@@ -108,7 +110,7 @@ public sealed class CameraBridgeSession
             try
             {
                 while (Interlocked.Exchange(ref this.dirty, 0) == 1)
-                    this.events.Publish("camera.status", await this.GetStatusAsync().ConfigureAwait(false), CameraJsonContext.Default.CameraStatus);
+                    this.Statuses.Publish(await this.GetStatusAsync().ConfigureAwait(false));
             }
             catch (Exception)
             {

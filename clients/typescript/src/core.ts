@@ -5,8 +5,11 @@ export interface BridgeTransport {
     /** Sends a request whose path is relative to the bridge prefix, e.g. `calendar/events/42`. */
     send(method: string, path: string, init?: BridgeRequestInit): Promise<Response>;
 
-    /** Delivers each occurrence of a native event as its JSON text. Returns a function that stops delivery. */
-    subscribe(eventName: string, handler: (json: string) => void): () => void;
+    /**
+     * Delivers each occurrence of a native event as its JSON text. Resolves, once the host is delivering it, to a function
+     * that stops delivery — so a page can start what it listens to right after, without missing the first events.
+     */
+    subscribe(eventName: string, handler: (json: string) => void): Promise<() => void>;
 }
 
 export interface BridgeRequestInit {
@@ -46,7 +49,9 @@ export function browserTransport(): BridgeTransport {
 
 function createBrowserTransport(): BridgeTransport {
     let prefix: Promise<string> | undefined;
-    let source: EventSource | undefined;
+    let streamId: string | undefined;
+    let syncing: Promise<void> | undefined;
+    let waiting: (() => void)[] = [];
     const listeners = new Map<string, Set<(json: string) => void>>();
 
     const bridgePrefix = () =>
@@ -54,6 +59,54 @@ function createBrowserTransport(): BridgeTransport {
             .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
             .then((p: { bridge: string }) => (p.bridge.endsWith("/") ? p.bridge : p.bridge + "/"))
             .catch(() => "/_bridge/"));
+
+    // The host only runs the native source behind an event while a stream names it, so the stream always carries
+    // exactly the events something here listens to.
+    const topics = () => [...listeners].filter(([, handlers]) => handlers.size > 0).map(([name]) => name);
+
+    // Resolves once the host has the current topics. Several changes in a row become one request.
+    const sync = (): Promise<void> => {
+        const done = new Promise<void>(resolve => waiting.push(resolve));
+
+        syncing ??= Promise.resolve().then(async () => {
+            syncing = undefined;
+
+            // No stream id yet: the stream's open event syncs, and settles these.
+            if (!streamId)
+                return;
+
+            const settled = waiting;
+            waiting = [];
+
+            await fetch((await bridgePrefix()) + "events/" + streamId, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ topics: topics() }),
+                credentials: "same-origin"
+            }).catch(() => {
+                // Reconnecting; the next open event sends the topics again.
+            });
+
+            settled.forEach(resolve => resolve());
+        });
+
+        // A host that is not there never opens the stream; do not hold the caller forever.
+        return Promise.race([done, new Promise<void>(resolve => setTimeout(resolve, 5000))]);
+    };
+
+    let opening: Promise<EventSource> | undefined;
+    const events = () =>
+        (opening ??= bridgePrefix().then(p => {
+            const source = new EventSource(p + "events?topics=" + encodeURIComponent(topics().join(",")));
+
+            // First on every connection, reconnects included, which start over with the topics of the first URL.
+            source.addEventListener("bridge.stream", e => {
+                streamId = (JSON.parse((e as MessageEvent<string>).data) as { id: string }).id;
+                void sync();
+            });
+
+            return source;
+        }));
 
     return {
         async send(method, path, init) {
@@ -77,25 +130,33 @@ function createBrowserTransport(): BridgeTransport {
             });
         },
 
-        subscribe(eventName, handler) {
+        async subscribe(eventName, handler) {
             let handlers = listeners.get(eventName);
+            const known = handlers !== undefined;
 
             if (!handlers) {
                 handlers = new Set();
                 listeners.set(eventName, handlers);
-
-                // One DOM listener per event name, added once the prefix is known; handlers come and go behind it.
-                void bridgePrefix().then(p => {
-                    source ??= new EventSource(p + "events");
-                    source.addEventListener(eventName, e => {
-                        for (const h of listeners.get(eventName) ?? [])
-                            h((e as MessageEvent<string>).data);
-                    });
-                });
             }
 
+            const added = handlers.size === 0;
             handlers.add(handler);
-            return () => handlers!.delete(handler);
+
+            // One DOM listener per event name for the life of the page; handlers come and go behind it.
+            if (!known)
+                (await events()).addEventListener(eventName, e => {
+                    for (const h of listeners.get(eventName) ?? [])
+                        h((e as MessageEvent<string>).data);
+                });
+
+            if (added)
+                await sync();
+
+            const subscribed = handlers;
+            return () => {
+                if (subscribed.delete(handler) && subscribed.size === 0)
+                    void sync();
+            };
         }
     };
 }

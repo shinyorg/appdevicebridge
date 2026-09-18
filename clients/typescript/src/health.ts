@@ -167,7 +167,7 @@ export class HealthBridge {
         return callVoid(this.transport, "POST", `health/samples/${segment(type)}`, { json: sample, signal: options?.signal });
     }
 
-    /** Watches a type; readings arrive through `onReading`. At most 8 types at once. It stops when the page stops listening to events. */
+    /** Watches a type; readings arrive through `onReading`, so listen first: without a listener it fails with 409. At most 8 types at once. Every watch stops once `onReading` has no listener left. */
     startListening(type: HealthDataType, request: HealthListenerRequest, options?: { signal?: AbortSignal }): Promise<HealthListener> {
         return call<HealthListener>(this.transport, "POST", `health/listeners/${segment(type)}`, { json: request, signal: options?.signal });
     }
@@ -178,12 +178,12 @@ export class HealthBridge {
     }
 
     /** A new reading for a watched type. */
-    onReading(handler: (payload: HealthReading) => void): () => void {
+    onReading(handler: (payload: HealthReading) => void): Promise<() => void> {
         return this.transport.subscribe("health.reading", json => handler(JSON.parse(json) as HealthReading));
     }
 
     /** Watching a type ended, because it was stopped or it failed. */
-    onStopped(handler: (payload: HealthListenerStopped) => void): () => void {
+    onStopped(handler: (payload: HealthListenerStopped) => void): Promise<() => void> {
         return this.transport.subscribe("health.stopped", json => handler(JSON.parse(json) as HealthListenerStopped));
     }
 }

@@ -39,7 +39,7 @@ public class InvocationTests
         var events = new WebAppEventHub();
         WebAppHost host = null!;
         var script = new WebAppScriptEngine(options, () => host, NullLogger.Instance);
-        var invoker = new WebAppInvoker(bridgeOptions, events, () => script);
+        var invoker = new WebAppInvoker(bridgeOptions, () => script);
 
         host = app.CreateHost(
             options,
@@ -99,7 +99,7 @@ public class InvocationTests
         var (host, invoker, events) = await CreateAsync(app, app.Options());
         await using var _ = host;
 
-        await using var page = await FakePage.OpenAsync(host, events, "page-or-script");
+        await using var page = await FakePage.OpenAsync(host, "page-or-script");
 
         var invocation = invoker.InvokeAsync("page-or-script", """{ "hello": "page" }""");
         var call = await page.NextCallAsync();
@@ -117,6 +117,25 @@ public class InvocationTests
     }
 
     [Fact]
+    public async Task APageThatLeftNoLongerTakesCalls()
+    {
+        await using var app = new TestApp();
+        var (host, invoker, events) = await CreateAsync(app, app.Options());
+        await using var _ = host;
+
+        await using var page = await FakePage.OpenAsync(host, "page-or-script");
+        await page.LeaveAsync();
+
+        // Its handlers went with its stream, so the call goes straight to background.js rather than waiting on a page.
+        while (events.StreamCount > 0)
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+
+        var result = await invoker.InvokeAsync("page-or-script", "{}").WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.Equal(WebAppInvocationTarget.BackgroundScript, result.Target);
+        Assert.Equal("\"script\"", result.ResultJson);
+    }
+
+    [Fact]
     public async Task UnresponsivePageFallsBackToScriptAndCannotRunItLate()
     {
         await using var app = new TestApp();
@@ -125,7 +144,7 @@ public class InvocationTests
         var (host, invoker, events) = await CreateAsync(app, app.Options(), bridgeOptions);
         await using var _ = host;
 
-        await using var page = await FakePage.OpenAsync(host, events, "page-or-script");
+        await using var page = await FakePage.OpenAsync(host, "page-or-script");
 
         // The page receives the call and sits on it, as a suspended WebView would.
         var invocation = invoker.InvokeAsync("page-or-script", "{}");
@@ -145,23 +164,22 @@ public class InvocationTests
         var (host, _, events) = await CreateAsync(app, app.Options());
         await using var _ = host;
 
-        await using var page = await FakePage.OpenAsync(host, events);
+        await using var page = await FakePage.OpenAsync(host);
         var response = await page.Client.GetAsync("/_bridge/invoke/client.js");
 
         Assert.Equal("text/javascript", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains("export function on", await response.Content.ReadAsStringAsync());
     }
 
-    /// <summary>Plays the part of client.js: a session, an event stream, and declared handlers.</summary>
+    /// <summary>Plays the part of client.js: a session, an event stream carrying host.invoke, and declared handlers.</summary>
     sealed class FakePage : IAsyncDisposable
     {
         readonly CancellationTokenSource lifetime = new(TimeSpan.FromSeconds(30));
-        HttpResponseMessage? stream;
-        StreamReader? reader;
+        TestEventStream? stream;
 
         public HttpClient Client { get; private set; } = null!;
 
-        public static async Task<FakePage> OpenAsync(WebAppHost host, WebAppEventHub events, params string[] handlers)
+        public static async Task<FakePage> OpenAsync(WebAppHost host, params string[] handlers)
         {
             var page = new FakePage();
             var start = await host.StartAsync();
@@ -169,12 +187,7 @@ public class InvocationTests
             page.Client = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() }) { BaseAddress = host.Origin };
             await page.Client.GetStringAsync(start);
 
-            page.stream = await page.Client.GetAsync("/_bridge/events", HttpCompletionOption.ResponseHeadersRead, page.lifetime.Token);
-            page.reader = new StreamReader(await page.stream.Content.ReadAsStreamAsync(page.lifetime.Token));
-
-            // The stream is registered once the handler runs; wait for it rather than guess.
-            while (events.SubscriberCount == 0)
-                await Task.Delay(10, page.lifetime.Token);
+            page.stream = await TestEventStream.OpenAsync(page.Client, WebAppInvoker.InvokeEventName, page.lifetime.Token);
 
             if (handlers.Length > 0)
                 (await page.Client.PutAsJsonAsync("/_bridge/invoke/handlers", new { handlers })).EnsureSuccessStatusCode();
@@ -184,27 +197,25 @@ public class InvocationTests
 
         public async Task<(string Id, string Handler, JsonElement Payload)> NextCallAsync()
         {
-            string? line;
-            while ((line = await this.reader!.ReadLineAsync(this.lifetime.Token)) is not null)
-            {
-                if (line != "event: host.invoke" && line != "event:host.invoke")
-                    continue;
+            using var json = JsonDocument.Parse(await this.stream!.NextAsync(WebAppInvoker.InvokeEventName, this.lifetime.Token));
+            var root = json.RootElement;
 
-                var data = (await this.reader.ReadLineAsync(this.lifetime.Token))!;
-                using var json = JsonDocument.Parse(data[(data.IndexOf(':') + 1)..]);
-                var root = json.RootElement;
+            return (root.GetProperty("id").GetString()!, root.GetProperty("handler").GetString()!, root.GetProperty("payload").Clone());
+        }
 
-                return (root.GetProperty("id").GetString()!, root.GetProperty("handler").GetString()!, root.GetProperty("payload").Clone());
-            }
+        /// <summary>The page goes away without a word, as a WebView that navigated or closed does.</summary>
+        public async Task LeaveAsync()
+        {
+            if (this.stream is { } open)
+                await open.DisposeAsync();
 
-            throw new InvalidOperationException("The event stream ended.");
+            this.stream = null;
         }
 
         public async ValueTask DisposeAsync()
         {
             await this.lifetime.CancelAsync();
-            this.reader?.Dispose();
-            this.stream?.Dispose();
+            await this.LeaveAsync();
             this.Client.Dispose();
             this.lifetime.Dispose();
         }

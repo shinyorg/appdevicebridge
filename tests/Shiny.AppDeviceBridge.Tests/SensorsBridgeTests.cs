@@ -59,7 +59,7 @@ public class SensorsBridgeTests
         await using var fixture = await SensorsFixture.StartAsync();
         await fixture.Client.StartAsync(Sensor.Accelerometer, new SensorStartRequest(MinIntervalMs: 60_000));
 
-        using var events = await fixture.OpenEventsAsync();
+        await using var events = await fixture.OpenEventsAsync("sensors.accelerometer,sensors.shake");
         var accelerometer = fixture.Source(Sensor.Accelerometer);
 
         // The first reading goes out; the next ones fall inside the interval and are dropped. A shake always goes.
@@ -67,44 +67,68 @@ public class SensorsBridgeTests
         accelerometer.Vector("sensors.accelerometer", 4, 5, 6);
         accelerometer.Shake();
 
-        Assert.Equal(("sensors.accelerometer", """{"x":1,"y":2,"z":3"""), Trim(await events.NextAsync()));
-        Assert.Equal("sensors.shake", (await events.NextAsync()).Name);
+        Assert.Equal(("sensors.accelerometer", """{"x":1,"y":2,"z":3"""), Trim(await events.NextAsync(fixture.Timeout)));
+        Assert.Equal("sensors.shake", (await events.NextAsync(fixture.Timeout)).Name);
     }
 
     [Fact]
     public async Task Readings_from_a_stopped_sensor_go_nowhere()
     {
         await using var fixture = await SensorsFixture.StartAsync();
-        using var events = await fixture.OpenEventsAsync();
+        await using var events = await fixture.OpenEventsAsync("sensors.gyroscope,sensors.magnetometer");
 
         fixture.Source(Sensor.Gyroscope).Vector("sensors.gyroscope", 9, 9, 9);
         await fixture.Client.StartAsync(Sensor.Magnetometer, new SensorStartRequest(MinIntervalMs: 5));
         fixture.Source(Sensor.Magnetometer).Vector("sensors.magnetometer", 1, 1, 1);
 
-        Assert.Equal("sensors.magnetometer", (await events.NextAsync()).Name);
+        Assert.Equal("sensors.magnetometer", (await events.NextAsync(fixture.Timeout)).Name);
     }
 
-    /// <summary>A page that closes never says so; its last event stream closing is the signal.</summary>
+    /// <summary>A page that closes never says so; its event stream closing is the signal.</summary>
     [Fact]
-    public async Task Stops_every_sensor_when_the_last_listener_leaves()
+    public async Task Stops_every_sensor_when_the_page_leaves()
     {
         await using var fixture = await SensorsFixture.StartAsync();
 
-        var events = await fixture.OpenEventsAsync();
+        var events = await fixture.OpenEventsAsync("sensors.compass,sensors.orientation");
         await fixture.Client.StartAsync(Sensor.Compass, new SensorStartRequest());
         await fixture.Client.StartAsync(Sensor.Orientation, new SensorStartRequest());
 
-        events.Dispose();
+        await events.DisposeAsync();
 
         // The server learns the stream is gone when it next writes to it, which a running sensor makes happen.
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         while (fixture.Source(Sensor.Compass).IsMonitoring || fixture.Source(Sensor.Orientation).IsMonitoring)
         {
             fixture.Source(Sensor.Compass).Vector("sensors.compass", 0, 0, 0);
-            await Task.Delay(20, timeout.Token);
+            await Task.Delay(20, fixture.Timeout);
         }
 
         Assert.DoesNotContain((await fixture.Client.GetStatusAsync()).Sensors, x => x.Running);
+    }
+
+    [Fact]
+    public async Task Stops_a_sensor_once_nothing_listens_to_it_and_keeps_the_rest()
+    {
+        await using var fixture = await SensorsFixture.StartAsync();
+
+        await using var events = await fixture.OpenEventsAsync("sensors.compass,sensors.accelerometer,sensors.shake");
+        await fixture.Client.StartAsync(Sensor.Compass, new SensorStartRequest());
+        await fixture.Client.StartAsync(Sensor.Accelerometer, new SensorStartRequest());
+
+        // The page stops listening to the compass and to raw acceleration, but still wants shakes.
+        await events.SetTopicsAsync(fixture.Timeout, "sensors.shake");
+
+        while (fixture.Source(Sensor.Compass).IsMonitoring)
+            await Task.Delay(10, fixture.Timeout);
+
+        Assert.True(fixture.Source(Sensor.Accelerometer).IsMonitoring);
+
+        fixture.Source(Sensor.Accelerometer).Shake();
+        Assert.Equal("sensors.shake", (await events.NextAsync(fixture.Timeout)).Name);
+
+        await events.SetTopicsAsync(fixture.Timeout);
+        while (fixture.Source(Sensor.Accelerometer).IsMonitoring)
+            await Task.Delay(10, fixture.Timeout);
     }
 
     [Fact]
@@ -135,17 +159,21 @@ public class SensorsBridgeTests
         public override void Stop() => this.monitoring = false;
 
         public void Vector(string name, double x, double y, double z)
-            => this.Raise(new SensorSample<VectorReading>(this.Sensor, name, new(x, y, z, DateTimeOffset.UtcNow), SensorsJsonContext.Default.VectorReading));
+            => this.Raise(new SensorSample<VectorReading>(this.Sensor, name, new(x, y, z, DateTimeOffset.UtcNow)));
 
         public void Shake()
-            => this.Raise(new SensorSample<ShakeDetected>(this.Sensor, "sensors.shake", new(DateTimeOffset.UtcNow), SensorsJsonContext.Default.ShakeDetected, throttled: false));
+            => this.Raise(new SensorSample<ShakeDetected>(this.Sensor, "sensors.shake", new(DateTimeOffset.UtcNow), throttled: false));
     }
 
-    sealed class SensorsFixture(BuiltInClientTests.HostFixture host, HttpClient webView, IReadOnlyList<FakeSensor> sensors, WebAppEventHub hub) : IAsyncDisposable
+    sealed class SensorsFixture(BuiltInClientTests.HostFixture host, HttpClient webView, IReadOnlyList<FakeSensor> sensors) : IAsyncDisposable
     {
+        readonly CancellationTokenSource timeout = new(TimeSpan.FromSeconds(10));
+
         public SensorsBridgeClient Client { get; } = new(host.Transport);
 
         public HttpClient WebView => webView;
+
+        public CancellationToken Timeout => this.timeout.Token;
 
         public FakeSensor Source(Sensor sensor) => sensors.Single(x => x.Sensor == sensor);
 
@@ -155,48 +183,17 @@ public class SensorsBridgeTests
             FakeSensor[] sensors = [.. Enum.GetValues<Sensor>().Select(x => new FakeSensor(x, x != Sensor.Barometer))];
             HttpClient? webView = null;
 
-            var host = await BuiltInClientTests.HostFixture.StartAsync(_ => [new SensorsBridge(hub, sensors)], hub, client => webView = client);
-            return new SensorsFixture(host, webView!, sensors, hub);
+            var host = await BuiltInClientTests.HostFixture.StartAsync(_ => [new SensorsBridge(sensors)], hub, client => webView = client);
+            return new SensorsFixture(host, webView!, sensors);
         }
 
-        /// <summary>The page's event stream, registered with the hub before this returns.</summary>
-        public async Task<EventStream> OpenEventsAsync()
+        /// <summary>The page's event stream, its sources listening before this returns.</summary>
+        public Task<TestEventStream> OpenEventsAsync(string topics) => TestEventStream.OpenAsync(webView, topics, this.Timeout);
+
+        public async ValueTask DisposeAsync()
         {
-            var before = hub.SubscriberCount;
-            var response = await webView.GetAsync("/_bridge/events", HttpCompletionOption.ResponseHeadersRead);
-
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            while (hub.SubscriberCount == before)
-                await Task.Delay(10, timeout.Token);
-
-            return new EventStream(response, new StreamReader(await response.Content.ReadAsStreamAsync()));
-        }
-
-        public ValueTask DisposeAsync() => host.DisposeAsync();
-    }
-
-    sealed class EventStream(HttpResponseMessage response, StreamReader reader) : IDisposable
-    {
-        public async Task<(string Name, string Data)> NextAsync()
-        {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            string? name = null;
-
-            while (await reader.ReadLineAsync(timeout.Token) is { } line)
-            {
-                if (line.StartsWith("event:", StringComparison.Ordinal))
-                    name = line["event:".Length..].Trim();
-                else if (line.StartsWith("data:", StringComparison.Ordinal) && name is not null)
-                    return (name, line["data:".Length..].Trim());
-            }
-
-            throw new EndOfStreamException();
-        }
-
-        public void Dispose()
-        {
-            reader.Dispose();
-            response.Dispose();
+            await host.DisposeAsync();
+            this.timeout.Dispose();
         }
     }
 }

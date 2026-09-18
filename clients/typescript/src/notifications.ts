@@ -184,12 +184,12 @@ export class NotificationsBridge {
     }
 
     /** The user tapped a notification, or one of its actions. */
-    onEntry(handler: (payload: NotificationEvent) => void): () => void {
+    onEntry(handler: (payload: NotificationEvent) => void): Promise<() => void> {
         return this.transport.subscribe("notification.entry", json => handler(JSON.parse(json) as NotificationEvent));
     }
 
     /** A notification arrived while the app was open. Apple platforms only. */
-    onReceived(handler: (payload: NotificationEvent) => void): () => void {
+    onReceived(handler: (payload: NotificationEvent) => void): Promise<() => void> {
         return this.transport.subscribe("notification.received", json => handler(JSON.parse(json) as NotificationEvent));
     }
 }

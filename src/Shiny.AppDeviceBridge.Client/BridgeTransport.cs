@@ -8,14 +8,18 @@ namespace Shiny.AppDeviceBridge.Client;
 
 /// <summary>
 /// How a client reaches the host. The page-side package supplies one — Shiny.AppDeviceBridge.Blazor's sends over the
-/// page's own origin, so the session cookie goes with every call, and listens on the host's single event stream.
+/// page's own origin, so the session cookie goes with every call, and listens on the host's single event stream, which
+/// carries exactly the events something on the page subscribes to.
 /// </summary>
 public interface IBridgeTransport
 {
     /// <summary>Sends a request whose URI is relative to the bridge prefix — <c>calendar/events/42</c>.</summary>
     Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken);
 
-    /// <summary>Delivers each occurrence of a native event, as its JSON payload, until the subscription is disposed.</summary>
+    /// <summary>
+    /// Delivers each occurrence of a native event, as its JSON payload, until the subscription is disposed. Completes once
+    /// the host is delivering it, so a caller can start what it listens to straight after.
+    /// </summary>
     Task<IAsyncDisposable> SubscribeAsync(string eventName, Func<string, Task> handler);
 }
 

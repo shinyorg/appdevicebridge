@@ -238,7 +238,7 @@ public class RpiCameraBridgeTests
                     .AddSingleton(new RpiCameraBridgeOptions { MaxFps = 60 })
                     .BuildServiceProvider();
 
-                return [new RpiCameraBridge(services), new WebAppFilesBridge(roots, options, new WebAppEventHub())];
+                return [new RpiCameraBridge(services), new WebAppFilesBridge(roots, options)];
             }, onStarted: client => webView = client);
 
             return new CameraFixture(host, webView!, camera);

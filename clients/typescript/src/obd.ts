@@ -189,7 +189,7 @@ export class ObdBridge {
         return call<ObdClearResult>(this.transport, "DELETE", `obd/dtc` + query({ confirm: confirm }), { signal: options?.signal });
     }
 
-    /** Reads up to 10 named values on an interval; readings arrive through `onReading`. */
+    /** Reads up to 10 named values on an interval; readings arrive through `onReading`, so listen first: without a listener it fails with 409. The monitor stops once that has no listener left; the adapter stays connected. */
     startMonitor(request: ObdMonitorRequest, options?: { signal?: AbortSignal }): Promise<ObdMonitor> {
         return call<ObdMonitor>(this.transport, "POST", `obd/monitor`, { json: request, signal: options?.signal });
     }
@@ -200,12 +200,12 @@ export class ObdBridge {
     }
 
     /** A monitored reading, or the error reading it. */
-    onReading(handler: (payload: ObdMonitorReading) => void): () => void {
+    onReading(handler: (payload: ObdMonitorReading) => void): Promise<() => void> {
         return this.transport.subscribe("obd.reading", json => handler(JSON.parse(json) as ObdMonitorReading));
     }
 
     /** The adapter went away or stopped answering. */
-    onDisconnected(handler: (payload: ObdDisconnected) => void): () => void {
+    onDisconnected(handler: (payload: ObdDisconnected) => void): Promise<() => void> {
         return this.transport.subscribe("obd.disconnected", json => handler(JSON.parse(json) as ObdDisconnected));
     }
 }

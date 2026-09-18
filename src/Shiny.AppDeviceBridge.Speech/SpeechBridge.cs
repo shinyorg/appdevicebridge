@@ -75,8 +75,9 @@ public static class SpeechBridgeExtensions
 /// </code>
 /// <para>
 /// There is one microphone. A one-shot recognition and the listener exclude each other, and whichever comes second
-/// answers 409 <c>microphone_busy</c>. The listener belongs to the page that started it and stops when that page's
-/// last event stream closes, so a page that went away cannot leave the microphone open.
+/// answers 409 <c>microphone_busy</c>. The listener belongs to whoever listens for <c>speech.result</c> or
+/// <c>speech.partial</c>: it needs one to start, and stops once the last of them is gone, so a page that went away
+/// cannot leave the microphone open.
 /// </para>
 /// <para>
 /// A new utterance interrupts the one playing rather than queueing behind it.
@@ -91,18 +92,22 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
 
     readonly ISpeechToTextService? stt;
     readonly ITextToSpeechService? tts;
-    readonly WebAppEventHub events;
+    readonly WebAppEventSource<SpeechRecognized> results = new();
+    readonly WebAppEventSource<SpeechRecognized> partials = new();
+    readonly WebAppEventSource<SpeechKeyword> keywords = new();
+    readonly WebAppEventSource<SpeechEnded> ended = new();
+    readonly WebAppEventSource<SpeakResult> spoken = new();
+    readonly WebAppEventSource<SpeechError> errors = new();
     readonly Lock gate = new();
 
     volatile MicrophoneUse use;
     SpeechListener? listener;
     CancellationTokenSource? utterance;
 
-    public SpeechBridge(IServiceProvider services, WebAppEventHub events)
+    public SpeechBridge(IServiceProvider services)
     {
         this.stt = services.GetOptionalService<ISpeechToTextService>();
         this.tts = services.GetOptionalService<ITextToSpeechService>();
-        this.events = events;
 
         if (this.stt is not null)
         {
@@ -110,8 +115,6 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
             this.stt.KeywordHeard += this.OnKeyword;
             this.stt.Error += this.OnRecognitionError;
         }
-
-        events.SubscribersChanged += this.OnSubscribersChanged;
     }
 
     public string Name => "speech";
@@ -119,6 +122,12 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
     public bool IsSupported => this.stt?.IsSupported == true || this.tts?.IsSupported == true;
 
     public void Map(WebAppBridgeRoutes routes) => routes
+        .MapEvent("speech.result", ct => this.results.ListenAsync(this.OnDictationListenerStopped, ct), SpeechJsonContext.Default.SpeechRecognized)
+        .MapEvent("speech.partial", ct => this.partials.ListenAsync(this.OnDictationListenerStopped, ct), SpeechJsonContext.Default.SpeechRecognized)
+        .MapEvent("speech.keyword", this.keywords.ListenAsync, SpeechJsonContext.Default.SpeechKeyword)
+        .MapEvent("speech.ended", this.ended.ListenAsync, SpeechJsonContext.Default.SpeechEnded)
+        .MapEvent("speech.spoken", this.spoken.ListenAsync, SpeechJsonContext.Default.SpeakResult)
+        .MapEvent("speech.error", this.errors.ListenAsync, SpeechJsonContext.Default.SpeechError)
         .MapGet("/status", this.StatusAsync)
         .MapPost("/access", this.RequestAccessAsync)
         .MapPost("/recognize", this.RecognizeAsync)
@@ -238,9 +247,9 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
             return;
         }
 
-        if (!this.events.HasSubscribers)
+        if (!this.HasDictationListeners)
         {
-            await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "not_listening", "Open /_bridge/events first: dictation results arrive as events.");
+            await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "not_listening", "Listen for speech.result or speech.partial first: dictation results arrive as events.");
             return;
         }
 
@@ -286,8 +295,8 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
         lock (this.gate)
             this.listener = response;
 
-        // The page may have gone between the check above and now, and then nothing would ever close the microphone.
-        if (!this.events.HasSubscribers)
+        // The last listener may have gone between the check above and now, and then nothing would ever close the microphone.
+        if (!this.HasDictationListeners)
             await this.EndListenerAsync(SpeechEndReason.PageClosed);
 
         await WebAppBridgeResults.Json(context, response, SpeechJsonContext.Default.SpeechListener);
@@ -329,7 +338,7 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
         finally
         {
             this.Release(MicrophoneUse.Stopping);
-            this.events.Publish("speech.ended", new SpeechEnded(reason), SpeechJsonContext.Default.SpeechEnded);
+            this.ended.Publish(new SpeechEnded(reason));
         }
     }
 
@@ -338,17 +347,13 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
         if (this.use != MicrophoneUse.Listening)
             return;
 
-        this.events.Publish(
-            result.IsFinal ? "speech.result" : "speech.partial",
-            new SpeechRecognized(result.Text, result.Confidence),
-            SpeechJsonContext.Default.SpeechRecognized
-        );
+        (result.IsFinal ? this.results : this.partials).Publish(new SpeechRecognized(result.Text, result.Confidence));
     }
 
     void OnKeyword(object? sender, string keyword)
     {
         if (this.use == MicrophoneUse.Listening)
-            this.events.Publish("speech.keyword", new SpeechKeyword(keyword), SpeechJsonContext.Default.SpeechKeyword);
+            this.keywords.Publish(new SpeechKeyword(keyword));
     }
 
     void OnRecognitionError(object? sender, SpeechRecognitionError error)
@@ -364,9 +369,12 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
             _ = this.EndListenerAsync(SpeechEndReason.Error);
     }
 
-    void OnSubscribersChanged()
+    bool HasDictationListeners => this.results.HasListeners || this.partials.HasListeners;
+
+    /// <summary>Dictation is for whoever hears its results; with the last of them gone, the microphone closes.</summary>
+    void OnDictationListenerStopped(int remaining)
     {
-        if (!this.events.HasSubscribers && this.use == MicrophoneUse.Listening)
+        if (remaining == 0 && !this.HasDictationListeners && this.use == MicrophoneUse.Listening)
             _ = this.EndListenerAsync(SpeechEndReason.PageClosed);
     }
 
@@ -534,7 +542,7 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
         finally
         {
             Interlocked.CompareExchange(ref this.utterance, null, cancellation);
-            this.events.Publish("speech.spoken", new SpeakResult(completed), SpeechJsonContext.Default.SpeakResult);
+            this.spoken.Publish(new SpeakResult(completed));
         }
 
         return new SpeakOutcome(completed, error);
@@ -602,7 +610,7 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
     // ---- helpers
 
     void PublishError(SpeechErrorSource source, string message)
-        => this.events.Publish("speech.error", new SpeechError(source, message), SpeechJsonContext.Default.SpeechError);
+        => this.errors.Publish(new SpeechError(source, message));
 
     static bool TryGetCulture(string? name, out CultureInfo? culture)
     {
@@ -644,7 +652,6 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
 
     public void Dispose()
     {
-        this.events.SubscribersChanged -= this.OnSubscribersChanged;
         Interlocked.Exchange(ref this.utterance, null)?.Cancel();
 
         if (this.stt is null)

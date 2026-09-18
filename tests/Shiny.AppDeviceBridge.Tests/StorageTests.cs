@@ -186,7 +186,7 @@ public class StorageBridgeTests
         await using var app = new TestApp();
         var options = app.BridgeOptions();
 
-        var (host, webView) = await StartAsync(app, options, new WebAppFilesBridge(new WebAppFileRoots(options), options, new WebAppEventHub()));
+        var (host, webView) = await StartAsync(app, options, new WebAppFilesBridge(new WebAppFileRoots(options), options));
         await using var _ = host;
         using var __ = webView;
 
@@ -257,7 +257,7 @@ public class StorageBridgeTests
         var options = app.BridgeOptions();
         options.MaxFileWriteBytes = 10;
 
-        var (host, webView) = await StartAsync(app, options, new WebAppFilesBridge(new WebAppFileRoots(options), options, new WebAppEventHub()));
+        var (host, webView) = await StartAsync(app, options, new WebAppFilesBridge(new WebAppFileRoots(options), options));
         await using var _ = host;
         using var __ = webView;
 

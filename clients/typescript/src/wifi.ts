@@ -203,12 +203,12 @@ export class WifiBridge {
     }
 
     /** The device joined, left or changed networks. */
-    onChanged(handler: (payload: WifiChangedEvent) => void): () => void {
+    onChanged(handler: (payload: WifiChangedEvent) => void): Promise<() => void> {
         return this.transport.subscribe("wifi.changed", json => handler(JSON.parse(json) as WifiChangedEvent));
     }
 
     /** The hotspot started, stopped or changed. */
-    onHotspotChanged(handler: (payload: HotspotChangedEvent) => void): () => void {
+    onHotspotChanged(handler: (payload: HotspotChangedEvent) => void): Promise<() => void> {
         return this.transport.subscribe("wifi.hotspot", json => handler(JSON.parse(json) as HotspotChangedEvent));
     }
 }

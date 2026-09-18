@@ -59,6 +59,10 @@ public static class HealthBridgeExtensions
 /// buckets. Health values are never logged, and only reach the event stream while the page has a listener
 /// running for that type.
 /// </para>
+/// <para>
+/// Listeners are for whoever listens for <c>health.reading</c>: starting one needs such a listener, and every one
+/// stops once the last of them is gone.
+/// </para>
 /// </summary>
 public sealed class HealthBridge : IWebAppBridge, IDisposable
 {
@@ -69,21 +73,20 @@ public sealed class HealthBridge : IWebAppBridge, IDisposable
     static readonly TimeSpan MaxRange = TimeSpan.FromDays(366);
 
     readonly IHealthService? health;
-    readonly WebAppEventHub events;
+    readonly WebAppEventSource<Contracts.HealthReading> readings = new();
+    readonly WebAppEventSource<Contracts.HealthListenerStopped> stopped = new();
     readonly ConcurrentDictionary<DataType, CancellationTokenSource> listeners = new();
 
-    public HealthBridge(IServiceProvider services, WebAppEventHub events)
-    {
-        this.health = services.GetOptionalService<IHealthService>();
-        this.events = events;
-        this.events.SubscribersChanged += this.OnSubscribersChanged;
-    }
+    public HealthBridge(IServiceProvider services)
+        => this.health = services.GetOptionalService<IHealthService>();
 
     public string Name => "health";
 
     public bool IsSupported => this.health is not null;
 
     public void Map(WebAppBridgeRoutes routes) => routes
+        .MapEvent("health.reading", ct => this.readings.ListenAsync(this.OnReadingListenerStopped, ct), Contracts.HealthJsonContext.Default.HealthReading)
+        .MapEvent("health.stopped", this.stopped.ListenAsync, Contracts.HealthJsonContext.Default.HealthListenerStopped)
         .MapGet("", this.StatusAsync)
         .MapPost("/access", this.RequestAccessAsync)
         .MapGet("/samples/{type}", this.ReadAsync)
@@ -219,9 +222,9 @@ public sealed class HealthBridge : IWebAppBridge, IDisposable
             return;
         }
 
-        if (!this.events.HasSubscribers)
+        if (!this.readings.HasListeners)
         {
-            await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "not_listening", "Open /_bridge/events first: readings arrive as events.");
+            await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "not_listening", "Listen for health.reading first: readings arrive as events.");
             return;
         }
 
@@ -260,6 +263,11 @@ public sealed class HealthBridge : IWebAppBridge, IDisposable
         }
 
         _ = Task.Run(() => this.ObserveAsync(h, type, polling, cancellation));
+
+        // The last reading listener may have gone since the check above, and then nothing would ever stop this one.
+        if (!this.readings.HasListeners)
+            TryCancel(cancellation);
+
         await WebAppBridgeResults.Json(context, new Contracts.HealthListener(Convert(type)), Contracts.HealthJsonContext.Default.HealthListener);
     });
 
@@ -294,7 +302,7 @@ public sealed class HealthBridge : IWebAppBridge, IDisposable
         try
         {
             await foreach (var result in h.Observe(type, polling, cancellation.Token).ConfigureAwait(false))
-                this.events.Publish("health.reading", new Contracts.HealthReading(Convert(type), ToSample(result)), Contracts.HealthJsonContext.Default.HealthReading);
+                this.readings.Publish(new Contracts.HealthReading(Convert(type), ToSample(result)));
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
@@ -307,14 +315,14 @@ public sealed class HealthBridge : IWebAppBridge, IDisposable
         {
             this.listeners.TryRemove(new KeyValuePair<DataType, CancellationTokenSource>(type, cancellation));
             cancellation.Dispose();
-            this.events.Publish("health.stopped", new Contracts.HealthListenerStopped(Convert(type), error), Contracts.HealthJsonContext.Default.HealthListenerStopped);
+            this.stopped.Publish(new Contracts.HealthListenerStopped(Convert(type), error));
         }
     }
 
-    void OnSubscribersChanged()
+    void OnReadingListenerStopped(int remaining)
     {
         // Nobody is left to receive readings, and a page that comes back starts its own listeners again.
-        if (this.events.HasSubscribers)
+        if (remaining > 0)
             return;
 
         foreach (var cancellation in this.listeners.Values)
@@ -613,8 +621,6 @@ public sealed class HealthBridge : IWebAppBridge, IDisposable
 
     public void Dispose()
     {
-        this.events.SubscribersChanged -= this.OnSubscribersChanged;
-
         foreach (var cancellation in this.listeners.Values)
             TryCancel(cancellation);
     }

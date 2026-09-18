@@ -31,9 +31,6 @@
   </ItemGroup>
 
   <!-- GTK's own file dialog, which the maui-labs Linux head already carries. Only called on Linux. -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-    <PackageReference Include="GirCore.Gtk-4.0" />
-  </ItemGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <DefineConstants>$(DefineConstants);FOLDERS_LINUX</DefineConstants>
@@ -46,6 +43,10 @@
   <ItemGroup>
     <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
     <ProjectReference Include="../Shiny.AppDeviceBridge.Folders.Client/Shiny.AppDeviceBridge.Folders.Client.csproj" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="GirCore.Gtk-4.0" />
   </ItemGroup>
 
 </Project>

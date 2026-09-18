@@ -21,20 +21,12 @@ namespace Shiny.AppDeviceBridge.Locations;
 /// events:   motion.activity
 /// handlers: motion
 /// </code>
+/// <c>motion.activity</c> hooks the listener's readings only while a page listens to it. Leaving does not stop the
+/// listener: <see cref="WebAppMotionActivityDelegate"/> still hands its readings to background.js.
 /// </summary>
-public sealed class MotionActivityBridge : IWebAppBridge, IDisposable
+public sealed class MotionActivityBridge(IServiceProvider services) : IWebAppBridge
 {
-    readonly IMotionActivityManager? motion;
-    readonly WebAppEventHub events;
-
-    public MotionActivityBridge(IServiceProvider services, WebAppEventHub events)
-    {
-        this.motion = services.GetOptionalService<IMotionActivityManager>();
-        this.events = events;
-
-        if (this.motion is not null)
-            this.motion.MotionActivityReadingReceived += this.OnReading;
-    }
+    readonly IMotionActivityManager? motion = services.GetOptionalService<IMotionActivityManager>();
 
     public string Name => "motion";
 
@@ -46,7 +38,8 @@ public sealed class MotionActivityBridge : IWebAppBridge, IDisposable
         .MapGet("/current", this.CurrentAsync)
         .MapGet("/listener", this.ListenerAsync)
         .MapPost("/listener", this.StartListenerAsync)
-        .MapDelete("/listener", this.StopListenerAsync);
+        .MapDelete("/listener", this.StopListenerAsync)
+        .MapEvent("motion.activity", this.Readings, Contracts.LocationsJsonContext.Default.MotionActivity);
 
     async ValueTask StatusAsync(HttpContext context)
     {
@@ -127,16 +120,17 @@ public sealed class MotionActivityBridge : IWebAppBridge, IDisposable
         await WebAppBridgeResults.NoContent(context);
     }
 
-    void OnReading(object? sender, MotionActivityReading reading)
+    IAsyncEnumerable<Contracts.MotionActivity> Readings(CancellationToken cancellationToken)
     {
-        if (this.events.HasSubscribers)
-            this.events.Publish("motion.activity", ToContract(reading), Contracts.LocationsJsonContext.Default.MotionActivity);
-    }
+        if (this.motion is not { } m)
+            return AsyncEnumerable.Empty<Contracts.MotionActivity>();
 
-    public void Dispose()
-    {
-        if (this.motion is not null)
-            this.motion.MotionActivityReadingReceived -= this.OnReading;
+        return WebAppEventStream.FromEvent<Contracts.MotionActivity>(emit =>
+        {
+            EventHandler<MotionActivityReading> handler = (_, reading) => emit(ToContract(reading));
+            m.MotionActivityReadingReceived += handler;
+            return () => m.MotionActivityReadingReceived -= handler;
+        }, cancellationToken);
     }
 }
 

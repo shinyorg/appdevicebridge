@@ -419,7 +419,8 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
 
     void MapHostRoutes(HttpServer server)
     {
-        server.MapGet($"{this.Paths.Bridge}/events", this.Events.StreamAsync).RequireAuthorization(AppDeviceBridgePolicies.Bridges);
+        server.MapGet($"{this.Paths.Bridge}/events", context => this.Events.StreamAsync(context, this.Options.EventStreamHeartbeat)).RequireAuthorization(AppDeviceBridgePolicies.Bridges);
+        server.MapPut($"{this.Paths.Bridge}/events/{{id}}", this.Events.UpdateTopicsAsync).RequireAuthorization(AppDeviceBridgePolicies.Bridges);
 
         server.MapGet($"{this.Paths.Bridge}/host", context =>
         {

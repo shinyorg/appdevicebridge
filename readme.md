@@ -585,8 +585,44 @@ await using var readings = await Gps.OnReadingAsync(reading => { position = read
 import { AppBridge, GpsBridge } from "@shinyorg/appdevicebridge";
 
 const info = await new AppBridge().getInfo();
-const stop = new GpsBridge().onReading(reading => console.log(reading.latitude));
+const stop = await new GpsBridge().onReading(reading => console.log(reading.latitude));
 ```
+
+### Events
+
+Every event reaches the page over one Server-Sent Events stream, `GET /_bridge/events`, and the page names the events it
+wants on it. The typed clients do this for you: each `On…Async` / `on…` subscription adds its event to the stream, and
+disposing the last subscription to an event drops it.
+
+```ts
+const events = new EventSource("/_bridge/events?topics=gps.reading,app.battery");
+events.addEventListener("bridge.stream", e => streamId = JSON.parse(e.data).id);
+events.addEventListener("gps.reading", e => show(JSON.parse(e.data)));
+
+// later, without reconnecting
+await fetch(`/_bridge/events/${streamId}`, { method: "PUT", body: JSON.stringify({ topics: ["gps.reading"] }) });
+```
+
+- **Only what's listened to runs.** Behind each event is an async stream on the host that hooks the native source when
+  a page asks for the event and unhooks it when the page drops the event, disconnects, or the source fails. Nothing
+  stays attached to the battery, the network or a sensor for a page that's gone.
+- **Sessions follow their listeners.** A BLE scan or characteristic subscription, a Health listener, an OBD monitor,
+  a Discovery browse, dictation and each sensor stop once nothing listens to their events any more. Starting one of the
+  first five without a listener answers `409` `not_listening`, so subscribe first. The client methods resolve once the host is
+  delivering the event, so `await` the subscription and then start. GPS and motion listeners keep running without a
+  page, because background.js receives their readings too.
+- **`bridge.stream`** comes first on every connection, including an automatic reconnect, and carries the id that
+  `PUT /_bridge/events/{id}` with `{ "topics": [...] }` takes. It replaces the stream's topics, and names nothing
+  maps yet are kept for when something does. At most 64.
+- **`bridge.error`** `{ "event", "message" }` means an event's source failed, such as a feature the device lacks, and
+  that event was dropped from the stream. Naming it again retries.
+- **One connection.** The WebView talks HTTP/1.1 to the loopback server, with about six connections per origin shared
+  by everything the page does, so every event shares one stream rather than holding a connection each.
+- **Best effort.** Nothing is buffered while a page isn't listening, and a page more than a few hundred events behind
+  loses the oldest. A page that closes without a word is noticed at the next write; an idle stream writes a heartbeat
+  every `EventStreamHeartbeat` (15 s) so that happens promptly.
+
+### Errors
 
 Errors return `{ "code": "...", "message": "..." }`. The clients throw `BridgeException` (C#) or `BridgeError`
 (TypeScript) carrying the status and `code`, so pages can switch on either.
@@ -594,13 +630,14 @@ Errors return `{ "code": "...", "message": "..." }`. The clients throw `BridgeEx
 **Wi-Fi:** what works depends on the platform. iOS can't scan, and Android can't toggle the radio.
 `GET /_bridge/wifi` lists the platform's capabilities, and any call it lacks returns `501`. Linux
 uses NetworkManager through `Shiny.Net.Wifi.Linux`, which the bridge picks automatically.
-`wifi.changed` only runs while a page is listening. Permissions come from Shiny.Net.Wifi: location on
+`wifi.changed` and `wifi.hotspot` only run while a page listens to them. Permissions come from Shiny.Net.Wifi: location on
 Android; the Access Wi-Fi Information and Hotspot Configuration entitlements on iOS.
 
 **Discovery:**
 - **Searching:** `search` returns everything seen during `scanMs`, 5 s by default and 30 s at most.
-- **Browsing:** each `browse` streams results as events. At most 8 run at once, and they stop when
-  the page's last event stream closes.
+- **Browsing:** each `browse` streams results as `discovery.mdns`, `discovery.ssdp` or `discovery.wsd`, so listen to
+  that event first; without a listener it answers `409`. At most 8 run at once, and a protocol's browses stop once
+  nothing listens to its event.
 - **Publishing:** `publications` keep advertising until deleted. At most 16.
 - **Platform setup:** on iOS and Mac Catalyst, list every browsed service type in `NSBonjourServices`
   and set `NSLocalNetworkUsageDescription`. On Android, SSDP and WS-Discovery need
@@ -614,7 +651,8 @@ own, and the rest keep working. Files are shared by the same `{ root, path }` as
 await new AppBridge().share({ files: [{ root: "data", path: "photos/cat.jpg" }] });
 ```
 
-`app.connectivity`, `app.battery` and `app.energysaver` only run while a page is listening. On Android,
+`app.connectivity`, `app.battery` and `app.energysaver` only run while a page listens to them, and a head without the
+feature answers the subscription with `bridge.error`. On Android,
 vibration needs `VIBRATE`, and battery needs `BATTERY_STATS` in the manifest (without it, `GET app/battery`
 returns `403`). `vibrate` is capped at 5 seconds.
 
@@ -636,7 +674,8 @@ and `ACTIVITY_RECOGNITION` with Google Play Services on Android. Other platforms
   the vehicle doesn't support that mode. `DELETE obd/dtc` needs `?confirm=true`, because clearing codes
   also resets the emissions readiness monitors.
 - **Monitoring:** `monitor` polls up to 10 commands, every 250 ms at most often, and sends each result
-  as `obd.reading`. It stops when the page's last event stream closes. After three rounds with no
+  as `obd.reading`, so listen to that first; without a listener it answers `409`. It stops once nothing listens to
+  `obd.reading`, and the adapter stays connected. After three rounds with no
   answers the connection is dropped with `obd.disconnected`.
 - **Platform setup:** Bluetooth as for the Bluetooth LE bridge. Wi-Fi adapters need
   `NSLocalNetworkUsageDescription` on iOS and Mac Catalyst. On Android, the app has to bind to the
@@ -703,8 +742,8 @@ Platform setup:
   most 366 days and 2,000 buckets.
 - **Writes:** `POST health/samples/{type}` takes `start`, `end` and the fields for the type: `value`,
   `systolic`/`diastolic`, `flow`, `workout` and so on.
-- **Listeners:** a listener sends `health.reading` for new samples. At most 8 run at once, and they stop
-  when the page's last event stream closes.
+- **Listeners:** a listener sends `health.reading` for new samples, so listen to that first; without a listener it
+  answers `409`. At most 8 run at once, and they stop once nothing listens to `health.reading`.
 - **Privacy:** health values are never logged.
 - **Platform setup:** on iOS, add the HealthKit entitlement plus `NSHealthShareUsageDescription` and
   `NSHealthUpdateUsageDescription`. On Android, set minSdk 26, add a `android.permission.health.*`
@@ -724,8 +763,8 @@ const steps = await health.getSamples("StepCount", today, new Date(), { interval
 - **Recognizing once:** `recognize` listens until a pause and returns `{ "text": … }`. It gives up after
   `timeoutMs`: 15 s by default, 60 s at most. `text` is `null` if nothing was heard.
 - **Dictation:** `POST listener` keeps the microphone open and streams `speech.partial` and
-  `speech.result` events until you delete it. It also stops when the page's last event stream
-  closes, so a page that goes away can't leave the microphone on. `speech.ended` says why it
+  `speech.result` events until you delete it. It needs a listener for one of them to start (`409` without) and
+  stops once neither has one, so a page that goes away can't leave the microphone on. `speech.ended` says why it
   stopped: `Stopped`, `PageClosed` or `Error`.
 - **One microphone:** a recognition and a listener can't run at once. The second gets `409`
   `microphone_busy`.
@@ -933,8 +972,8 @@ await camera.updateSettings({ videoMode: true, zoom: 2 });
 - **Throttled.** Readings closer together than `minIntervalMs` (16 by default, at least 5) are dropped before they
   reach the page, so `Fastest` can't flood the event stream. `sensors.shake` is never dropped, and fires only while the
   accelerometer runs.
-- **Stopped for you.** Every sensor stops when the page's last event stream closes, so a page that navigates away or
-  closes doesn't leave one draining the battery. `DELETE sensors` stops them all.
+- **Stopped for you.** A sensor stops once nothing listens to its event (the accelerometer keeps running while
+  `sensors.shake` has a listener), so a page that navigates away or closes doesn't leave one draining the battery. `DELETE sensors` stops them all.
 - **Platforms.** Whatever Essentials offers on Android, iOS, Mac Catalyst and Windows, and only the sensors the device
   has. `GET sensors` says which; starting one that isn't there answers `501`. The macOS (AppKit) and Linux (GTK4) heads
   have none.
@@ -1053,13 +1092,14 @@ var created = await Calendar.CreateEventAsync(new NewCalendarEvent
 ```
 
 - **Errors** throw `BridgeException` with `StatusCode`, the bridge's `Code` and `IsNotSupported` for `501`.
-- **Events** are methods too: `await using var sub = await Wifi.OnChangedAsync(e => …)`.
+- **Events** are methods too: `await using var sub = await Wifi.OnChangedAsync(e => …)`. The subscription completes
+  once the host is delivering the event, and disposing the last one for an event stops its native source.
 - **Files and binaries:** a method returning `Task<Stream>` or `Task<byte[]>` reads the body raw; a
   `[BridgeBody("text/plain")]` parameter sends one.
 - **TypeScript:** `clients/typescript` holds the same clients, generated from the same assemblies by
   `tools/Shiny.AppDeviceBridge.TypeScript` — `new CalendarBridge().createEvent({ title, start, end })`. Required
-  members are required, optional parameters go in an options object with an `AbortSignal`, and events return an
-  unsubscribe function. A test fails when the committed TypeScript falls behind the C# declarations.
+  members are required, optional parameters go in an options object with an `AbortSignal`, and events return a
+  promise of an unsubscribe function: `const stop = await new WifiBridge().onChanged(e => …)`. A test fails when the committed TypeScript falls behind the C# declarations.
   It isn't on npm yet: `npm run build` in `clients/typescript` compiles it to ES modules with type declarations, which
   load with or without a bundler.
 - **Your own endpoints** can still be called untyped through `WebAppBridge.GetAsync<T>(path, typeInfo)` and
@@ -1137,6 +1177,28 @@ A bridge with no MAUI dependency hangs off the server's builder instead: `http.A
 
 Use source-generated JSON contexts (`JsonTypeInfo`). The packages are trim and AOT clean, and bridges
 should stay that way.
+
+#### Events
+
+An event is an `IAsyncEnumerable<T>` mapped with `MapEvent`. The host runs it once for each page stream that asks for
+the event and cancels it when that stream lets go, so a native event hooked in it is unhooked in its `finally`, whether
+the page stopped listening, disconnected, or the source threw. `WebAppEventStream.FromEvent` does the hooking:
+
+```csharp
+public void Map(WebAppBridgeRoutes routes) => routes
+    .MapEvent("clipboard.changed", ct => WebAppEventStream.FromEvent<Clip>(emit =>
+    {
+        EventHandler<EventArgs> handler = async (_, _) => emit(new Clip(await clipboard.GetTextAsync()));
+        clipboard.ClipboardContentChanged += handler;
+        return () => clipboard.ClipboardContentChanged -= handler;
+    }, ct), MyJson.Default.Clip)
+    .MapGet("", async ctx => await WebAppBridgeResults.Json(ctx, new Clip(await clipboard.GetTextAsync()), MyJson.Default.Clip));
+```
+
+Values your own code raises, such as those from a Shiny delegate the OS calls or a session the bridge runs, go through a
+`WebAppEventSource<T>`: `Publish` does nothing while no page listens, and `ListenAsync(stopped, ct)` tells you how many
+listeners remain when one leaves, which is where a bridge stops a session nobody is watching.
+`routes.Events.Source("name", typeInfo)` gets or creates one mapped to an event, for a delegate to publish into.
 
 To give it a typed client, declare the API once in a plain `net10.0` project that references
 `Shiny.AppDeviceBridge.Client`. The generator implements the interface, and the same contracts serialize on

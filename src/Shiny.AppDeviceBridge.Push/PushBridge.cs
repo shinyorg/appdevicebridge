@@ -88,12 +88,21 @@ public sealed class PushBridge(IServiceProvider services) : IWebAppBridge
 
     public bool IsSupported => this.push is not null;
 
-    public void Map(WebAppBridgeRoutes routes) => routes
-        .MapGet("", this.StatusAsync)
-        .MapPost("/registration", this.RegisterAsync)
-        .MapDelete("/registration", this.UnregisterAsync)
-        .MapGet("/tags", this.GetTagsAsync)
-        .MapPut("/tags", this.SetTagsAsync);
+    public void Map(WebAppBridgeRoutes routes)
+    {
+        // The delegate raises these; mapping them here means the topics exist as soon as the server is composed.
+        routes.Events.Source(WebAppPushDelegate.TokenEvent, PushJsonContext.Default.PushTokenEvent);
+        routes.Events.Source(WebAppPushDelegate.UnregisteredEvent, PushJsonContext.Default.PushTokenEvent);
+        routes.Events.Source(WebAppPushDelegate.ReceivedEvent, PushJsonContext.Default.PushPayload);
+        routes.Events.Source(WebAppPushDelegate.EntryEvent, PushJsonContext.Default.PushPayload);
+
+        routes
+            .MapGet("", this.StatusAsync)
+            .MapPost("/registration", this.RegisterAsync)
+            .MapDelete("/registration", this.UnregisterAsync)
+            .MapGet("/tags", this.GetTagsAsync)
+            .MapPut("/tags", this.SetTagsAsync);
+    }
 
     async ValueTask StatusAsync(HttpContext context)
     {
@@ -182,26 +191,36 @@ public sealed class PushBridge(IServiceProvider services) : IWebAppBridge
 /// </summary>
 public class WebAppPushDelegate(WebAppEventHub events, WebAppInvoker invoker, WebAppPushOptions options) : IPushDelegate
 {
-    public virtual Task OnReceived(PushNotification notification) => this.HandleAsync("push.received", notification);
+    internal const string TokenEvent = "push.token";
+    internal const string UnregisteredEvent = "push.unregistered";
+    internal const string ReceivedEvent = "push.received";
+    internal const string EntryEvent = "push.entry";
 
-    public virtual Task OnEntry(PushNotification notification) => this.HandleAsync("push.entry", notification);
+    readonly WebAppEventSource<PushTokenEvent> tokens = events.Source(TokenEvent, PushJsonContext.Default.PushTokenEvent);
+    readonly WebAppEventSource<PushTokenEvent> unregistered = events.Source(UnregisteredEvent, PushJsonContext.Default.PushTokenEvent);
+    readonly WebAppEventSource<PushPayload> received = events.Source(ReceivedEvent, PushJsonContext.Default.PushPayload);
+    readonly WebAppEventSource<PushPayload> entries = events.Source(EntryEvent, PushJsonContext.Default.PushPayload);
+
+    public virtual Task OnReceived(PushNotification notification) => this.HandleAsync(ReceivedEvent, this.received, notification);
+
+    public virtual Task OnEntry(PushNotification notification) => this.HandleAsync(EntryEvent, this.entries, notification);
 
     public virtual Task OnNewToken(string token)
     {
-        events.Publish("push.token", new PushTokenEvent(token), PushJsonContext.Default.PushTokenEvent);
+        this.tokens.Publish(new PushTokenEvent(token));
         return Task.CompletedTask;
     }
 
     public virtual Task OnUnRegistered(string token)
     {
-        events.Publish("push.unregistered", new PushTokenEvent(token), PushJsonContext.Default.PushTokenEvent);
+        this.unregistered.Publish(new PushTokenEvent(token));
         return Task.CompletedTask;
     }
 
     /// <summary>Whether a push goes to the web app's handlers. <see cref="WebAppPushOptions.DispatchToWebApp"/> by default.</summary>
     protected virtual bool ShouldDispatch(string handler, PushNotification notification) => options.DispatchToWebApp;
 
-    async Task HandleAsync(string name, PushNotification notification)
+    async Task HandleAsync(string name, WebAppEventSource<PushPayload> source, PushNotification notification)
     {
         var payload = new PushPayload(
             new Dictionary<string, string>(notification.Data),
@@ -214,7 +233,7 @@ public class WebAppPushDelegate(WebAppEventHub events, WebAppInvoker invoker, We
 
         // The live event is for pages that only display pushes; the handler call is the one that does work,
         // so a page that registers a handler should not also act on the event.
-        events.Publish(name, payload, PushJsonContext.Default.PushPayload);
+        source.Publish(payload);
         await invoker.InvokeAsync(name, payload, PushJsonContext.Default.PushPayload);
     }
 }

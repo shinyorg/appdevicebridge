@@ -40,18 +40,25 @@ public sealed class NotificationsBridge(IServiceProvider services, WebAppFileRoo
 
     public bool IsSupported => this.notifications is not null;
 
-    public void Map(WebAppBridgeRoutes routes) => routes
-        .MapGet("", this.StatusAsync)
-        .MapPost("/access", this.RequestAccessAsync)
-        .MapPost("/send", this.SendAsync)
-        .MapGet("/pending", this.PendingAsync)
-        .MapDelete("", this.CancelAllAsync)
-        .MapDelete("/{id}", this.CancelAsync)
-        .MapGet("/badge", this.GetBadgeAsync)
-        .MapPut("/badge", this.SetBadgeAsync)
-        .MapGet("/channels", this.ChannelsAsync)
-        .MapPost("/channels", this.AddChannelAsync)
-        .MapDelete("/channels/{identifier}", this.RemoveChannelAsync);
+    public void Map(WebAppBridgeRoutes routes)
+    {
+        // The delegate raises these; mapping them here means the topics exist as soon as the server is composed.
+        routes.Events.Source(WebAppNotificationDelegate.EntryEvent, Contracts.NotificationsJsonContext.Default.NotificationEvent);
+        routes.Events.Source(WebAppNotificationDelegate.ReceivedEvent, Contracts.NotificationsJsonContext.Default.NotificationEvent);
+
+        routes
+            .MapGet("", this.StatusAsync)
+            .MapPost("/access", this.RequestAccessAsync)
+            .MapPost("/send", this.SendAsync)
+            .MapGet("/pending", this.PendingAsync)
+            .MapDelete("", this.CancelAllAsync)
+            .MapDelete("/{id}", this.CancelAsync)
+            .MapGet("/badge", this.GetBadgeAsync)
+            .MapPut("/badge", this.SetBadgeAsync)
+            .MapGet("/channels", this.ChannelsAsync)
+            .MapPost("/channels", this.AddChannelAsync)
+            .MapDelete("/channels/{identifier}", this.RemoveChannelAsync);
+    }
 
     async ValueTask StatusAsync(HttpContext context)
     {

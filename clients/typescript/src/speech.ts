@@ -125,7 +125,7 @@ export class SpeechBridge {
         return call<SpeechListener | null>(this.transport, "GET", `speech/listener`, { signal: options?.signal });
     }
 
-    /** Starts dictation. Results arrive through `onPartial`, `onResult` and `onKeyword`, so listen first; without an event listener it fails with 409. It ends when stopped or when the page stops listening to events. */
+    /** Starts dictation. Results arrive through `onPartial`, `onResult` and `onKeyword`, so listen first: without a listener for `onPartial` or `onResult` it fails with 409. It ends when stopped or once neither has a listener left. */
     startListener(request: SpeechListenerRequest, options?: { signal?: AbortSignal }): Promise<SpeechListener> {
         return call<SpeechListener>(this.transport, "POST", `speech/listener`, { json: request, signal: options?.signal });
     }
@@ -156,32 +156,32 @@ export class SpeechBridge {
     }
 
     /** Dictation's best guess so far, replaced as the speaker goes on. */
-    onPartial(handler: (payload: SpeechRecognized) => void): () => void {
+    onPartial(handler: (payload: SpeechRecognized) => void): Promise<() => void> {
         return this.transport.subscribe("speech.partial", json => handler(JSON.parse(json) as SpeechRecognized));
     }
 
     /** A finished phrase from dictation. */
-    onResult(handler: (payload: SpeechRecognized) => void): () => void {
+    onResult(handler: (payload: SpeechRecognized) => void): Promise<() => void> {
         return this.transport.subscribe("speech.result", json => handler(JSON.parse(json) as SpeechRecognized));
     }
 
     /** One of the dictation's keywords was heard. */
-    onKeyword(handler: (payload: SpeechKeyword) => void): () => void {
+    onKeyword(handler: (payload: SpeechKeyword) => void): Promise<() => void> {
         return this.transport.subscribe("speech.keyword", json => handler(JSON.parse(json) as SpeechKeyword));
     }
 
     /** Dictation ended. */
-    onEnded(handler: (payload: SpeechEnded) => void): () => void {
+    onEnded(handler: (payload: SpeechEnded) => void): Promise<() => void> {
         return this.transport.subscribe("speech.ended", json => handler(JSON.parse(json) as SpeechEnded));
     }
 
     /** An utterance finished or was interrupted. */
-    onSpoken(handler: (payload: SpeakResult) => void): () => void {
+    onSpoken(handler: (payload: SpeakResult) => void): Promise<() => void> {
         return this.transport.subscribe("speech.spoken", json => handler(JSON.parse(json) as SpeakResult));
     }
 
     /** Recognition or synthesis failed. */
-    onError(handler: (payload: SpeechError) => void): () => void {
+    onError(handler: (payload: SpeechError) => void): Promise<() => void> {
         return this.transport.subscribe("speech.error", json => handler(JSON.parse(json) as SpeechError));
     }
 }

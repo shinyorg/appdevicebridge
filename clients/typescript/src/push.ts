@@ -63,22 +63,22 @@ export class PushBridge {
     }
 
     /** The provider issued a new token. */
-    onToken(handler: (payload: PushTokenEvent) => void): () => void {
+    onToken(handler: (payload: PushTokenEvent) => void): Promise<() => void> {
         return this.transport.subscribe("push.token", json => handler(JSON.parse(json) as PushTokenEvent));
     }
 
     /** The device was unregistered. */
-    onUnregistered(handler: (payload: PushTokenEvent) => void): () => void {
+    onUnregistered(handler: (payload: PushTokenEvent) => void): Promise<() => void> {
         return this.transport.subscribe("push.unregistered", json => handler(JSON.parse(json) as PushTokenEvent));
     }
 
     /** A push arrived. Raised only when the app hands pushes to the web app. */
-    onReceived(handler: (payload: PushPayload) => void): () => void {
+    onReceived(handler: (payload: PushPayload) => void): Promise<() => void> {
         return this.transport.subscribe("push.received", json => handler(JSON.parse(json) as PushPayload));
     }
 
     /** The user opened the app from a push. Raised only when the app hands pushes to the web app. */
-    onEntry(handler: (payload: PushPayload) => void): () => void {
+    onEntry(handler: (payload: PushPayload) => void): Promise<() => void> {
         return this.transport.subscribe("push.entry", json => handler(JSON.parse(json) as PushPayload));
     }
 }

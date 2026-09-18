@@ -53,7 +53,6 @@ public static class CameraBridgeExtensions
         services.TryAddSingleton<ICameraBridgePresenter, MauiCameraBridgePresenter>();
         services.TryAddSingleton(sp => new CameraBridgeSession(
             options,
-            sp.GetRequiredService<WebAppEventHub>(),
             sp.GetRequiredService<ICameraBridgePresenter>()
         ));
         services.AddWebAppBridge<CameraBridge>();
@@ -86,6 +85,7 @@ public sealed class CameraBridge(CameraBridgeSession session) : IWebAppBridge
     public bool IsSupported => CameraPermission.IsSupported;
 
     public void Map(WebAppBridgeRoutes routes) => routes
+        .MapEvent("camera.status", ct => session.Statuses.ListenAsync(ct), CameraJsonContext.Default.CameraStatus)
         .MapGet("", this.StatusAsync)
         .MapPost("/access", ctx => Guarded(ctx, () => this.RequestAccessAsync(ctx)))
         .MapPost("/open", ctx => Guarded(ctx, () => this.OpenAsync(ctx)))

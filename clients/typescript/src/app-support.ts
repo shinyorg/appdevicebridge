@@ -347,37 +347,37 @@ export class AppBridge {
     }
 
     /** The orientation changed. */
-    onOrientationChanged(handler: (payload: OrientationChanged) => void): () => void {
+    onOrientationChanged(handler: (payload: OrientationChanged) => void): Promise<() => void> {
         return this.transport.subscribe("app.orientation", json => handler(JSON.parse(json) as OrientationChanged));
     }
 
     /** The device's culture changed. */
-    onCultureChanged(handler: (payload: CultureChanged) => void): () => void {
+    onCultureChanged(handler: (payload: CultureChanged) => void): Promise<() => void> {
         return this.transport.subscribe("app.culture", json => handler(JSON.parse(json) as CultureChanged));
     }
 
     /** The device's time zone changed. */
-    onTimeZoneChanged(handler: (payload: TimeZoneChanged) => void): () => void {
+    onTimeZoneChanged(handler: (payload: TimeZoneChanged) => void): Promise<() => void> {
         return this.transport.subscribe("app.timezone", json => handler(JSON.parse(json) as TimeZoneChanged));
     }
 
     /** Network access or the connections in use changed. */
-    onConnectivityChanged(handler: (payload: ConnectivityInfo) => void): () => void {
+    onConnectivityChanged(handler: (payload: ConnectivityInfo) => void): Promise<() => void> {
         return this.transport.subscribe("app.connectivity", json => handler(JSON.parse(json) as ConnectivityInfo));
     }
 
     /** The charge, charging state or power source changed. */
-    onBatteryChanged(handler: (payload: BatteryChanged) => void): () => void {
+    onBatteryChanged(handler: (payload: BatteryChanged) => void): Promise<() => void> {
         return this.transport.subscribe("app.battery", json => handler(JSON.parse(json) as BatteryChanged));
     }
 
     /** Energy saver was turned on or off. */
-    onEnergySaverChanged(handler: (payload: EnergySaverChanged) => void): () => void {
+    onEnergySaverChanged(handler: (payload: EnergySaverChanged) => void): Promise<() => void> {
         return this.transport.subscribe("app.energysaver", json => handler(JSON.parse(json) as EnergySaverChanged));
     }
 }
 
-/** Motion and environment sensors — accelerometer, gyroscope, magnetometer, compass, barometer and orientation — as live events. Start a sensor, listen for its event, stop it when done. Every sensor stops on its own when the page's last event stream closes, so a closed page never keeps one running. A sensor the device lacks fails with 501. */
+/** Motion and environment sensors — accelerometer, gyroscope, magnetometer, compass, barometer and orientation — as live events. Start a sensor, listen for its event, stop it when done. A sensor stops on its own once nothing listens to its event any more — the accelerometer while shakes are listened to counts — so a closed page never keeps one running. A sensor the device lacks fails with 501. */
 export class SensorsBridge {
     constructor(private readonly transport: BridgeTransport = browserTransport()) {}
 
@@ -401,32 +401,32 @@ export class SensorsBridge {
         return callVoid(this.transport, "DELETE", `sensors`, { signal: options?.signal });
     }
 
-    onAccelerometer(handler: (payload: VectorReading) => void): () => void {
+    onAccelerometer(handler: (payload: VectorReading) => void): Promise<() => void> {
         return this.transport.subscribe("sensors.accelerometer", json => handler(JSON.parse(json) as VectorReading));
     }
 
-    onGyroscope(handler: (payload: VectorReading) => void): () => void {
+    onGyroscope(handler: (payload: VectorReading) => void): Promise<() => void> {
         return this.transport.subscribe("sensors.gyroscope", json => handler(JSON.parse(json) as VectorReading));
     }
 
-    onMagnetometer(handler: (payload: VectorReading) => void): () => void {
+    onMagnetometer(handler: (payload: VectorReading) => void): Promise<() => void> {
         return this.transport.subscribe("sensors.magnetometer", json => handler(JSON.parse(json) as VectorReading));
     }
 
-    onCompass(handler: (payload: CompassReading) => void): () => void {
+    onCompass(handler: (payload: CompassReading) => void): Promise<() => void> {
         return this.transport.subscribe("sensors.compass", json => handler(JSON.parse(json) as CompassReading));
     }
 
-    onBarometer(handler: (payload: BarometerReading) => void): () => void {
+    onBarometer(handler: (payload: BarometerReading) => void): Promise<() => void> {
         return this.transport.subscribe("sensors.barometer", json => handler(JSON.parse(json) as BarometerReading));
     }
 
-    onOrientation(handler: (payload: OrientationReading) => void): () => void {
+    onOrientation(handler: (payload: OrientationReading) => void): Promise<() => void> {
         return this.transport.subscribe("sensors.orientation", json => handler(JSON.parse(json) as OrientationReading));
     }
 
     /** The device was shaken. Raised only while the accelerometer is running. */
-    onShake(handler: (payload: ShakeDetected) => void): () => void {
+    onShake(handler: (payload: ShakeDetected) => void): Promise<() => void> {
         return this.transport.subscribe("sensors.shake", json => handler(JSON.parse(json) as ShakeDetected));
     }
 }

@@ -20,20 +20,12 @@ namespace Shiny.AppDeviceBridge.Locations;
 ///
 /// events: gps.reading
 /// </code>
+/// <c>gps.reading</c> hooks the listener's readings only while a page listens to it. Leaving does not stop the
+/// listener: <see cref="WebAppGpsDelegate"/> still hands its readings to background.js.
 /// </summary>
-public sealed class GpsBridge : IWebAppBridge, IDisposable
+public sealed class GpsBridge(IServiceProvider services) : IWebAppBridge
 {
-    readonly IGpsManager? gps;
-    readonly WebAppEventHub events;
-
-    public GpsBridge(IServiceProvider services, WebAppEventHub events)
-    {
-        this.gps = services.GetOptionalService<IGpsManager>();
-        this.events = events;
-
-        if (this.gps is not null)
-            this.gps.GpsReadingReceived += this.OnReading;
-    }
+    readonly IGpsManager? gps = services.GetOptionalService<IGpsManager>();
 
     public string Name => "gps";
 
@@ -46,7 +38,8 @@ public sealed class GpsBridge : IWebAppBridge, IDisposable
         .MapGet("/current", this.CurrentAsync)
         .MapGet("/listener", this.ListenerAsync)
         .MapPost("/listener", this.StartListenerAsync)
-        .MapDelete("/listener", this.StopListenerAsync);
+        .MapDelete("/listener", this.StopListenerAsync)
+        .MapEvent("gps.reading", this.Readings, Contracts.LocationsJsonContext.Default.GpsReading);
 
     ValueTask StatusAsync(HttpContext context)
     {
@@ -150,16 +143,17 @@ public sealed class GpsBridge : IWebAppBridge, IDisposable
             ? WebAppBridgeResults.NoContent(context)
             : WebAppBridgeResults.Json(context, ToContract(reading), Contracts.LocationsJsonContext.Default.GpsReading);
 
-    void OnReading(object? sender, GpsReading reading)
+    IAsyncEnumerable<Contracts.GpsReading> Readings(CancellationToken cancellationToken)
     {
-        if (this.events.HasSubscribers)
-            this.events.Publish("gps.reading", ToContract(reading), Contracts.LocationsJsonContext.Default.GpsReading);
-    }
+        if (this.gps is not { } g)
+            return AsyncEnumerable.Empty<Contracts.GpsReading>();
 
-    public void Dispose()
-    {
-        if (this.gps is not null)
-            this.gps.GpsReadingReceived -= this.OnReading;
+        return WebAppEventStream.FromEvent<Contracts.GpsReading>(emit =>
+        {
+            EventHandler<GpsReading> handler = (_, reading) => emit(ToContract(reading));
+            g.GpsReadingReceived += handler;
+            return () => g.GpsReadingReceived -= handler;
+        }, cancellationToken);
     }
 }
 
@@ -185,14 +179,20 @@ public sealed class GeofenceBridge(IServiceProvider services) : IWebAppBridge
 
     public bool IsSupported => this.geofences is not null;
 
-    public void Map(WebAppBridgeRoutes routes) => routes
-        .MapGet("/status", this.StatusAsync)
-        .MapPost("/access", this.RequestAccessAsync)
-        .MapGet("/regions", this.ListAsync)
-        .MapPost("/regions", this.StartMonitoringAsync)
-        .MapDelete("/regions", this.StopAllAsync)
-        .MapDelete("/regions/{identifier}", this.StopMonitoringAsync)
-        .MapGet("/regions/{identifier}/state", this.StateAsync);
+    public void Map(WebAppBridgeRoutes routes)
+    {
+        routes
+            .MapGet("/status", this.StatusAsync)
+            .MapPost("/access", this.RequestAccessAsync)
+            .MapGet("/regions", this.ListAsync)
+            .MapPost("/regions", this.StartMonitoringAsync)
+            .MapDelete("/regions", this.StopAllAsync)
+            .MapDelete("/regions/{identifier}", this.StopMonitoringAsync)
+            .MapGet("/regions/{identifier}/state", this.StateAsync);
+
+        // Published by WebAppGeofenceDelegate when the OS reports a transition.
+        routes.Events.Source("geofence.status", Contracts.LocationsJsonContext.Default.GeofenceStatus);
+    }
 
     ValueTask StatusAsync(HttpContext context)
         => this.geofences is { } g
@@ -327,7 +327,9 @@ public class WebAppGeofenceDelegate(WebAppEventHub events, WebAppInvoker invoker
     }
 
     public static void Publish(WebAppEventHub events, GeofenceState state, GeofenceRegion region)
-        => events.Publish("geofence.status", ToContract(region, state), Contracts.LocationsJsonContext.Default.GeofenceStatus);
+        => events
+            .Source("geofence.status", Contracts.LocationsJsonContext.Default.GeofenceStatus)
+            .Publish(ToContract(region, state));
 }
 
 public static class LocationBridgeExtensions

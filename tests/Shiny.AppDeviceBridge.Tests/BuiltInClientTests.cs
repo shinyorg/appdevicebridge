@@ -66,7 +66,7 @@ public class BuiltInClientTests
         var links = new WebAppLinks(new WebAppLinkOptions { Schemes = { "sample" } });
         var events = new WebAppEventHub();
 
-        await using var fixture = await HostFixture.StartAsync(app => [new WebAppLinksBridge(links, events)], events);
+        await using var fixture = await HostFixture.StartAsync(app => [new WebAppLinksBridge(links)], events);
         var client = new LinksBridgeClient(fixture.Transport);
 
         Assert.Null(await client.GetPendingAsync());
@@ -96,7 +96,7 @@ public class BuiltInClientTests
         {
             var options = app.BridgeOptions();
             registry = new WebAppFileRoots(options);
-            return [new WebAppFilesBridge(registry, options, new WebAppEventHub())];
+            return [new WebAppFilesBridge(registry, options)];
         });
         var files = new FilesBridgeClient(fixture.Transport);
 
@@ -138,7 +138,7 @@ public class BuiltInClientTests
     public void Paths_mean_the_same_on_every_platform(string path)
         => Assert.Null(WebAppFilePath.Normalize(path));
 
-    static WebAppFilesBridge FilesBridge(AppDeviceBridgeOptions options) => new(new WebAppFileRoots(options), options, new WebAppEventHub());
+    static WebAppFilesBridge FilesBridge(AppDeviceBridgeOptions options) => new(new WebAppFileRoots(options), options);
 
     /// <summary>A store with no disk behind it, as a picked Android folder has none.</summary>
     sealed class MemoryFileStore(string name) : WebAppFileStore(name)

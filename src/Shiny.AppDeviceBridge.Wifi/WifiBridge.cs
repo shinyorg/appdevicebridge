@@ -73,24 +73,20 @@ public static class WifiBridgeExtensions
 ///
 /// events: wifi.changed, wifi.hotspot
 /// </code>
+/// Each event hooks its Shiny <c>Changed</c> event only while a page listens to it — hooking <c>wifi.changed</c>
+/// starts a platform watcher. Where the service is not registered, the event ends as soon as it is listened to.
 /// </summary>
-public sealed class WifiBridge : IWebAppBridge, IDisposable
+public sealed class WifiBridge : IWebAppBridge
 {
     readonly IWifiManager? wifi;
     readonly IWifiHotspot? hotspot;
-    readonly WebAppEventHub events;
     readonly Lock gate = new();
     IHotspotSession? session;
-    bool watching;
 
-    public WifiBridge(IServiceProvider services, WebAppEventHub events)
+    public WifiBridge(IServiceProvider services)
     {
         this.wifi = services.GetOptionalService<IWifiManager>();
         this.hotspot = services.GetOptionalService<IWifiHotspot>();
-        this.events = events;
-
-        // Subscribing to Changed starts a platform watcher, so it runs only while a page is listening.
-        events.SubscribersChanged += this.UpdateWatchers;
     }
 
     public string Name => "wifi";
@@ -158,7 +154,9 @@ public sealed class WifiBridge : IWebAppBridge, IDisposable
         .MapGet("/hotspot", ctx => this.HotspotStatusAsync(ctx))
         .MapPost("/hotspot", ctx => this.WithHotspot(ctx, h => this.StartHotspotAsync(ctx, h)))
         .MapDelete("/hotspot", ctx => this.WithHotspot(ctx, h => this.StopHotspotAsync(ctx, h)))
-        .MapGet("/hotspot/clients", ctx => this.WithHotspot(ctx, h => this.HotspotClientsAsync(ctx)));
+        .MapGet("/hotspot/clients", ctx => this.WithHotspot(ctx, h => this.HotspotClientsAsync(ctx)))
+        .MapEvent("wifi.changed", this.WifiChanges, Contracts.WifiJsonContext.Default.WifiChangedEvent)
+        .MapEvent("wifi.hotspot", this.HotspotChanges, Contracts.WifiJsonContext.Default.HotspotChangedEvent);
 
     async ValueTask StatusAsync(HttpContext context, IWifiManager wifi)
     {
@@ -336,73 +334,37 @@ public sealed class WifiBridge : IWebAppBridge, IDisposable
         }
     }
 
-    void UpdateWatchers()
+    IAsyncEnumerable<Contracts.WifiChangedEvent> WifiChanges(CancellationToken cancellationToken)
     {
-        lock (this.gate)
+        if (this.wifi is not { } w)
+            return AsyncEnumerable.Empty<Contracts.WifiChangedEvent>();
+
+        return WebAppEventStream.FromEvent<Contracts.WifiChangedEvent>(emit =>
         {
-            var listening = this.events.HasSubscribers;
-            if (listening == this.watching)
-                return;
-
-            this.watching = listening;
-
-            if (listening)
-            {
-                if (this.wifi is not null)
-                    this.wifi.Changed += this.OnWifiChanged;
-
-                if (this.hotspot is not null)
-                    this.hotspot.Changed += this.OnHotspotChanged;
-            }
-            else
-            {
-                if (this.wifi is not null)
-                    this.wifi.Changed -= this.OnWifiChanged;
-
-                if (this.hotspot is not null)
-                    this.hotspot.Changed -= this.OnHotspotChanged;
-            }
-        }
+            EventHandler<WifiNetworkInfo?> handler = (_, network) => emit(new(network is null ? null : ToContract(network)));
+            w.Changed += handler;
+            return () => w.Changed -= handler;
+        }, cancellationToken);
     }
 
-    void OnWifiChanged(object? sender, WifiNetworkInfo? network)
-        => this.events.Publish(
-            "wifi.changed",
-            new Contracts.WifiChangedEvent(network is null ? null : ToContract(network)),
-            Contracts.WifiJsonContext.Default.WifiChangedEvent
-        );
+    IAsyncEnumerable<Contracts.HotspotChangedEvent> HotspotChanges(CancellationToken cancellationToken)
+    {
+        if (this.hotspot is not { } h)
+            return AsyncEnumerable.Empty<Contracts.HotspotChangedEvent>();
 
-    void OnHotspotChanged(object? sender, HotspotInfo? info)
-        => this.events.Publish(
-            "wifi.hotspot",
-            new Contracts.HotspotChangedEvent(info is null ? null : ToContract(info)),
-            Contracts.WifiJsonContext.Default.HotspotChangedEvent
-        );
+        return WebAppEventStream.FromEvent<Contracts.HotspotChangedEvent>(emit =>
+        {
+            EventHandler<HotspotInfo?> handler = (_, info) => emit(new(info is null ? null : ToContract(info)));
+            h.Changed += handler;
+            return () => h.Changed -= handler;
+        }, cancellationToken);
+    }
 
     static ValueTask Json<T>(HttpContext context, T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo)
         => WebAppBridgeResults.Json(context, value, typeInfo);
 
     static Task<T> OnMainThread<T>(Func<Task<T>> action)
         => Application.Current?.Dispatcher is { } dispatcher ? dispatcher.DispatchAsync(action) : action();
-
-    public void Dispose()
-    {
-        this.events.SubscribersChanged -= this.UpdateWatchers;
-
-        lock (this.gate)
-        {
-            if (this.watching)
-            {
-                if (this.wifi is not null)
-                    this.wifi.Changed -= this.OnWifiChanged;
-
-                if (this.hotspot is not null)
-                    this.hotspot.Changed -= this.OnHotspotChanged;
-
-                this.watching = false;
-            }
-        }
-    }
 }
 
 static class WifiContractMapping

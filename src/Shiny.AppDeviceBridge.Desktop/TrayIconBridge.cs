@@ -68,8 +68,9 @@ public sealed partial class TrayIconBridge : IWebAppBridge, IDisposable
     readonly ITrayIconFactory? factory;
     readonly WebAppFileRoots? fileRoots;
     readonly TrayIconBridgeOptions options;
-    readonly WebAppEventHub events;
     readonly WebAppInvoker? invoker;
+    readonly WebAppEventSource<TrayClick> clicks = new();
+    readonly WebAppEventSource<TrayMenuSelection> menuSelections = new();
 
     // One at a time: every call touches the same icons and most of the work happens on the UI thread anyway.
     readonly SemaphoreSlim gate = new(1, 1);
@@ -77,14 +78,16 @@ public sealed partial class TrayIconBridge : IWebAppBridge, IDisposable
     int generated;
     bool disposed;
 
-    public TrayIconBridge(IServiceProvider services, WebAppEventHub events)
+    public TrayIconBridge(IServiceProvider services)
     {
         this.factory = services.GetOptionalService<ITrayIconFactory>();
         this.fileRoots = services.GetOptionalService<WebAppFileRoots>();
         this.options = services.GetOptionalService<TrayIconBridgeOptions>() ?? new TrayIconBridgeOptions();
         this.invoker = services.GetOptionalService<WebAppInvoker>();
-        this.events = events;
     }
+
+    const string ClickEvent = "tray.click";
+    const string MenuEvent = "tray.menu";
 
     public string Name => "tray";
 
@@ -98,6 +101,8 @@ public sealed partial class TrayIconBridge : IWebAppBridge, IDisposable
         => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsMacCatalyst() || OperatingSystem.IsLinux();
 
     public void Map(WebAppBridgeRoutes routes) => routes
+        .MapEvent(ClickEvent, ct => this.clicks.ListenAsync(ct), TrayJsonContext.Default.TrayClick)
+        .MapEvent(MenuEvent, ct => this.menuSelections.ListenAsync(ct), TrayJsonContext.Default.TrayMenuSelection)
         .MapGet("", this.StatusAsync)
         .MapPost("", this.CreateAsync)
         .MapDelete("", this.RemoveAllAsync)
@@ -467,18 +472,18 @@ public sealed partial class TrayIconBridge : IWebAppBridge, IDisposable
     }
 
     void Clicked(string id, TrayClickButton button, TrayClickEventArgs args)
-        => this.Raise("tray.click", new TrayClick(id, button, args.X, args.Y), TrayJsonContext.Default.TrayClick);
+        => this.Raise(this.clicks, ClickEvent, new TrayClick(id, button, args.X, args.Y), TrayJsonContext.Default.TrayClick);
 
     void MenuActivated(string id, string itemId, string? label, bool? isChecked)
-        => this.Raise("tray.menu", new TrayMenuSelection(id, itemId, label, isChecked), TrayJsonContext.Default.TrayMenuSelection);
+        => this.Raise(this.menuSelections, MenuEvent, new TrayMenuSelection(id, itemId, label, isChecked), TrayJsonContext.Default.TrayMenuSelection);
 
     /// <summary>
-    /// Published for a page that is listening, and called on the web app so <c>background.js</c> can act on
+    /// Published to whatever listens for the event, and called on the web app so <c>background.js</c> can act on
     /// it when the window is closed — which is when a tray menu earns its keep.
     /// </summary>
-    void Raise<T>(string name, T payload, JsonTypeInfo<T> typeInfo)
+    void Raise<T>(WebAppEventSource<T> source, string name, T payload, JsonTypeInfo<T> typeInfo)
     {
-        this.events.Publish(name, payload, typeInfo);
+        source.Publish(payload);
 
         if (this.invoker is { } target)
             _ = Forget(target.InvokeAsync(name, payload, typeInfo));

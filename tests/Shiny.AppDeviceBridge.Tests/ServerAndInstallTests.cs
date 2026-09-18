@@ -61,53 +61,8 @@ public class FileSystemReleaseStoreTests
     }
 }
 
-public class EventAndInstallTests
+public class InstallTests
 {
-    [Fact]
-    public async Task StreamsEventsToTheWebView()
-    {
-        await using var app = new TestApp();
-        app.Store.Add("1.0.0", TestApp.Zip("1.0.0"));
-        await app.StartReleaseServerAsync();
-
-        var events = new WebAppEventHub();
-        await using var host = app.CreateHost(app.Options(), null, events, []);
-        var start = await host.StartAsync();
-
-        using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() });
-        await webView.GetStringAsync(start);
-
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-
-        // The page subscribes when the handler runs, which the test cannot observe, so publish until
-        // something arrives rather than guessing at a delay.
-        var publishing = Task.Run(async () =>
-        {
-            while (!timeout.IsCancellationRequested)
-            {
-                events.Publish("test.ping", new WebAppBridgeError("pong", "hello"), WebAppBridgeJsonContext.Default.WebAppBridgeError);
-                await Task.Delay(50);
-            }
-        });
-
-        using var response = await webView.GetAsync(new Uri(host.Origin!, "/_bridge/events"), HttpCompletionOption.ResponseHeadersRead, timeout.Token);
-        Assert.Equal("text/event-stream", response.Content.Headers.ContentType?.MediaType);
-
-        using var reader = new StreamReader(await response.Content.ReadAsStreamAsync(timeout.Token));
-
-        string? line;
-        while ((line = await reader.ReadLineAsync(timeout.Token)) is not null && !line.StartsWith("event:", StringComparison.Ordinal))
-        {
-        }
-
-        Assert.NotNull(line);
-        Assert.Contains("test.ping", line);
-        Assert.Contains("\"code\":\"pong\"", await reader.ReadLineAsync(timeout.Token));
-
-        await timeout.CancelAsync();
-        await publishing;
-    }
-
     [Fact]
     public async Task InstallsANewVersionWithIdenticalContent()
     {

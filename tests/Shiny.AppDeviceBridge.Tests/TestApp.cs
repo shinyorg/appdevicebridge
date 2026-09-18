@@ -63,7 +63,10 @@ sealed class TestApp : IAsyncDisposable
         {
             AppId = AppId,
             DataDirectory = this.InstallDirectory,
-            IsDebug = false
+            IsDebug = false,
+
+            // A page that leaves is noticed on the next write; tests should not wait the default for it.
+            EventStreamHeartbeat = TimeSpan.FromMilliseconds(100)
         };
         configure?.Invoke(options);
         return options;

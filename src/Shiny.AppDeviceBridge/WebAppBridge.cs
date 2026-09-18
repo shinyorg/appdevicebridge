@@ -72,8 +72,20 @@ public sealed class WebAppBridgeRoutes
     /// <summary><c>{BridgePrefix}/{name}</c>.</summary>
     public string Prefix { get; }
 
-    /// <summary>Where to publish events for the page. See <see cref="WebAppEventHub"/>.</summary>
+    /// <summary>The page's event stream. See <see cref="WebAppEventHub"/>.</summary>
     public WebAppEventHub Events { get; }
+
+    /// <summary>
+    /// Maps an event on the page's one stream. <paramref name="source"/> is enumerated once per page stream that asks for
+    /// <paramref name="eventName"/>, and its token is cancelled when that stream drops the event or disconnects — so a
+    /// source that hooks a native event in its body and unhooks it in <c>finally</c> never outlives the page.
+    /// See <see cref="WebAppEventStream.FromEvent{T}(Func{Action{T}, Action}, CancellationToken, int)"/>.
+    /// </summary>
+    public WebAppBridgeRoutes MapEvent<T>(string eventName, Func<CancellationToken, IAsyncEnumerable<T>> source, JsonTypeInfo<T> typeInfo)
+    {
+        this.Events.Map(eventName, source, typeInfo);
+        return this;
+    }
 
     public WebAppBridgeRoutes MapGet(string pattern, RequestDelegate handler)
     {
@@ -192,7 +204,6 @@ public static class AppDeviceBridgeHttpServerBuilderExtensions
         // delegates call into.
         services.TryAddSingleton(sp => new WebAppInvoker(
             sp.GetRequiredService<AppDeviceBridgeOptions>(),
-            sp.GetRequiredService<WebAppEventHub>(),
             () => sp.GetService<IWebAppBackgroundInvoker>(),
             sp.GetService<ILoggerFactory>()
         ));

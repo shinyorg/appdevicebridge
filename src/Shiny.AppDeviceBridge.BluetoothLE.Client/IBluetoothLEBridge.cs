@@ -19,7 +19,8 @@ public interface IBluetoothLEBridge
     Task<BleStatus> RequestAccessAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Starts scanning; results arrive through <see cref="OnScanResultAsync"/>. Starting again replaces the running scan.
+    /// Starts scanning; results arrive through <see cref="OnScanResultAsync"/>, so listen first: without a listener it
+    /// fails with 409. Starting again replaces the running scan, and the scan stops once nothing listens to it.
     /// </summary>
     [BridgePost("scan")]
     Task StartScanAsync(BleScanRequest request, CancellationToken cancellationToken = default);
@@ -64,7 +65,10 @@ public interface IBluetoothLEBridge
     [BridgePut("peripherals/{uuid}/services/{service}/characteristics/{characteristic}")]
     Task WriteAsync(string uuid, string service, string characteristic, BleWriteRequest request, CancellationToken cancellationToken = default);
 
-    /// <summary>Subscribes to a characteristic; values arrive through <see cref="OnNotificationAsync"/>.</summary>
+    /// <summary>
+    /// Subscribes to a characteristic; values arrive through <see cref="OnNotificationAsync"/>, so listen first: without a
+    /// listener it fails with 409. Every subscription ends once that has no listener left; peripherals stay connected.
+    /// </summary>
     [BridgePost("peripherals/{uuid}/services/{service}/characteristics/{characteristic}/notifications")]
     Task StartNotificationsAsync(string uuid, string service, string characteristic, CancellationToken cancellationToken = default);
 

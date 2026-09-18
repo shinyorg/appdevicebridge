@@ -167,28 +167,20 @@ public class FileRootAndUploadTests
         var roots = new WebAppFileRoots(options);
         var folders = new FolderRoots(roots, options);
 
-        await using var host = app.CreateHost(app.Options(), options, events, [new FoldersBridge(folders), new WebAppFilesBridge(roots, options, events)]);
+        await using var host = app.CreateHost(app.Options(), options, events, [new FoldersBridge(folders), new WebAppFilesBridge(roots, options)]);
         var start = await host.StartAsync();
 
         using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() }) { BaseAddress = host.Origin };
         await webView.GetStringAsync(start);
 
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        using var stream = await webView.GetAsync("/_bridge/events", HttpCompletionOption.ResponseHeadersRead, timeout.Token);
-        using var reader = new StreamReader(await stream.Content.ReadAsStreamAsync(timeout.Token));
-
-        while (!events.HasSubscribers)
-            await Task.Delay(10, timeout.Token);
+        await using var stream = await TestEventStream.OpenAsync(webView, "files.roots", timeout.Token);
 
         folders.Add("work", Path.Combine(scratch.Path, "Work"), "Work");
 
-        string? line;
-        while ((line = await reader.ReadLineAsync(timeout.Token)) is not null && !line.StartsWith("event:", StringComparison.Ordinal))
-        {
-        }
-
-        Assert.Equal("files.roots", line?["event:".Length..].Trim());
-        Assert.Equal("""{"root":"work","change":"Added"}""", (await reader.ReadLineAsync(timeout.Token))?["data:".Length..].Trim());
+        var (name, data) = await stream.NextAsync(timeout.Token);
+        Assert.Equal("files.roots", name);
+        Assert.Equal("""{"root":"work","change":"Added"}""", data);
 
         var listed = await webView.GetFromJsonAsync("/_bridge/folders", FoldersJsonContext.Default.FolderList, timeout.Token);
         Assert.Equal([new PickedFolder("work", "Work")], listed!.Folders);

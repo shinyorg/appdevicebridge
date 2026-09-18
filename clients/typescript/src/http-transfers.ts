@@ -103,22 +103,22 @@ export class TransfersBridge {
     }
 
     /** A transfer moved on or changed state. Throttled per transfer; a state change always comes through. */
-    onProgress(handler: (payload: TransferInfo) => void): () => void {
+    onProgress(handler: (payload: TransferInfo) => void): Promise<() => void> {
         return this.transport.subscribe("transfer.progress", json => handler(JSON.parse(json) as TransferInfo));
     }
 
     /** A transfer completed; a download is in place at its path. */
-    onCompleted(handler: (payload: TransferInfo) => void): () => void {
+    onCompleted(handler: (payload: TransferInfo) => void): Promise<() => void> {
         return this.transport.subscribe("transfer.completed", json => handler(JSON.parse(json) as TransferInfo));
     }
 
     /** A transfer failed. */
-    onFailed(handler: (payload: TransferInfo) => void): () => void {
+    onFailed(handler: (payload: TransferInfo) => void): Promise<() => void> {
         return this.transport.subscribe("transfer.failed", json => handler(JSON.parse(json) as TransferInfo));
     }
 
     /** A transfer was cancelled. */
-    onCancelled(handler: (payload: TransferInfo) => void): () => void {
+    onCancelled(handler: (payload: TransferInfo) => void): Promise<() => void> {
         return this.transport.subscribe("transfer.cancelled", json => handler(JSON.parse(json) as TransferInfo));
     }
 }

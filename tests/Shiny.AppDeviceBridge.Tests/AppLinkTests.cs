@@ -102,7 +102,7 @@ public class AppLinkTests
         links.Receive(new Uri("sample://orders/42?x=1"));
 
         var events = new WebAppEventHub();
-        await using var host = app.CreateHost(app.Options(), null, events, [new WebAppLinksBridge(links, events)]);
+        await using var host = app.CreateHost(app.Options(), null, events, [new WebAppLinksBridge(links)]);
         var start = await host.StartAsync();
 
         using var webView = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() });
@@ -125,7 +125,7 @@ public class AppLinkTests
 
         var links = Create();
         var events = new WebAppEventHub();
-        await using var host = app.CreateHost(app.Options(), null, events, [new WebAppLinksBridge(links, events)]);
+        await using var host = app.CreateHost(app.Options(), null, events, [new WebAppLinksBridge(links)]);
         var start = await host.StartAsync();
 
         // Without NavigateOnColdStart the WebView starts at the root and the link waits for the page.

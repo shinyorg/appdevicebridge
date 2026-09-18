@@ -37,6 +37,13 @@ triggers:
   - WebAppBridgeResults
   - AddWebAppBridge
   - WebAppEventHub
+  - WebAppEventSource
+  - WebAppEventStream
+  - MapEvent
+  - EventStreamHeartbeat
+  - bridge.stream
+  - bridge.error
+  - not_listening
   - WebAppInvoker
   - UseTrafficMonitor
   - AddTrafficRecorder
@@ -191,6 +198,15 @@ calls device features from that web app, updates it over the air, or writes a br
   tunnel follow on their own; never re-register the bridges or rebuild the host to change the port.
 - **Bridges** are HTTP endpoints under `/_bridge/{name}` (the prefix is configurable) plus one Server-Sent
   Events stream. One package per bridge, one extension method each.
+- **The event stream carries only named topics.** `GET /_bridge/events?topics=a,b` opens it; the first event,
+  `bridge.stream`, carries the id for `PUT /_bridge/events/{id}` `{ "topics": [...] }`. The host runs each topic's
+  native source only while a stream names it, and unhooks it when the page drops it, disconnects, or the source throws
+  (`bridge.error { event, message }`). The typed clients manage topics — never hand-write `new EventSource(...)` in a
+  page that has them.
+- **Subscribe before starting a session.** BLE scans and characteristic notifications, Health listeners, the OBD
+  monitor, Discovery browses and dictation answer `409 not_listening` without a listener for their result event, and
+  stop by themselves once it has none; each sensor stops once its event has none. `await` the subscription (it
+  resolves once the host is delivering), then start.
 - **Every bridge has a typed client.** Never generate `fetch("/_bridge/…")` or JSON-object bodies in page code;
   use the bridge's client — C# for Blazor, TypeScript for everything else.
 
@@ -245,7 +261,7 @@ public class App : Application
 | Package | Registration | Client package / interface |
 | --- | --- | --- |
 | built in | (always) | `Shiny.AppDeviceBridge.Client`: `IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge` |
-| `.AppSupport` | `AddAppSupportBridge()` | `IAppBridge` — info, orientation, browser, maps, store, launch at login, share, haptics, connectivity, battery, screen, clipboard; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), all stopped when the page's event stream closes |
+| `.AppSupport` | `AddAppSupportBridge()` | `IAppBridge` — info, orientation, browser, maps, store, launch at login, share, haptics, connectivity, battery, screen, clipboard; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), each stopped once nothing listens to its event |
 | `.Locations` | `AddGpsBridge()`, `AddGeofenceBridge()`, `AddMotionActivityBridge()` | `IGpsBridge`, `IGeofencesBridge`, `IMotionBridge` |
 | `.BluetoothLE` | `AddBluetoothLEBridge()` | `IBluetoothLEBridge` |
 | `.Obd` | `AddObdBridge()` | `IObdBridge` |
@@ -355,7 +371,8 @@ Rules:
 1. **Catch `BridgeException`**, never `HttpRequestException`: it carries `StatusCode`, the bridge's `Code` and
    `IsNotSupported` (501). Treat 501 as "hide the feature on this platform".
 2. **Events are subscriptions.** `await using var sub = await Gps.OnReadingAsync(r => …)` — dispose it when the
-   component goes away. Handlers run off the renderer; call `InvokeAsync(StateHasChanged)`.
+   component goes away; the last disposal for an event stops its native source. Await it before starting what feeds
+   it (a scan, a listener). Handlers run off the renderer; call `InvokeAsync(StateHasChanged)`.
 3. **Settings take your own types** through `ISettingsBridge.GetAsync<T>(scope, key, typeInfo, default)` and
    `SetAsync<T>(…)` with a source-generated `JsonTypeInfo<T>`. Never reflection-based `JsonSerializer` calls.
 4. **Files move by `BridgeFile { Root, Path }`.** Bridges that produce files (photos, exports) return one; read it
@@ -379,13 +396,13 @@ try {
 const folder = await new FoldersBridge().pick({ root: "documents" });   // null when cancelled
 if (folder) await new FilesBridge().writeText(folder.root, "notes.txt", "hello");
 
-const stop = new GpsBridge().onReading(reading => console.log(reading.latitude));
+const stop = await new GpsBridge().onReading(reading => console.log(reading.latitude));
 stop();    // unsubscribes
 ```
 
 - Method names are the C# names in camelCase without `Async`. Required parameters are positional; optional
   ones, and `signal`, go in the trailing options object.
-- Events return an unsubscribe function. Enums are string unions (`"ReadWrite"`), dates accept `Date` or ISO
+- Events return a promise of an unsubscribe function; await it before starting what feeds the event. Enums are string unions (`"ReadWrite"`), dates accept `Date` or ISO
   strings, `byte[]` results come back as `Blob`.
 - The clients discover the bridge prefix from `_host/config`, so a moved `BridgePrefix` or `BasePath` needs no
   page change.
@@ -481,12 +498,19 @@ public partial class OrdersJson : JsonSerializerContext;
 2. **Native bridge** (MAUI project, references the contracts):
 
 ```csharp
-public sealed class OrdersBridge(IOrderStore store, WebAppEventHub events) : IWebAppBridge
+public sealed class OrdersBridge(IOrderStore store) : IWebAppBridge
 {
     public string Name => "orders";
     public bool IsSupported => true;
 
     public void Map(WebAppBridgeRoutes routes) => routes
+        // Hooked per page stream that names the event; unhooked in finally when it lets go, disconnects or throws.
+        .MapEvent("orders.changed", ct => WebAppEventStream.FromEvent<Order>(emit =>
+        {
+            EventHandler<Order> handler = (_, order) => emit(order);
+            store.Changed += handler;
+            return () => store.Changed -= handler;
+        }, ct), OrdersJson.Default.Order)
         .MapGet("/{id}", async ctx => await (await store.FindAsync(ctx.Request.RouteValues["id"]!) is { } order
             ? WebAppBridgeResults.Json(ctx, order, OrdersJson.Default.Order)
             : WebAppBridgeResults.NotFound(ctx, "No such order.")));
@@ -497,7 +521,14 @@ http.AddWebAppBridge<OrdersBridge>();               // a bridge with no MAUI dep
 ```
 
    Answer failures with `WebAppBridgeResults.Error(ctx, status, code, message)`, `NotSupported` (501),
-   `BadRequest`, `NotFound`. Publish events with `events.Publish(name, payload, typeInfo)`.
+   `BadRequest`, `NotFound`.
+   **Events are `IAsyncEnumerable<T>` mapped with `routes.MapEvent(name, ct => …, typeInfo)`** — never a hub-wide
+   publish, never a hook in the constructor or `Dispose`. A native .NET event: `WebAppEventStream.FromEvent<T>(emit => {
+   hook; return unhook; }, ct)` (an overload takes an async hook for main-thread-only APIs). Values your own code raises
+   (a Shiny delegate, a session loop): a `WebAppEventSource<T>` — `Publish` is a no-op with no listener,
+   `ListenAsync(stopped, ct)` reports the listeners remaining so a session can stop at zero — or
+   `routes.Events.Source(name, typeInfo)` for a delegate registered outside the bridge. A session the page starts
+   should answer `409 not_listening` while `source.HasListeners` is false.
 3. Map platform enums onto contract enums with `BridgeEnum.Convert<TFrom, TTo>` (by name) rather than casting.
 
 ## File roots at runtime

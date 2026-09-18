@@ -277,32 +277,32 @@ export class QuickEntryBridge {
     }
 
     /** The user submitted a prompt. Also delivered to background.js when no page is listening. */
-    onSubmitted(handler: (payload: QuickEntrySubmission) => void): () => void {
+    onSubmitted(handler: (payload: QuickEntrySubmission) => void): Promise<() => void> {
         return this.transport.subscribe("quickentry.submitted", json => handler(JSON.parse(json) as QuickEntrySubmission));
     }
 
     /** The user chose a suggestion, just before it is submitted. */
-    onSuggestion(handler: (payload: QuickEntrySubmission) => void): () => void {
+    onSuggestion(handler: (payload: QuickEntrySubmission) => void): Promise<() => void> {
         return this.transport.subscribe("quickentry.suggestion", json => handler(JSON.parse(json) as QuickEntrySubmission));
     }
 
     /** The user pressed Escape in the prompt. */
-    onCancelled(handler: (payload: QuickEntryPromptEvent) => void): () => void {
+    onCancelled(handler: (payload: QuickEntryPromptEvent) => void): Promise<() => void> {
         return this.transport.subscribe("quickentry.cancelled", json => handler(JSON.parse(json) as QuickEntryPromptEvent));
     }
 
     /** The user pressed the microphone button. */
-    onMicrophone(handler: (payload: QuickEntryPromptEvent) => void): () => void {
+    onMicrophone(handler: (payload: QuickEntryPromptEvent) => void): Promise<() => void> {
         return this.transport.subscribe("quickentry.microphone", json => handler(JSON.parse(json) as QuickEntryPromptEvent));
     }
 
     /** The window opened, however it was opened. */
-    onOpened(handler: (payload: QuickEntryStatus) => void): () => void {
+    onOpened(handler: (payload: QuickEntryStatus) => void): Promise<() => void> {
         return this.transport.subscribe("quickentry.opened", json => handler(JSON.parse(json) as QuickEntryStatus));
     }
 
     /** The window closed, however it was dismissed. */
-    onClosed(handler: (payload: QuickEntryStatus) => void): () => void {
+    onClosed(handler: (payload: QuickEntryStatus) => void): Promise<() => void> {
         return this.transport.subscribe("quickentry.closed", json => handler(JSON.parse(json) as QuickEntryStatus));
     }
 }
@@ -372,12 +372,12 @@ export class TrayBridge {
     }
 
     /** An icon was clicked. Also delivered to background.js when no page is listening. */
-    onClick(handler: (payload: TrayClick) => void): () => void {
+    onClick(handler: (payload: TrayClick) => void): Promise<() => void> {
         return this.transport.subscribe("tray.click", json => handler(JSON.parse(json) as TrayClick));
     }
 
     /** A menu item was chosen. Also delivered to background.js when no page is listening. */
-    onMenu(handler: (payload: TrayMenuSelection) => void): () => void {
+    onMenu(handler: (payload: TrayMenuSelection) => void): Promise<() => void> {
         return this.transport.subscribe("tray.menu", json => handler(JSON.parse(json) as TrayMenuSelection));
     }
 }

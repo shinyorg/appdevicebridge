@@ -21,7 +21,8 @@ namespace Shiny.AppDeviceBridge.AppSupport;
 /// </code>
 /// <para>
 /// Sensors cost battery for as long as they run, and a page that closes never says so. So readings go out only as events,
-/// and every sensor stops when the last event stream closes.
+/// each sensor on its own topic, and a sensor stops when the last listener of its topic leaves. The accelerometer keeps
+/// running while <c>sensors.shake</c> is heard too: shakes are detected from its readings.
 /// </para>
 /// </summary>
 public sealed class SensorsBridge : IWebAppBridge, IDisposable
@@ -29,36 +30,51 @@ public sealed class SensorsBridge : IWebAppBridge, IDisposable
     const int MinimumIntervalMs = 5;
 
     readonly IReadOnlyDictionary<Contracts.Sensor, SensorSource> sources;
-    readonly WebAppEventHub events;
+    readonly IReadOnlyDictionary<string, SensorTopic> topics;
     readonly Lock gate = new();
     readonly Dictionary<Contracts.Sensor, Running> running = [];
-    bool disposed;
 
-    public SensorsBridge(WebAppEventHub events)
-        : this(events, EssentialsSensors.Create())
+    public SensorsBridge()
+        : this(EssentialsSensors.Create())
     {
     }
 
-    internal SensorsBridge(WebAppEventHub events, IEnumerable<SensorSource> sources)
+    internal SensorsBridge(IEnumerable<SensorSource> sources)
     {
-        this.events = events;
         this.sources = sources.ToDictionary(x => x.Sensor);
+
+        var json = Contracts.SensorsJsonContext.Default;
+        SensorTopic[] topics =
+        [
+            new SensorTopic<Contracts.VectorReading>("sensors.accelerometer", Contracts.Sensor.Accelerometer, json.VectorReading),
+            new SensorTopic<Contracts.VectorReading>("sensors.gyroscope", Contracts.Sensor.Gyroscope, json.VectorReading),
+            new SensorTopic<Contracts.VectorReading>("sensors.magnetometer", Contracts.Sensor.Magnetometer, json.VectorReading),
+            new SensorTopic<Contracts.CompassReading>("sensors.compass", Contracts.Sensor.Compass, json.CompassReading),
+            new SensorTopic<Contracts.BarometerReading>("sensors.barometer", Contracts.Sensor.Barometer, json.BarometerReading),
+            new SensorTopic<Contracts.OrientationReading>("sensors.orientation", Contracts.Sensor.Orientation, json.OrientationReading),
+            new SensorTopic<Contracts.ShakeDetected>("sensors.shake", Contracts.Sensor.Accelerometer, json.ShakeDetected)
+        ];
+        this.topics = topics.ToDictionary(x => x.Name, StringComparer.Ordinal);
 
         foreach (var source in this.sources.Values)
             source.Sampled += this.OnSampled;
-
-        events.SubscribersChanged += this.OnSubscribersChanged;
     }
 
     public string Name => "sensors";
 
     public bool IsSupported => this.sources.Values.Any(x => x.IsSupported);
 
-    public void Map(WebAppBridgeRoutes routes) => routes
-        .MapGet("", this.StatusAsync)
-        .MapPost("/{sensor}", this.StartAsync)
-        .MapDelete("/{sensor}", this.StopAsync)
-        .MapDelete("", this.StopAllAsync);
+    public void Map(WebAppBridgeRoutes routes)
+    {
+        routes
+            .MapGet("", this.StatusAsync)
+            .MapPost("/{sensor}", this.StartAsync)
+            .MapDelete("/{sensor}", this.StopAsync)
+            .MapDelete("", this.StopAllAsync);
+
+        foreach (var topic in this.topics.Values)
+            topic.Map(routes, this.OnListenerStopped);
+    }
 
     ValueTask StatusAsync(HttpContext context)
         => WebAppBridgeResults.Json(
@@ -172,14 +188,24 @@ public sealed class SensorsBridge : IWebAppBridge, IDisposable
             }
         }
 
-        sample.PublishTo(this.events);
+        sample.PublishTo(this.topics);
     }
 
-    void OnSubscribersChanged()
+    /// <summary>A sensor stops once no topic it feeds has a listener left.</summary>
+    void OnListenerStopped(Contracts.Sensor sensor, int remaining)
     {
-        if (!this.events.HasSubscribers)
-            _ = OnMainThread(this.StopAll);
+        if (remaining > 0 || this.IsHeard(sensor) || !this.sources.TryGetValue(sensor, out var source))
+            return;
+
+        // Read again on the main thread, so a listener that arrived in the meantime keeps the sensor running.
+        _ = OnMainThread(() =>
+        {
+            if (!this.IsHeard(sensor))
+                this.Stop(source);
+        });
     }
+
+    bool IsHeard(Contracts.Sensor sensor) => this.topics.Values.Any(x => x.Sensor == sensor && x.HasListeners);
 
     void Stop(SensorSource source)
     {
@@ -215,12 +241,6 @@ public sealed class SensorsBridge : IWebAppBridge, IDisposable
 
     public void Dispose()
     {
-        if (this.disposed)
-            return;
-
-        this.disposed = true;
-        this.events.SubscribersChanged -= this.OnSubscribersChanged;
-
         foreach (var source in this.sources.Values)
             source.Sampled -= this.OnSampled;
 
@@ -244,15 +264,43 @@ internal abstract class SensorSample(Contracts.Sensor sensor, bool throttled)
 
     public bool Throttled => throttled;
 
-    public abstract void PublishTo(WebAppEventHub events);
+    public abstract void PublishTo(IReadOnlyDictionary<string, SensorTopic> topics);
 }
 
-internal sealed class SensorSample<T>(Contracts.Sensor sensor, string eventName, T reading, JsonTypeInfo<T> typeInfo, bool throttled = true)
+internal sealed class SensorSample<T>(Contracts.Sensor sensor, string eventName, T reading, bool throttled = true)
     : SensorSample(sensor, throttled)
 {
     public T Reading => reading;
 
-    public override void PublishTo(WebAppEventHub events) => events.Publish(eventName, reading, typeInfo);
+    public override void PublishTo(IReadOnlyDictionary<string, SensorTopic> topics)
+    {
+        if (topics.TryGetValue(eventName, out var topic) && topic is SensorTopic<T> typed)
+            typed.Publish(reading);
+    }
+}
+
+/// <summary>One event name, and the sensor that has to run for it to carry anything.</summary>
+internal abstract class SensorTopic(string name, Contracts.Sensor sensor)
+{
+    public string Name => name;
+
+    public Contracts.Sensor Sensor => sensor;
+
+    public abstract bool HasListeners { get; }
+
+    public abstract void Map(WebAppBridgeRoutes routes, Action<Contracts.Sensor, int> stopped);
+}
+
+internal sealed class SensorTopic<T>(string name, Contracts.Sensor sensor, JsonTypeInfo<T> typeInfo) : SensorTopic(name, sensor)
+{
+    readonly WebAppEventSource<T> readings = new();
+
+    public override bool HasListeners => this.readings.HasListeners;
+
+    public void Publish(T reading) => this.readings.Publish(reading);
+
+    public override void Map(WebAppBridgeRoutes routes, Action<Contracts.Sensor, int> stopped)
+        => routes.MapEvent(this.Name, ct => this.readings.ListenAsync(remaining => stopped(this.Sensor, remaining), ct), typeInfo);
 }
 
 /// <summary>One sensor. Abstract so the bridge can be tested without a device.</summary>
@@ -291,8 +339,6 @@ internal abstract class SensorSource(Contracts.Sensor sensor)
 
 static class EssentialsSensors
 {
-    static Contracts.SensorsJsonContext Json => Contracts.SensorsJsonContext.Default;
-
     public static IEnumerable<SensorSource> Create()
     {
         var accelerometer = new Source<AccelerometerChangedEventArgs>(
@@ -311,7 +357,6 @@ static class EssentialsSensors
             Contracts.Sensor.Accelerometer,
             "sensors.shake",
             new(DateTimeOffset.UtcNow),
-            Json.ShakeDetected,
             throttled: false
         ));
         accelerometer.OnSubscribe = () => Accelerometer.Default.ShakeDetected += shake;
@@ -348,7 +393,7 @@ static class EssentialsSensors
                 () => Compass.Default.Stop(),
                 h => Compass.Default.ReadingChanged += h,
                 h => Compass.Default.ReadingChanged -= h,
-                e => new SensorSample<Contracts.CompassReading>(Contracts.Sensor.Compass, "sensors.compass", new(e.Reading.HeadingMagneticNorth, DateTimeOffset.UtcNow), Json.CompassReading)
+                e => new SensorSample<Contracts.CompassReading>(Contracts.Sensor.Compass, "sensors.compass", new(e.Reading.HeadingMagneticNorth, DateTimeOffset.UtcNow))
             ),
             new Source<BarometerChangedEventArgs>(
                 Contracts.Sensor.Barometer,
@@ -358,7 +403,7 @@ static class EssentialsSensors
                 () => Barometer.Default.Stop(),
                 h => Barometer.Default.ReadingChanged += h,
                 h => Barometer.Default.ReadingChanged -= h,
-                e => new SensorSample<Contracts.BarometerReading>(Contracts.Sensor.Barometer, "sensors.barometer", new(e.Reading.PressureInHectopascals, DateTimeOffset.UtcNow), Json.BarometerReading)
+                e => new SensorSample<Contracts.BarometerReading>(Contracts.Sensor.Barometer, "sensors.barometer", new(e.Reading.PressureInHectopascals, DateTimeOffset.UtcNow))
             ),
             new Source<OrientationSensorChangedEventArgs>(
                 Contracts.Sensor.Orientation,
@@ -371,15 +416,14 @@ static class EssentialsSensors
                 e => new SensorSample<Contracts.OrientationReading>(
                     Contracts.Sensor.Orientation,
                     "sensors.orientation",
-                    new(e.Reading.Orientation.X, e.Reading.Orientation.Y, e.Reading.Orientation.Z, e.Reading.Orientation.W, DateTimeOffset.UtcNow),
-                    Json.OrientationReading
+                    new(e.Reading.Orientation.X, e.Reading.Orientation.Y, e.Reading.Orientation.Z, e.Reading.Orientation.W, DateTimeOffset.UtcNow)
                 )
             )
         ];
     }
 
     static SensorSample Vector(Contracts.Sensor sensor, string name, Vector3 value)
-        => new SensorSample<Contracts.VectorReading>(sensor, name, new(value.X, value.Y, value.Z, DateTimeOffset.UtcNow), Json.VectorReading);
+        => new SensorSample<Contracts.VectorReading>(sensor, name, new(value.X, value.Y, value.Z, DateTimeOffset.UtcNow));
 
     sealed class Source<TArgs>(
         Contracts.Sensor sensor,

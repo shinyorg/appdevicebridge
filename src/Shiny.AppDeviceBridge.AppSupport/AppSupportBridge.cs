@@ -29,30 +29,18 @@ namespace Shiny.AppDeviceBridge.AppSupport;
 /// events: app.orientation, app.culture, app.timezone
 /// </code>
 /// </summary>
-public sealed partial class AppSupportBridge : IWebAppBridge, IDisposable
+public sealed partial class AppSupportBridge : IWebAppBridge
 {
     readonly IAppSupport? app;
     readonly IAppStore? store;
     readonly WebAppFileRoots? fileRoots;
-    readonly WebAppEventHub events;
-    bool disposed;
 
-    public AppSupportBridge(IServiceProvider services, WebAppEventHub events)
+    public AppSupportBridge(IServiceProvider services)
     {
         this.app = services.GetOptionalService<IAppSupport>();
         this.store = services.GetOptionalService<IAppStore>();
         this.startup = services.GetOptionalService<IStartupService>();
         this.fileRoots = services.GetOptionalService<WebAppFileRoots>();
-        this.events = events;
-
-        if (this.app is not null)
-        {
-            this.app.OrientationChanged += this.OnOrientationChanged;
-            this.app.CultureChanged += this.OnCultureChanged;
-            this.app.TimeZoneChanged += this.OnTimeZoneChanged;
-        }
-
-        events.SubscribersChanged += this.UpdateWatchers;
     }
 
     public string Name => "app";
@@ -70,7 +58,10 @@ public sealed partial class AppSupportBridge : IWebAppBridge, IDisposable
             .MapPost("/settings", this.OpenSettingsAsync)
             .MapGet("/store", this.StoreAsync)
             .MapPost("/store/open", this.OpenStoreAsync)
-            .MapPost("/store/review", this.RequestReviewAsync);
+            .MapPost("/store/review", this.RequestReviewAsync)
+            .MapEvent("app.orientation", this.OrientationChanges, Contracts.AppJsonContext.Default.OrientationChanged)
+            .MapEvent("app.culture", this.CultureChanges, Contracts.AppJsonContext.Default.CultureChanged)
+            .MapEvent("app.timezone", this.TimeZoneChanges, Contracts.AppJsonContext.Default.TimeZoneChanged);
 
         this.MapDevice(routes);
         this.MapStartup(routes);
@@ -248,34 +239,36 @@ public sealed partial class AppSupportBridge : IWebAppBridge, IDisposable
     static TTo Convert<TFrom, TTo>(TFrom value) where TFrom : struct, Enum where TTo : struct, Enum
         => BridgeEnum.Convert<TFrom, TTo>(value);
 
-    void OnOrientationChanged(object? sender, DisplayOrientation orientation)
-        => this.events.Publish(
-            "app.orientation",
-            new Contracts.OrientationChanged(Convert<DisplayOrientation, Contracts.DisplayOrientation>(orientation)),
-            Contracts.AppJsonContext.Default.OrientationChanged
-        );
+    // IAppSupport raises these from its own listeners; each stream hooks one while it runs.
 
-    void OnCultureChanged(object? sender, CultureInfo culture)
-        => this.events.Publish("app.culture", new Contracts.CultureChanged(culture.Name), Contracts.AppJsonContext.Default.CultureChanged);
+    IAsyncEnumerable<Contracts.OrientationChanged> OrientationChanges(CancellationToken cancellationToken)
+        => WebAppEventStream.FromEvent<Contracts.OrientationChanged>(emit =>
+        {
+            var a = this.RequireApp();
+            EventHandler<DisplayOrientation> handler = (_, o) => emit(new(Convert<DisplayOrientation, Contracts.DisplayOrientation>(o)));
+            a.OrientationChanged += handler;
+            return () => a.OrientationChanged -= handler;
+        }, cancellationToken);
 
-    void OnTimeZoneChanged(object? sender, TimeZoneInfo timeZone)
-        => this.events.Publish("app.timezone", new Contracts.TimeZoneChanged(timeZone.Id), Contracts.AppJsonContext.Default.TimeZoneChanged);
+    IAsyncEnumerable<Contracts.CultureChanged> CultureChanges(CancellationToken cancellationToken)
+        => WebAppEventStream.FromEvent<Contracts.CultureChanged>(emit =>
+        {
+            var a = this.RequireApp();
+            EventHandler<CultureInfo> handler = (_, culture) => emit(new(culture.Name));
+            a.CultureChanged += handler;
+            return () => a.CultureChanged -= handler;
+        }, cancellationToken);
 
-    public void Dispose()
-    {
-        lock (this.watchGate)
-            this.disposed = true;
+    IAsyncEnumerable<Contracts.TimeZoneChanged> TimeZoneChanges(CancellationToken cancellationToken)
+        => WebAppEventStream.FromEvent<Contracts.TimeZoneChanged>(emit =>
+        {
+            var a = this.RequireApp();
+            EventHandler<TimeZoneInfo> handler = (_, timeZone) => emit(new(timeZone.Id));
+            a.TimeZoneChanged += handler;
+            return () => a.TimeZoneChanged -= handler;
+        }, cancellationToken);
 
-        this.events.SubscribersChanged -= this.UpdateWatchers;
-        this.UpdateWatchers();
-
-        if (this.app is null)
-            return;
-
-        this.app.OrientationChanged -= this.OnOrientationChanged;
-        this.app.CultureChanged -= this.OnCultureChanged;
-        this.app.TimeZoneChanged -= this.OnTimeZoneChanged;
-    }
+    IAppSupport RequireApp() => this.app ?? throw new NotSupportedException("App support is not registered.");
 }
 
 public static class AppSupportBridgeExtensions

@@ -4,8 +4,9 @@ namespace Shiny.AppDeviceBridge.Discovery.Client;
 
 /// <summary>
 /// Local network discovery over mDNS/Bonjour, SSDP/UPnP and WS-Discovery: search for a window, browse with results as
-/// events, resolve one, and advertise this app. A protocol the app did not register fails with 501. Browses stop when the
-/// page stops listening to events; publications keep advertising until removed or the app exits.
+/// events, resolve one, and advertise this app. A protocol the app did not register fails with 501. A browse needs a
+/// listener for its protocol's results first — it fails with 409 without one — and stops once that has none left;
+/// publications keep advertising until removed or the app exits.
 /// </summary>
 [BridgeClient("discovery", typeof(DiscoveryJsonContext))]
 public interface IDiscoveryBridge

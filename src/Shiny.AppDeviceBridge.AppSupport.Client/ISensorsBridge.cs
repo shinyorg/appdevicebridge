@@ -4,8 +4,9 @@ namespace Shiny.AppDeviceBridge.AppSupport.Client;
 
 /// <summary>
 /// Motion and environment sensors — accelerometer, gyroscope, magnetometer, compass, barometer and orientation — as live
-/// events. Start a sensor, listen for its event, stop it when done. Every sensor stops on its own when the page's last
-/// event stream closes, so a closed page never keeps one running. A sensor the device lacks fails with 501.
+/// events. Start a sensor, listen for its event, stop it when done. A sensor stops on its own once nothing listens to its
+/// event any more — the accelerometer while shakes are listened to counts — so a closed page never keeps one running. A
+/// sensor the device lacks fails with 501.
 /// </summary>
 [BridgeClient("sensors", typeof(SensorsJsonContext))]
 public interface ISensorsBridge

@@ -24,34 +24,104 @@ function paths() {
     return config;
 }
 
-async function events() {
-    source ??= new EventSource((await paths()).bridge + "events");
-    return source;
+// The host only runs the native source behind an event while a stream names it, so the stream always carries exactly
+// the events something here listens to.
+function topics() {
+    return [...subscribers].filter(([, listeners]) => listeners.size > 0).map(([name]) => name);
+}
+
+let opening;
+
+function events() {
+    opening ??= paths().then(p => {
+        source = new EventSource(p.bridge + "events?topics=" + encodeURIComponent(topics().join(",")));
+
+        // First on every connection, reconnects included, which start over with the topics of the first URL.
+        source.addEventListener("bridge.stream", e => {
+            streamId = JSON.parse(e.data).id;
+            sync();
+        });
+
+        return source;
+    });
+
+    return opening;
+}
+
+let streamId;
+let syncing;
+let waiting = [];
+
+// Resolves once the host has the current topics — a subscriber can then start what it listens to without missing the
+// first events, or being refused for not listening. Several changes in a row become one request.
+function sync() {
+    const done = new Promise(resolve => waiting.push(resolve));
+
+    syncing ??= Promise.resolve().then(async () => {
+        syncing = undefined;
+
+        // No stream id yet: the stream's open event syncs, and settles these.
+        if (!streamId)
+            return;
+
+        const settled = waiting;
+        waiting = [];
+
+        try {
+            await fetch((await paths()).bridge + "events/" + streamId, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ topics: topics() })
+            });
+        } catch {
+            // Reconnecting; the next open event sends the topics again.
+        }
+
+        settled.forEach(resolve => resolve());
+    });
+
+    // A host that is not there never opens the stream; do not hold the caller forever.
+    return Promise.race([done, new Promise(resolve => setTimeout(resolve, 5000))]);
 }
 
 export async function subscribe(dotnet, key, eventName) {
     let listeners = subscribers.get(eventName);
+    const known = listeners !== undefined;
 
-    // One DOM listener per event name for the life of the page; .NET listeners come and go behind it.
-    if (!listeners) {
+    if (!known) {
         listeners = new Map();
         subscribers.set(eventName, listeners);
+    }
+
+    const added = listeners.size === 0;
+    listeners.set(key, dotnet);
+
+    // One DOM listener per event name for the life of the page; .NET listeners come and go behind it.
+    if (!known)
         (await events()).addEventListener(eventName, e => {
             for (const listener of subscribers.get(eventName).values())
                 listener.invokeMethodAsync("OnEvent", eventName, e.data);
         });
-    }
 
-    listeners.set(key, dotnet);
+    if (added)
+        await sync();
 }
 
-export function unsubscribe(key, eventName) {
-    subscribers.get(eventName)?.delete(key);
+// Both resolve once the host has stopped the sources nothing here listens to any more.
+export async function unsubscribe(key, eventName) {
+    const listeners = subscribers.get(eventName);
+    if (listeners?.delete(key) && listeners.size === 0)
+        await sync();
 }
 
-export function unsubscribeAll(key) {
+export async function unsubscribeAll(key) {
+    let changed = false;
+
     for (const listeners of subscribers.values())
-        listeners.delete(key);
+        changed = (listeners.delete(key) && listeners.size === 0) || changed;
+
+    if (changed)
+        await sync();
 }
 
 export async function handle(dotnet, name) {

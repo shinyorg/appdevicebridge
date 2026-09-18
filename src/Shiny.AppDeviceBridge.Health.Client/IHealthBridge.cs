@@ -31,8 +31,8 @@ public interface IHealthBridge
     Task WriteSampleAsync(HealthDataType type, HealthSampleInput sample, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Watches a type; readings arrive through <see cref="OnReadingAsync"/>. At most 8 types at once. It stops when the
-    /// page stops listening to events.
+    /// Watches a type; readings arrive through <see cref="OnReadingAsync"/>, so listen first: without a listener it fails
+    /// with 409. At most 8 types at once. Every watch stops once <see cref="OnReadingAsync"/> has no listener left.
     /// </summary>
     [BridgePost("listeners/{type}")]
     Task<HealthListener> StartListeningAsync(HealthDataType type, HealthListenerRequest request, CancellationToken cancellationToken = default);

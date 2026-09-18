@@ -81,8 +81,9 @@ public static class DiscoveryBridgeExtensions
 /// events: discovery.mdns, discovery.ssdp, discovery.wsd, discovery.error, discovery.stopped
 /// </code>
 /// <para>
-/// Browses belong to the page that started them: they stop when its last event stream closes, since their
-/// results would have nowhere to go. Publications keep advertising until deleted, or until the app exits.
+/// A browse needs a listener on its protocol's result topic (<c>discovery.mdns</c>, <c>discovery.ssdp</c> or
+/// <c>discovery.wsd</c>) to start, and every browse of that protocol stops when the topic's last listener leaves, since
+/// its results would have nowhere to go. Publications keep advertising until deleted, or until the app exits.
 /// </para>
 /// </summary>
 public sealed class DiscoveryBridge : IWebAppBridge, IDisposable, IAsyncDisposable
@@ -93,21 +94,22 @@ public sealed class DiscoveryBridge : IWebAppBridge, IDisposable, IAsyncDisposab
     readonly IMdnsManager? mdns;
     readonly ISsdpManager? ssdp;
     readonly IWsDiscoveryManager? wsd;
-    readonly WebAppEventHub events;
+    readonly WebAppEventSource<Contracts.MdnsBrowseResult> mdnsResults = new();
+    readonly WebAppEventSource<Contracts.SsdpBrowseResult> ssdpResults = new();
+    readonly WebAppEventSource<Contracts.WsdBrowseResult> wsdResults = new();
+    readonly WebAppEventSource<Contracts.DiscoveryError> errors = new();
+    readonly WebAppEventSource<Contracts.DiscoveryBrowse> stopped = new();
     readonly ConcurrentDictionary<string, Browse> browses = new(StringComparer.Ordinal);
     readonly ConcurrentDictionary<string, Publication> publications = new(StringComparer.Ordinal);
 
     // GetDescription needs the device as it was advertised, so every device the page has seen is kept by UDN.
     readonly ConcurrentDictionary<string, SsdpDevice> seenDevices = new(StringComparer.OrdinalIgnoreCase);
 
-    public DiscoveryBridge(IServiceProvider services, WebAppEventHub events)
+    public DiscoveryBridge(IServiceProvider services)
     {
         this.mdns = services.GetOptionalService<IMdnsManager>();
         this.ssdp = services.GetOptionalService<ISsdpManager>();
         this.wsd = services.GetOptionalService<IWsDiscoveryManager>();
-        this.events = events;
-
-        events.SubscribersChanged += this.OnSubscribersChanged;
     }
 
     public string Name => "discovery";
@@ -130,7 +132,12 @@ public sealed class DiscoveryBridge : IWebAppBridge, IDisposable, IAsyncDisposab
         .MapGet("/browses", this.ListBrowsesAsync)
         .MapDelete("/browses/{id}", this.StopBrowseAsync)
         .MapGet("/publications", this.ListPublicationsAsync)
-        .MapDelete("/publications/{id}", this.UnpublishAsync);
+        .MapDelete("/publications/{id}", this.UnpublishAsync)
+        .MapEvent("discovery.mdns", ct => this.mdnsResults.ListenAsync(r => this.OnResultListenerStopped(Contracts.DiscoveryProtocol.Mdns, r), ct), Contracts.DiscoveryJsonContext.Default.MdnsBrowseResult)
+        .MapEvent("discovery.ssdp", ct => this.ssdpResults.ListenAsync(r => this.OnResultListenerStopped(Contracts.DiscoveryProtocol.Ssdp, r), ct), Contracts.DiscoveryJsonContext.Default.SsdpBrowseResult)
+        .MapEvent("discovery.wsd", ct => this.wsdResults.ListenAsync(r => this.OnResultListenerStopped(Contracts.DiscoveryProtocol.Wsd, r), ct), Contracts.DiscoveryJsonContext.Default.WsdBrowseResult)
+        .MapEvent("discovery.error", this.errors.ListenAsync, Contracts.DiscoveryJsonContext.Default.DiscoveryError)
+        .MapEvent("discovery.stopped", this.stopped.ListenAsync, Contracts.DiscoveryJsonContext.Default.DiscoveryBrowse);
 
     // ---- mDNS
 
@@ -159,11 +166,8 @@ public sealed class DiscoveryBridge : IWebAppBridge, IDisposable, IAsyncDisposab
             Contracts.DiscoveryProtocol.Mdns,
             request.Config.ServiceType,
             ct => manager.Browse(request.Config, ct),
-            (id, r) => this.events.Publish(
-                "discovery.mdns",
-                new Contracts.MdnsBrowseResult(id, Convert(r.Status), ToContract(r.Service)),
-                Contracts.DiscoveryJsonContext.Default.MdnsBrowseResult
-            )
+            this.mdnsResults,
+            (id, r) => new Contracts.MdnsBrowseResult(id, Convert(r.Status), ToContract(r.Service))
         );
     }
 
@@ -261,14 +265,11 @@ public sealed class DiscoveryBridge : IWebAppBridge, IDisposable, IAsyncDisposab
             Contracts.DiscoveryProtocol.Ssdp,
             config.SearchTarget,
             ct => manager.Browse(config, ct),
+            this.ssdpResults,
             (id, r) =>
             {
                 this.seenDevices[r.Device.Udn] = r.Device;
-                this.events.Publish(
-                    "discovery.ssdp",
-                    new Contracts.SsdpBrowseResult(id, Convert(r.Status), ToContract(r.Device)),
-                    Contracts.DiscoveryJsonContext.Default.SsdpBrowseResult
-                );
+                return new Contracts.SsdpBrowseResult(id, Convert(r.Status), ToContract(r.Device));
             }
         );
     }
@@ -343,11 +344,8 @@ public sealed class DiscoveryBridge : IWebAppBridge, IDisposable, IAsyncDisposab
             Contracts.DiscoveryProtocol.Wsd,
             String.Join(", ", request.Config.Types),
             ct => manager.Browse(request.Config, ct),
-            (id, r) => this.events.Publish(
-                "discovery.wsd",
-                new Contracts.WsdBrowseResult(id, Convert(r.Status), ToContract(r.Target)),
-                Contracts.DiscoveryJsonContext.Default.WsdBrowseResult
-            )
+            this.wsdResults,
+            (id, r) => new Contracts.WsdBrowseResult(id, Convert(r.Status), ToContract(r.Target))
         );
     }
 
@@ -425,17 +423,23 @@ public sealed class DiscoveryBridge : IWebAppBridge, IDisposable, IAsyncDisposab
 
     // ---- sessions
 
-    async ValueTask StartBrowseAsync<TResult>(
+    async ValueTask StartBrowseAsync<TResult, TEvent>(
         HttpContext context,
         Contracts.DiscoveryProtocol protocol,
         string target,
         Func<CancellationToken, IAsyncEnumerable<TResult>> stream,
-        Action<string, TResult> publish
+        WebAppEventSource<TEvent> results,
+        Func<string, TResult, TEvent> toEvent
     )
     {
-        if (!this.events.HasSubscribers)
+        if (!results.HasListeners)
         {
-            await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "not_listening", "Open /_bridge/events first: browse results arrive as events.");
+            await WebAppBridgeResults.Error(
+                context,
+                StatusCodes.Status409Conflict,
+                "not_listening",
+                $"Listen for {ResultEventName(protocol)} first: browse results arrive as events."
+            );
             return;
         }
 
@@ -449,24 +453,28 @@ public sealed class DiscoveryBridge : IWebAppBridge, IDisposable, IAsyncDisposab
         var browse = new Browse(protocol, target, new CancellationTokenSource());
         this.browses[id] = browse;
 
+        // The last listener may have left between the check and the add; its stop would have missed this browse.
+        if (!results.HasListeners)
+            browse.Cancellation.Cancel();
+
         _ = Task.Run(async () =>
         {
             try
             {
                 await foreach (var result in stream(browse.Cancellation.Token).ConfigureAwait(false))
-                    publish(id, result);
+                    results.Publish(toEvent(id, result));
             }
             catch (OperationCanceledException) when (browse.Cancellation.IsCancellationRequested)
             {
             }
             catch (Exception ex)
             {
-                this.events.Publish("discovery.error", new Contracts.DiscoveryError(id, protocol, ex.Message), Contracts.DiscoveryJsonContext.Default.DiscoveryError);
+                this.errors.Publish(new Contracts.DiscoveryError(id, protocol, ex.Message));
             }
             finally
             {
                 this.browses.TryRemove(id, out _);
-                this.events.Publish("discovery.stopped", new Contracts.DiscoveryBrowse(id, protocol, target), Contracts.DiscoveryJsonContext.Default.DiscoveryBrowse);
+                this.stopped.Publish(new Contracts.DiscoveryBrowse(id, protocol, target));
             }
         });
 
@@ -522,14 +530,25 @@ public sealed class DiscoveryBridge : IWebAppBridge, IDisposable, IAsyncDisposab
         await WebAppBridgeResults.NoContent(context);
     }
 
-    void OnSubscribersChanged()
+    /// <summary>With no one left listening for a protocol's results, its browses have nowhere to send them.</summary>
+    void OnResultListenerStopped(Contracts.DiscoveryProtocol protocol, int remaining)
     {
-        if (this.events.HasSubscribers)
+        if (remaining > 0)
             return;
 
         foreach (var browse in this.browses.Values)
-            browse.Cancellation.Cancel();
+        {
+            if (browse.Protocol == protocol)
+                browse.Cancellation.Cancel();
+        }
     }
+
+    static string ResultEventName(Contracts.DiscoveryProtocol protocol) => protocol switch
+    {
+        Contracts.DiscoveryProtocol.Mdns => "discovery.mdns",
+        Contracts.DiscoveryProtocol.Ssdp => "discovery.ssdp",
+        _ => "discovery.wsd"
+    };
 
     // ---- helpers
 
@@ -598,8 +617,6 @@ public sealed class DiscoveryBridge : IWebAppBridge, IDisposable, IAsyncDisposab
 
     public void Dispose()
     {
-        this.events.SubscribersChanged -= this.OnSubscribersChanged;
-
         foreach (var browse in this.browses.Values)
             browse.Cancellation.Cancel();
 
@@ -613,8 +630,6 @@ public sealed class DiscoveryBridge : IWebAppBridge, IDisposable, IAsyncDisposab
 
     public async ValueTask DisposeAsync()
     {
-        this.events.SubscribersChanged -= this.OnSubscribersChanged;
-
         foreach (var browse in this.browses.Values)
             browse.Cancellation.Cancel();
 

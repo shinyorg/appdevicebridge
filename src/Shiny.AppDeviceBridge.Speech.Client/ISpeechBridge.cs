@@ -31,8 +31,8 @@ public interface ISpeechBridge
 
     /// <summary>
     /// Starts dictation. Results arrive through <see cref="OnPartialAsync"/>, <see cref="OnResultAsync"/> and
-    /// <see cref="OnKeywordAsync"/>, so listen first; without an event listener it fails with 409. It ends when stopped
-    /// or when the page stops listening to events.
+    /// <see cref="OnKeywordAsync"/>, so listen first: without a listener for <see cref="OnPartialAsync"/> or
+    /// <see cref="OnResultAsync"/> it fails with 409. It ends when stopped or once neither has a listener left.
     /// </summary>
     [BridgePost("listener")]
     Task<SpeechListener> StartListenerAsync(SpeechListenerRequest request, CancellationToken cancellationToken = default);

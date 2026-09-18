@@ -30,10 +30,6 @@ public sealed partial class AppSupportBridge
     const int MaxVibrateMs = 5000;
     const int MaxClipboardChars = 1024 * 1024;
 
-    readonly Lock watchGate = new();
-    bool watchingConnectivity;
-    bool watchingBattery;
-
     void MapDevice(WebAppBridgeRoutes routes) => routes
         .MapPost("/share", this.ShareAsync)
         .MapPost("/haptics", HapticsAsync)
@@ -83,7 +79,10 @@ public sealed partial class AppSupportBridge
                 return true;
             });
             await WebAppBridgeResults.NoContent(ctx);
-        }));
+        }))
+        .MapEvent("app.connectivity", ConnectivityChanges, Contracts.AppJsonContext.Default.ConnectivityInfo)
+        .MapEvent("app.battery", BatteryChanges, Contracts.AppJsonContext.Default.BatteryChanged)
+        .MapEvent("app.energysaver", EnergySaverChanges, Contracts.AppJsonContext.Default.EnergySaverChanged);
 
     async ValueTask ShareAsync(HttpContext context)
     {
@@ -265,70 +264,48 @@ public sealed partial class AppSupportBridge
     static Task<T> ReadOnMainThread<T>(Func<T> action)
         => Application.Current?.Dispatcher is { } dispatcher ? dispatcher.DispatchAsync(action) : Task.FromResult(action());
 
-    // Change events hold platform listeners (a broadcast receiver, battery monitoring), so they run only while a
-    // page is listening.
-    void UpdateWatchers()
-    {
-        // UIDevice battery monitoring is main-thread only. The state is read again there, not captured here, so a
-        // dispatch that runs late cannot undo a newer decision.
-        _ = ReadOnMainThread(() =>
+    // Change events hold platform listeners (a broadcast receiver, battery monitoring), so each is hooked only while a
+    // stream listens to it. A backend without the feature, or without its Android permission, fails that stream alone.
+
+    static IAsyncEnumerable<Contracts.ConnectivityInfo> ConnectivityChanges(CancellationToken cancellationToken)
+        => FromMainThreadEvent<Contracts.ConnectivityInfo>(emit =>
         {
-            lock (this.watchGate)
+            EventHandler<ConnectivityChangedEventArgs> handler = (_, e) => emit(ToContract(e.NetworkAccess, e.ConnectionProfiles));
+            Connectivity.Current.ConnectivityChanged += handler;
+            return () => Connectivity.Current.ConnectivityChanged -= handler;
+        }, cancellationToken);
+
+    static IAsyncEnumerable<Contracts.BatteryChanged> BatteryChanges(CancellationToken cancellationToken)
+        => FromMainThreadEvent<Contracts.BatteryChanged>(emit =>
+        {
+            EventHandler<BatteryInfoChangedEventArgs> handler = (_, e) => emit(new(
+                e.ChargeLevel,
+                Convert<BatteryState, Contracts.BatteryState>(e.State),
+                Convert<BatteryPowerSource, Contracts.BatteryPowerSource>(e.PowerSource)
+            ));
+            Battery.Default.BatteryInfoChanged += handler;
+            return () => Battery.Default.BatteryInfoChanged -= handler;
+        }, cancellationToken);
+
+    static IAsyncEnumerable<Contracts.EnergySaverChanged> EnergySaverChanges(CancellationToken cancellationToken)
+        => FromMainThreadEvent<Contracts.EnergySaverChanged>(emit =>
+        {
+            EventHandler<EnergySaverStatusChangedEventArgs> handler = (_, e) => emit(new(Convert<EnergySaverStatus, Contracts.EnergySaverStatus>(e.EnergySaverStatus)));
+            Battery.Default.EnergySaverStatusChanged += handler;
+            return () => Battery.Default.EnergySaverStatusChanged -= handler;
+        }, cancellationToken);
+
+    /// <summary>An Essentials event, hooked and unhooked on the main thread: UIDevice battery monitoring is main-thread only.</summary>
+    static IAsyncEnumerable<T> FromMainThreadEvent<T>(Func<Action<T>, Action> hook, CancellationToken cancellationToken)
+        => WebAppEventStream.FromEvent<T>(async emit =>
+        {
+            var unhook = await ReadOnMainThread(() => hook(emit)).ConfigureAwait(false);
+            return () => ReadOnMainThread(() =>
             {
-                var now = this.events.HasSubscribers && !this.disposed;
-
-                if (now != this.watchingConnectivity)
-                    this.watchingConnectivity = TryWatch(now,
-                        () => Connectivity.Current.ConnectivityChanged += this.OnConnectivityChanged,
-                        () => Connectivity.Current.ConnectivityChanged -= this.OnConnectivityChanged
-                    );
-
-                if (now != this.watchingBattery)
-                    this.watchingBattery = TryWatch(now,
-                        () =>
-                        {
-                            Battery.Default.BatteryInfoChanged += this.OnBatteryInfoChanged;
-                            Battery.Default.EnergySaverStatusChanged += this.OnEnergySaverChanged;
-                        },
-                        () =>
-                        {
-                            Battery.Default.BatteryInfoChanged -= this.OnBatteryInfoChanged;
-                            Battery.Default.EnergySaverStatusChanged -= this.OnEnergySaverChanged;
-                        }
-                    );
-            }
-
-            return true;
-        });
-    }
-
-    /// <summary>The new watching state. A backend that refuses to start leaves it off; one that refuses to stop, too.</summary>
-    static bool TryWatch(bool start, Action subscribe, Action unsubscribe)
-    {
-        try
-        {
-            if (start)
-                subscribe();
-            else
-                unsubscribe();
-
-            return start;
-        }
-        catch (Exception ex) when (ex is FeatureNotSupportedException or PlatformNotSupportedException or NotImplementedException or PermissionException)
-        {
-            // Without this feature (or its Android permission) there are no events for it; the others still flow.
-            return false;
-        }
-    }
-
-    void OnConnectivityChanged(object? sender, ConnectivityChangedEventArgs e)
-        => this.events.Publish("app.connectivity", ToContract(e.NetworkAccess, e.ConnectionProfiles), Contracts.AppJsonContext.Default.ConnectivityInfo);
-
-    void OnBatteryInfoChanged(object? sender, BatteryInfoChangedEventArgs e)
-        => this.events.Publish("app.battery", new Contracts.BatteryChanged(e.ChargeLevel, Convert<BatteryState, Contracts.BatteryState>(e.State), Convert<BatteryPowerSource, Contracts.BatteryPowerSource>(e.PowerSource)), Contracts.AppJsonContext.Default.BatteryChanged);
-
-    void OnEnergySaverChanged(object? sender, EnergySaverStatusChangedEventArgs e)
-        => this.events.Publish("app.energysaver", new Contracts.EnergySaverChanged(Convert<EnergySaverStatus, Contracts.EnergySaverStatus>(e.EnergySaverStatus)), Contracts.AppJsonContext.Default.EnergySaverChanged);
+                unhook();
+                return true;
+            });
+        }, cancellationToken);
 
     static Contracts.ConnectivityInfo ToContract(NetworkAccess access, IEnumerable<ConnectionProfile> profiles)
         => new(Convert<NetworkAccess, Contracts.NetworkAccess>(access), [.. profiles.Select(x => Convert<ConnectionProfile, Contracts.ConnectionProfile>(x))]);

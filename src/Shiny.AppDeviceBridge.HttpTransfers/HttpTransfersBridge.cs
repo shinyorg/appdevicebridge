@@ -134,7 +134,7 @@ public static class HttpTransfersBridgeExtensions
 /// the page never reads a partial file at the path it asked for.
 /// </para>
 /// </summary>
-public sealed class HttpTransfersBridge : IWebAppBridge, IDisposable
+public sealed class HttpTransfersBridge : IWebAppBridge
 {
     const int MaxHeaders = 32;
     const int MaxHeaderLength = 8 * 1024;
@@ -150,34 +150,37 @@ public sealed class HttpTransfersBridge : IWebAppBridge, IDisposable
     };
 
     readonly IHttpTransferManager? manager;
-    readonly WebAppEventHub events;
     readonly WebAppTransferOptions options;
     readonly WebAppTransferScope scope;
-    readonly ConcurrentDictionary<string, (long Ticks, HttpTransferState Status)> lastProgress = new();
 
-    public HttpTransfersBridge(IServiceProvider services, AppDeviceBridgeOptions hostOptions, WebAppFileRoots roots, WebAppEventHub events)
+    public HttpTransfersBridge(IServiceProvider services, AppDeviceBridgeOptions hostOptions, WebAppFileRoots roots)
     {
         this.manager = services.GetOptionalService<IHttpTransferManager>();
         this.options = services.GetOptionalService<WebAppTransferOptions>() ?? new WebAppTransferOptions();
         this.scope = new WebAppTransferScope(hostOptions, roots);
-        this.events = events;
-
-        if (this.manager is not null)
-            this.manager.UpdateReceived += this.OnUpdateReceived;
     }
 
     public string Name => "transfers";
 
     public bool IsSupported => this.manager is not null;
 
-    public void Map(WebAppBridgeRoutes routes) => routes
-        .MapGet("", this.ListAsync)
-        .MapPost("", this.CreateAsync)
-        .MapDelete("", this.CancelAllAsync)
-        .MapGet("/{id}", ctx => this.WithTransfer(ctx, this.GetAsync))
-        .MapDelete("/{id}", ctx => this.WithTransfer(ctx, this.CancelAsync))
-        .MapPost("/{id}/pause", ctx => this.WithTransfer(ctx, this.PauseAsync))
-        .MapPost("/{id}/resume", ctx => this.WithTransfer(ctx, this.ResumeAsync));
+    public void Map(WebAppBridgeRoutes routes)
+    {
+        // The delegate raises these; mapping them here means the topics exist as soon as the server is composed.
+        routes.Events.Source(WebAppTransferDelegate.CompletedEvent, Contracts.TransfersJsonContext.Default.TransferInfo);
+        routes.Events.Source(WebAppTransferDelegate.FailedEvent, Contracts.TransfersJsonContext.Default.TransferInfo);
+
+        routes
+            .MapEvent("transfer.progress", this.ProgressAsync, Contracts.TransfersJsonContext.Default.TransferInfo)
+            .MapEvent("transfer.cancelled", this.CancelledAsync, Contracts.TransfersJsonContext.Default.TransferInfo)
+            .MapGet("", this.ListAsync)
+            .MapPost("", this.CreateAsync)
+            .MapDelete("", this.CancelAllAsync)
+            .MapGet("/{id}", ctx => this.WithTransfer(ctx, this.GetAsync))
+            .MapDelete("/{id}", ctx => this.WithTransfer(ctx, this.CancelAsync))
+            .MapPost("/{id}/pause", ctx => this.WithTransfer(ctx, this.PauseAsync))
+            .MapPost("/{id}/resume", ctx => this.WithTransfer(ctx, this.ResumeAsync));
+    }
 
     async ValueTask ListAsync(HttpContext context)
     {
@@ -439,57 +442,68 @@ public sealed class HttpTransfersBridge : IWebAppBridge, IDisposable
     static bool IsFormName(string value)
         => value.Length is > 0 and <= 128 && value.AsSpan().IndexOfAny("\"\r\n\0") < 0;
 
-    void OnUpdateReceived(object? sender, HttpTransferResult result)
+    /// <summary>
+    /// <c>transfer.progress</c> for one listener, hooked while it listens. A state change always goes out; progress
+    /// within a state is throttled to <see cref="WebAppTransferOptions.ProgressInterval"/> per transfer.
+    /// </summary>
+    IAsyncEnumerable<Contracts.TransferInfo> ProgressAsync(CancellationToken cancellationToken)
     {
-        if (!this.scope.TryGetId(result.Request.Identifier, out var id))
-            return;
+        if (this.manager is not { } m)
+            return AsyncEnumerable.Empty<Contracts.TransferInfo>();
 
-        switch (result.Status)
+        var interval = (long)this.options.ProgressInterval.TotalMilliseconds;
+        var lastProgress = new ConcurrentDictionary<string, (long Ticks, HttpTransferState Status)>();
+
+        return WebAppEventStream.FromEvent<Contracts.TransferInfo>(emit =>
         {
-            case HttpTransferState.Completed or HttpTransferState.Error:
-                // Reported by the delegate, once the file is in place or the failure is known.
-                this.lastProgress.TryRemove(id, out _);
-                break;
+            EventHandler<HttpTransferResult> handler = (_, result) =>
+            {
+                if (!this.scope.TryGetId(result.Request.Identifier, out var id))
+                    return;
 
-            case HttpTransferState.Canceled:
-                this.lastProgress.TryRemove(id, out _);
-                this.events.Publish(
-                    "transfer.cancelled",
-                    this.scope.Describe(id, result.Request, result.Status, result.Progress),
-                    Contracts.TransfersJsonContext.Default.TransferInfo
-                );
-                break;
-
-            default:
-                var next = (Environment.TickCount64, result.Status);
-
-                // A state change always goes out; progress within a state is throttled.
-                if (this.lastProgress.TryGetValue(id, out var last))
+                if (result.Status is HttpTransferState.Completed or HttpTransferState.Error or HttpTransferState.Canceled)
                 {
-                    if (last.Status == result.Status && next.Item1 - last.Ticks < (long)this.options.ProgressInterval.TotalMilliseconds)
+                    // Reported on their own topics: completed and failed by the delegate, cancelled here.
+                    lastProgress.TryRemove(id, out var _);
+                    return;
+                }
+
+                var next = (Environment.TickCount64, result.Status);
+                if (lastProgress.TryGetValue(id, out var last))
+                {
+                    if (last.Status == result.Status && next.Item1 - last.Ticks < interval)
                         return;
 
-                    if (!this.lastProgress.TryUpdate(id, next, last))
+                    if (!lastProgress.TryUpdate(id, next, last))
                         return;
                 }
-                else if (!this.lastProgress.TryAdd(id, next))
+                else if (!lastProgress.TryAdd(id, next))
                 {
                     return;
                 }
 
-                this.events.Publish(
-                    "transfer.progress",
-                    this.scope.Describe(id, result.Request, result.Status, result.Progress),
-                    Contracts.TransfersJsonContext.Default.TransferInfo
-                );
-                break;
-        }
+                emit(this.scope.Describe(id, result.Request, result.Status, result.Progress));
+            };
+            m.UpdateReceived += handler;
+            return () => m.UpdateReceived -= handler;
+        }, cancellationToken);
     }
 
-    public void Dispose()
+    IAsyncEnumerable<Contracts.TransferInfo> CancelledAsync(CancellationToken cancellationToken)
     {
-        if (this.manager is not null)
-            this.manager.UpdateReceived -= this.OnUpdateReceived;
+        if (this.manager is not { } m)
+            return AsyncEnumerable.Empty<Contracts.TransferInfo>();
+
+        return WebAppEventStream.FromEvent<Contracts.TransferInfo>(emit =>
+        {
+            EventHandler<HttpTransferResult> handler = (_, result) =>
+            {
+                if (result.Status == HttpTransferState.Canceled && this.scope.TryGetId(result.Request.Identifier, out var id))
+                    emit(this.scope.Describe(id, result.Request, result.Status, result.Progress));
+            };
+            m.UpdateReceived += handler;
+            return () => m.UpdateReceived -= handler;
+        }, cancellationToken);
     }
 }
 
@@ -506,6 +520,12 @@ public partial class WebAppTransferDelegate(
     WebAppInvoker invoker
 ) : IHttpTransferDelegate
 {
+    internal const string CompletedEvent = "transfer.completed";
+    internal const string FailedEvent = "transfer.failed";
+
+    readonly WebAppEventSource<Contracts.TransferInfo> completed = events.Source(CompletedEvent, Contracts.TransfersJsonContext.Default.TransferInfo);
+    readonly WebAppEventSource<Contracts.TransferInfo> failed = events.Source(FailedEvent, Contracts.TransfersJsonContext.Default.TransferInfo);
+
     // A field, not the parameter: the Android half of this partial class reads it, and primary constructor
     // parameters are only in scope in the declaration that has them.
     protected WebAppTransferOptions Options { get; } = options;
@@ -525,12 +545,12 @@ public partial class WebAppTransferDelegate(
 
             if (failure is not null)
             {
-                await this.HandleAsync("transfer.failed", info with { Status = Contracts.TransferState.Error, Error = failure });
+                await this.HandleAsync(FailedEvent, this.failed, info with { Status = Contracts.TransferState.Error, Error = failure });
                 return;
             }
         }
 
-        await this.HandleAsync("transfer.completed", info);
+        await this.HandleAsync(CompletedEvent, this.completed, info);
     }
 
     public virtual async Task OnError(HttpTransferRequest request, int statusCode, Exception ex)
@@ -547,15 +567,15 @@ public partial class WebAppTransferDelegate(
             Error = ex.Message
         };
 
-        await this.HandleAsync("transfer.failed", info);
+        await this.HandleAsync(FailedEvent, this.failed, info);
     }
 
     /// <summary>Whether a finished transfer goes to the web app's handlers. <see cref="WebAppTransferOptions.DispatchToWebApp"/> by default.</summary>
     protected virtual bool ShouldDispatch(string handler, Contracts.TransferInfo transfer) => this.Options.DispatchToWebApp;
 
-    async Task HandleAsync(string name, Contracts.TransferInfo info)
+    async Task HandleAsync(string name, WebAppEventSource<Contracts.TransferInfo> source, Contracts.TransferInfo info)
     {
-        events.Publish(name, info, Contracts.TransfersJsonContext.Default.TransferInfo);
+        source.Publish(info);
 
         if (this.ShouldDispatch(name, info))
             await invoker.InvokeAsync(name, info, Contracts.TransfersJsonContext.Default.TransferInfo);

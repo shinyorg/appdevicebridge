@@ -1,6 +1,4 @@
-using System.Buffers;
 using System.Collections.Concurrent;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -73,7 +71,7 @@ public sealed class WebAppInvoker : IWebAppBridge
     public const string InvokeEventName = "host.invoke";
 
     readonly AppDeviceBridgeOptions options;
-    readonly WebAppEventHub events;
+    readonly WebAppEventSource<WebAppInvokeEvent> calls = new();
     readonly Func<IWebAppBackgroundInvoker?> background;
     readonly ILogger logger;
     readonly Lock gate = new();
@@ -84,17 +82,13 @@ public sealed class WebAppInvoker : IWebAppBridge
     /// What takes a call the page cannot — background.js, with the WebView host. Resolved per call, and lazily, because
     /// it commonly depends on the server that maps this bridge.
     /// </param>
-    public WebAppInvoker(AppDeviceBridgeOptions options, WebAppEventHub events, Func<IWebAppBackgroundInvoker?>? background = null, ILoggerFactory? loggerFactory = null)
+    public WebAppInvoker(AppDeviceBridgeOptions options, Func<IWebAppBackgroundInvoker?>? background = null, ILoggerFactory? loggerFactory = null)
     {
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(events);
 
         this.options = options;
-        this.events = events;
         this.background = background ?? (() => null);
         this.logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<WebAppInvoker>();
-
-        events.SubscribersChanged += this.OnSubscribersChanged;
     }
 
     public string Name => "invoke";
@@ -108,6 +102,7 @@ public sealed class WebAppInvoker : IWebAppBridge
         var script = ClientScript.Replace("{bridge}", routes.BridgePrefix, StringComparison.Ordinal);
 
         routes
+            .MapEvent(InvokeEventName, ct => this.calls.ListenAsync(this.OnListenerStopped, ct), WebAppInvokeJsonContext.Default.WebAppInvokeEvent)
             .MapGet("/client.js", context => Results.Text(script, "text/javascript").ExecuteAsync(context))
             .MapPut("/handlers", this.DeclareHandlersAsync)
             .MapPost("/{id}/accept", this.AcceptAsync)
@@ -140,7 +135,7 @@ public sealed class WebAppInvoker : IWebAppBridge
 
     bool IsPageHandling(string handler)
     {
-        if (!this.events.HasSubscribers)
+        if (!this.calls.HasListeners)
             return false;
 
         lock (this.gate)
@@ -156,7 +151,7 @@ public sealed class WebAppInvoker : IWebAppBridge
 
         try
         {
-            this.events.PublishJson(InvokeEventName, BuildInvokeEvent(id, handler, payloadJson));
+            this.calls.Publish(this.BuildInvokeEvent(id, handler, payloadJson));
 
             using (var acceptWindow = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
             {
@@ -253,31 +248,19 @@ public sealed class WebAppInvoker : IWebAppBridge
         => WebAppBridgeResults.Error(context, 410, "gone", "The call expired or was handled elsewhere.");
 
     /// <summary>A page's handlers belong to its connection; with none left, nothing is listening for calls.</summary>
-    void OnSubscribersChanged()
+    void OnListenerStopped(int remaining)
     {
-        if (this.events.HasSubscribers)
+        if (remaining > 0)
             return;
 
         lock (this.gate)
             this.pageHandlers = new HashSet<string>(StringComparer.Ordinal);
     }
 
-    string BuildInvokeEvent(string id, string handler, string payloadJson)
+    WebAppInvokeEvent BuildInvokeEvent(string id, string handler, string payloadJson)
     {
-        var buffer = new ArrayBufferWriter<byte>();
-
-        using (var writer = new Utf8JsonWriter(buffer))
-        {
-            writer.WriteStartObject();
-            writer.WriteString("id", id);
-            writer.WriteString("handler", handler);
-            writer.WritePropertyName("payload");
-            writer.WriteRawValue(payloadJson);
-            writer.WriteNumber("acceptWithinMs", (long)this.options.PageAcceptTimeout.TotalMilliseconds);
-            writer.WriteEndObject();
-        }
-
-        return Encoding.UTF8.GetString(buffer.WrittenSpan);
+        using var payload = JsonDocument.Parse(payloadJson);
+        return new WebAppInvokeEvent(id, handler, payload.RootElement.Clone(), (long)this.options.PageAcceptTimeout.TotalMilliseconds);
     }
 
     internal static bool IsValidHandlerName(string? name)
@@ -342,7 +325,7 @@ public sealed class WebAppInvoker : IWebAppBridge
             if (events)
                 return;
 
-            events = new EventSource("{bridge}/events");
+            events = new EventSource("{bridge}/events?topics=host.invoke");
 
             // The host forgets a page's handlers when its last stream closes, so every connection declares them again.
             events.addEventListener("open", declare);
@@ -391,9 +374,14 @@ public sealed class WebAppInvoker : IWebAppBridge
 
 public sealed record WebAppHandlerDeclaration(List<string>? Handlers);
 
+/// <summary>A native call offered to the page, as the <c>host.invoke</c> event.</summary>
+/// <param name="AcceptWithinMs">How long the page has to accept before the host runs background.js instead.</param>
+public sealed record WebAppInvokeEvent(string Id, string Handler, JsonElement Payload, long AcceptWithinMs);
+
 public sealed record WebAppInvocationReply(bool Ok, JsonElement? Result = null, string? Error = null);
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(WebAppHandlerDeclaration))]
 [JsonSerializable(typeof(WebAppInvocationReply))]
+[JsonSerializable(typeof(WebAppInvokeEvent))]
 partial class WebAppInvokeJsonContext : JsonSerializerContext;

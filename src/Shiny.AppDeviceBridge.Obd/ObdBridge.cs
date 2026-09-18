@@ -39,6 +39,10 @@ namespace Shiny.AppDeviceBridge.Obd;
 ///
 /// events: obd.reading, obd.disconnected
 /// </code>
+/// <para>
+/// The monitor is for whoever listens for <c>obd.reading</c>: starting it needs such a listener, and it stops once
+/// the last of them is gone. The adapter stays connected.
+/// </para>
 /// </summary>
 public sealed partial class ObdBridge : IWebAppBridge, IDisposable
 {
@@ -54,7 +58,8 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
     const int UnresponsiveRounds = 3;
 
     readonly IBleManager? ble;
-    readonly WebAppEventHub events;
+    readonly WebAppEventSource<ObdMonitorReading> readings = new();
+    readonly WebAppEventSource<ObdDisconnected> disconnected = new();
     readonly ILoggerFactory? loggerFactory;
     readonly SemaphoreSlim exchange = new(1, 1);
     readonly Lock gate = new();
@@ -64,12 +69,10 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
     ActiveMonitor? monitor;
     bool scanning;
 
-    public ObdBridge(IServiceProvider services, WebAppEventHub events)
+    public ObdBridge(IServiceProvider services)
     {
         this.ble = services.GetOptionalService<IBleManager>();
         this.loggerFactory = services.GetOptionalService<ILoggerFactory>();
-        this.events = events;
-        this.events.SubscribersChanged += this.OnSubscribersChanged;
     }
 
     public string Name => "obd";
@@ -78,6 +81,8 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
     public bool IsSupported => true;
 
     public void Map(WebAppBridgeRoutes routes) => routes
+        .MapEvent("obd.reading", ct => this.readings.ListenAsync(this.OnReadingListenerStopped, ct), ObdJsonContext.Default.ObdMonitorReading)
+        .MapEvent("obd.disconnected", this.disconnected.ListenAsync, ObdJsonContext.Default.ObdDisconnected)
         .MapGet("/status", this.StatusAsync)
         .MapGet("/commands", CommandsAsync)
         .MapPost("/scan", ctx => this.Guarded(ctx, () => this.ScanAsync(ctx)))
@@ -485,9 +490,9 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
             entries.Add(entry);
         }
 
-        if (!this.events.HasSubscribers)
+        if (!this.readings.HasListeners)
         {
-            await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "not_listening", "Open /_bridge/events first: readings arrive as events.");
+            await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "not_listening", "Listen for obd.reading first: readings arrive as events.");
             return;
         }
 
@@ -512,6 +517,10 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
 
         previous?.Cancellation.Cancel();
         _ = Task.Run(() => this.RunMonitorAsync(started, entries));
+
+        // The last reading listener may have gone since the check above, and then nothing would ever stop this monitor.
+        if (!this.readings.HasListeners)
+            this.CancelMonitor();
 
         await WebAppBridgeResults.Json(context, new ObdMonitor(started.Commands, started.IntervalMs), ObdJsonContext.Default.ObdMonitor);
     }
@@ -686,24 +695,18 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
         m?.Cancellation.Cancel();
     }
 
-    void OnSubscribersChanged()
+    void OnReadingListenerStopped(int remaining)
     {
-        // Readings nobody can receive would only keep the adapter busy.
-        if (!this.events.HasSubscribers)
+        // Readings nobody can receive would only keep the adapter busy. The connection itself stays up.
+        if (remaining == 0)
             this.CancelMonitor();
     }
 
-    void PublishReading(ObdCommandEntry entry, ObdValue value, string? error) => this.events.Publish(
-        "obd.reading",
-        new ObdMonitorReading(entry.Name, value.Value, value.Text, entry.Unit, error, DateTimeOffset.UtcNow),
-        ObdJsonContext.Default.ObdMonitorReading
-    );
+    void PublishReading(ObdCommandEntry entry, ObdValue value, string? error)
+        => this.readings.Publish(new ObdMonitorReading(entry.Name, value.Value, value.Text, entry.Unit, error, DateTimeOffset.UtcNow));
 
-    void PublishDisconnected(ActiveConnection a, string reason) => this.events.Publish(
-        "obd.disconnected",
-        new ObdDisconnected(reason, a.Transport, a.AdapterId),
-        ObdJsonContext.Default.ObdDisconnected
-    );
+    void PublishDisconnected(ActiveConnection a, string reason)
+        => this.disconnected.Publish(new ObdDisconnected(reason, a.Transport, a.AdapterId));
 
     ILogger<T> Logger<T>() => this.loggerFactory?.CreateLogger<T>() ?? NullLogger<T>.Instance;
 
@@ -800,7 +803,6 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
 
     public void Dispose()
     {
-        this.events.SubscribersChanged -= this.OnSubscribersChanged;
         this.CancelMonitor();
 
         if (Interlocked.Exchange(ref this.active, null) is { } a)

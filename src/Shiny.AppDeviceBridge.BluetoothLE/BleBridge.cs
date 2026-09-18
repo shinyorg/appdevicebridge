@@ -30,23 +30,26 @@ namespace Shiny.AppDeviceBridge.BluetoothLE;
 ///
 /// events: ble.scan, ble.status, ble.notification, ble.error
 /// </code>
+/// A scan needs a <c>ble.scan</c> listener and characteristic notifications a <c>ble.notification</c> one; when the
+/// last listener of either leaves, the scan or every notification subscription stops. <c>ble.status</c> watches the
+/// peripherals connected through the bridge only while a page listens to it. Peripherals stay connected either way.
 /// </summary>
 public sealed class BleBridge : IWebAppBridge, IDisposable
 {
     const string CharacteristicRoute = "/peripherals/{uuid}/services/{service}/characteristics/{characteristic}";
 
     readonly IBleManager? ble;
-    readonly WebAppEventHub events;
     readonly Lock gate = new();
-    readonly Dictionary<string, IDisposable> statusWatches = new(StringComparer.OrdinalIgnoreCase);
+    readonly WebAppEventSource<BleScanResult> scanResults = new();
+    readonly WebAppEventSource<BleNotification> notificationValues = new();
+    readonly WebAppEventSource<BleError> errors = new();
+    readonly Dictionary<string, IPeripheral> connected = new(StringComparer.OrdinalIgnoreCase);
     readonly Dictionary<string, IDisposable> notifications = new(StringComparer.OrdinalIgnoreCase);
+    Action<IPeripheral>? peripheralConnecting;
     IDisposable? scan;
 
-    public BleBridge(IServiceProvider services, WebAppEventHub events)
-    {
-        this.ble = services.GetOptionalService<IBleManager>();
-        this.events = events;
-    }
+    public BleBridge(IServiceProvider services)
+        => this.ble = services.GetOptionalService<IBleManager>();
 
     public string Name => "ble";
 
@@ -67,7 +70,11 @@ public sealed class BleBridge : IWebAppBridge, IDisposable
         .MapGet(CharacteristicRoute, ctx => this.WithPeripheral(ctx, p => this.ReadAsync(ctx, p)))
         .MapPut(CharacteristicRoute, ctx => this.WithPeripheral(ctx, p => this.WriteAsync(ctx, p)))
         .MapPost(CharacteristicRoute + "/notifications", ctx => this.WithPeripheral(ctx, p => this.StartNotificationsAsync(ctx, p)))
-        .MapDelete(CharacteristicRoute + "/notifications", ctx => this.WithPeripheral(ctx, p => this.StopNotificationsAsync(ctx, p)));
+        .MapDelete(CharacteristicRoute + "/notifications", ctx => this.WithPeripheral(ctx, p => this.StopNotificationsAsync(ctx, p)))
+        .MapEvent("ble.scan", ct => this.scanResults.ListenAsync(this.OnScanListenerStopped, ct), BleJsonContext.Default.BleScanResult)
+        .MapEvent("ble.notification", ct => this.notificationValues.ListenAsync(this.OnNotificationListenerStopped, ct), BleJsonContext.Default.BleNotification)
+        .MapEvent("ble.status", this.StatusChanges, BleJsonContext.Default.BlePeripheralStatus)
+        .MapEvent("ble.error", ct => this.errors.ListenAsync(ct), BleJsonContext.Default.BleError);
 
     ValueTask StatusAsync(HttpContext context)
         => this.ble is { } b
@@ -97,21 +104,25 @@ public sealed class BleBridge : IWebAppBridge, IDisposable
         var body = await WebAppBridgeResults.ReadBodyAsync(context, BleJsonContext.Default.BleScanRequest) ?? new BleScanRequest();
         var config = body.ServiceUuids is { Count: > 0 } uuids ? new ScanConfig([.. uuids]) : null;
 
+        bool listening;
         lock (this.gate)
         {
-            // One scan at a time; starting again replaces the filter rather than stacking scans.
-            this.scan?.Dispose();
-            this.scan = b.Scan(config).Subscribe(
-                result =>
-                {
-                    if (this.events.HasSubscribers)
-                        this.events.Publish("ble.scan", ToContract(result), BleJsonContext.Default.BleScanResult);
-                },
-                ex => this.PublishError("scan", null, ex)
-            );
+            // Checked under the lock the stopped callback takes, so a scan never outlives its last listener.
+            listening = this.scanResults.HasListeners;
+            if (listening)
+            {
+                // One scan at a time; starting again replaces the filter rather than stacking scans.
+                this.scan?.Dispose();
+                this.scan = b.Scan(config).Subscribe(
+                    result => this.scanResults.Publish(ToContract(result)),
+                    ex => this.PublishError("scan", null, ex)
+                );
+            }
         }
 
-        await WebAppBridgeResults.NoContent(context);
+        await (listening
+            ? WebAppBridgeResults.NoContent(context)
+            : NotListening(context, "ble.scan", "scan results"));
     }
 
     ValueTask StopScanAsync(HttpContext context)
@@ -141,7 +152,7 @@ public sealed class BleBridge : IWebAppBridge, IDisposable
     {
         var body = await WebAppBridgeResults.ReadBodyAsync(context, BleJsonContext.Default.BleConnectRequest) ?? new BleConnectRequest();
 
-        this.WatchStatus(peripheral);
+        this.Track(peripheral);
 
         await peripheral.ConnectAsync(
             new ConnectionConfig(body.AutoConnect),
@@ -220,14 +231,13 @@ public sealed class BleBridge : IWebAppBridge, IDisposable
 
         lock (this.gate)
         {
+            if (!this.notificationValues.HasListeners)
+                return NotListening(context, "ble.notification", "characteristic values");
+
             if (!this.notifications.ContainsKey(key))
             {
                 this.notifications[key] = peripheral.NotifyCharacteristic(service, characteristic).Subscribe(
-                    result => this.events.Publish(
-                        "ble.notification",
-                        new BleNotification(peripheral.Uuid, service, characteristic, result.Data),
-                        BleJsonContext.Default.BleNotification
-                    ),
+                    result => this.notificationValues.Publish(new BleNotification(peripheral.Uuid, service, characteristic, result.Data)),
                     ex =>
                     {
                         lock (this.gate)
@@ -298,25 +308,79 @@ public sealed class BleBridge : IWebAppBridge, IDisposable
         }
     }
 
-    void WatchStatus(IPeripheral peripheral)
+    /// <summary>Remembers a peripheral the page connects to, and has every <c>ble.status</c> listener watch it.</summary>
+    void Track(IPeripheral peripheral)
     {
         lock (this.gate)
         {
-            if (this.statusWatches.ContainsKey(peripheral.Uuid))
+            if (this.connected.TryAdd(peripheral.Uuid, peripheral))
+                this.peripheralConnecting?.Invoke(peripheral);
+        }
+    }
+
+    /// <summary>One listener's watch on every tracked peripheral, and on each one connected while it listens.</summary>
+    IAsyncEnumerable<BlePeripheralStatus> StatusChanges(CancellationToken cancellationToken)
+        => WebAppEventStream.FromEvent<BlePeripheralStatus>(emit =>
+        {
+            var watches = new List<IDisposable>();
+
+            void Watch(IPeripheral peripheral)
+                => watches.Add(peripheral.WhenStatusChanged().Subscribe(status => emit(new BlePeripheralStatus(peripheral.Uuid, Convert(status)))));
+
+            // Under the gate, so a peripheral tracked meanwhile is watched exactly once.
+            lock (this.gate)
+            {
+                foreach (var peripheral in this.connected.Values)
+                    Watch(peripheral);
+
+                this.peripheralConnecting += Watch;
+            }
+
+            return () =>
+            {
+                lock (this.gate)
+                {
+                    this.peripheralConnecting -= Watch;
+
+                    foreach (var watch in watches)
+                        watch.Dispose();
+                }
+            };
+        }, cancellationToken);
+
+    /// <summary>Nobody sees the results any more, so the radio stops scanning.</summary>
+    void OnScanListenerStopped(int remaining)
+    {
+        lock (this.gate)
+        {
+            if (this.scanResults.HasListeners)
                 return;
 
-            this.statusWatches[peripheral.Uuid] = peripheral.WhenStatusChanged().Subscribe(status =>
-                this.events.Publish(
-                    "ble.status",
-                    new BlePeripheralStatus(peripheral.Uuid, Convert(status)),
-                    BleJsonContext.Default.BlePeripheralStatus
-                )
-            );
+            this.scan?.Dispose();
+            this.scan = null;
+        }
+    }
+
+    /// <summary>Nobody sees the values any more, so every characteristic subscription ends.</summary>
+    void OnNotificationListenerStopped(int remaining)
+    {
+        lock (this.gate)
+        {
+            if (this.notificationValues.HasListeners)
+                return;
+
+            foreach (var subscription in this.notifications.Values)
+                subscription.Dispose();
+
+            this.notifications.Clear();
         }
     }
 
     void PublishError(string operation, string? peripheralUuid, Exception ex)
-        => this.events.Publish("ble.error", new BleError(operation, peripheralUuid, ex.Message), BleJsonContext.Default.BleError);
+        => this.errors.Publish(new BleError(operation, peripheralUuid, ex.Message));
+
+    static ValueTask NotListening(HttpContext context, string eventName, string what)
+        => WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "not_listening", $"Listen for {eventName} first: {what} arrive as events.");
 
     ValueTask Json<T>(HttpContext context, T value, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> typeInfo)
         => WebAppBridgeResults.Json(context, value, typeInfo);
@@ -333,11 +397,11 @@ public sealed class BleBridge : IWebAppBridge, IDisposable
             this.scan?.Dispose();
             this.scan = null;
 
-            foreach (var subscription in this.notifications.Values.Concat(this.statusWatches.Values))
+            foreach (var subscription in this.notifications.Values)
                 subscription.Dispose();
 
             this.notifications.Clear();
-            this.statusWatches.Clear();
+            this.connected.Clear();
         }
     }
 }

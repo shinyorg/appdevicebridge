@@ -183,7 +183,7 @@ export interface WsdTarget {
     isOnvifCamera: boolean;
 }
 
-/** Local network discovery over mDNS/Bonjour, SSDP/UPnP and WS-Discovery: search for a window, browse with results as events, resolve one, and advertise this app. A protocol the app did not register fails with 501. Browses stop when the page stops listening to events; publications keep advertising until removed or the app exits. */
+/** Local network discovery over mDNS/Bonjour, SSDP/UPnP and WS-Discovery: search for a window, browse with results as events, resolve one, and advertise this app. A protocol the app did not register fails with 501. A browse needs a listener for its protocol's results first — it fails with 409 without one — and stops once that has none left; publications keep advertising until removed or the app exits. */
 export class DiscoveryBridge {
     constructor(private readonly transport: BridgeTransport = browserTransport()) {}
 
@@ -268,27 +268,27 @@ export class DiscoveryBridge {
     }
 
     /** An mDNS service was found or lost by a browse. */
-    onMdns(handler: (payload: MdnsBrowseResult) => void): () => void {
+    onMdns(handler: (payload: MdnsBrowseResult) => void): Promise<() => void> {
         return this.transport.subscribe("discovery.mdns", json => handler(JSON.parse(json) as MdnsBrowseResult));
     }
 
     /** A UPnP device was found or lost by a browse. */
-    onSsdp(handler: (payload: SsdpBrowseResult) => void): () => void {
+    onSsdp(handler: (payload: SsdpBrowseResult) => void): Promise<() => void> {
         return this.transport.subscribe("discovery.ssdp", json => handler(JSON.parse(json) as SsdpBrowseResult));
     }
 
     /** A WS-Discovery target was found or lost by a browse. */
-    onWsd(handler: (payload: WsdBrowseResult) => void): () => void {
+    onWsd(handler: (payload: WsdBrowseResult) => void): Promise<() => void> {
         return this.transport.subscribe("discovery.wsd", json => handler(JSON.parse(json) as WsdBrowseResult));
     }
 
     /** A browse failed; `onStopped` follows. */
-    onError(handler: (payload: DiscoveryError) => void): () => void {
+    onError(handler: (payload: DiscoveryError) => void): Promise<() => void> {
         return this.transport.subscribe("discovery.error", json => handler(JSON.parse(json) as DiscoveryError));
     }
 
     /** A browse ended. */
-    onStopped(handler: (payload: DiscoveryBrowse) => void): () => void {
+    onStopped(handler: (payload: DiscoveryBrowse) => void): Promise<() => void> {
         return this.transport.subscribe("discovery.stopped", json => handler(JSON.parse(json) as DiscoveryBrowse));
     }
 }

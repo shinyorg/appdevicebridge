@@ -109,7 +109,7 @@ export class BluetoothLEBridge {
         return call<BleStatus>(this.transport, "POST", `ble/access`, { signal: options?.signal });
     }
 
-    /** Starts scanning; results arrive through `onScanResult`. Starting again replaces the running scan. */
+    /** Starts scanning; results arrive through `onScanResult`, so listen first: without a listener it fails with 409. Starting again replaces the running scan, and the scan stops once nothing listens to it. */
     startScan(request: BleScanRequest, options?: { signal?: AbortSignal }): Promise<void> {
         return callVoid(this.transport, "POST", `ble/scan`, { json: request, signal: options?.signal });
     }
@@ -164,7 +164,7 @@ export class BluetoothLEBridge {
         return callVoid(this.transport, "PUT", `ble/peripherals/${segment(uuid)}/services/${segment(service)}/characteristics/${segment(characteristic)}`, { json: request, signal: options?.signal });
     }
 
-    /** Subscribes to a characteristic; values arrive through `onNotification`. */
+    /** Subscribes to a characteristic; values arrive through `onNotification`, so listen first: without a listener it fails with 409. Every subscription ends once that has no listener left; peripherals stay connected. */
     startNotifications(uuid: string, service: string, characteristic: string, options?: { signal?: AbortSignal }): Promise<void> {
         return callVoid(this.transport, "POST", `ble/peripherals/${segment(uuid)}/services/${segment(service)}/characteristics/${segment(characteristic)}/notifications`, { signal: options?.signal });
     }
@@ -175,22 +175,22 @@ export class BluetoothLEBridge {
     }
 
     /** A peripheral seen by the running scan. Raised for every advertisement. */
-    onScanResult(handler: (payload: BleScanResult) => void): () => void {
+    onScanResult(handler: (payload: BleScanResult) => void): Promise<() => void> {
         return this.transport.subscribe("ble.scan", json => handler(JSON.parse(json) as BleScanResult));
     }
 
     /** A peripheral this page connected to changed connection state. */
-    onStatus(handler: (payload: BlePeripheralStatus) => void): () => void {
+    onStatus(handler: (payload: BlePeripheralStatus) => void): Promise<() => void> {
         return this.transport.subscribe("ble.status", json => handler(JSON.parse(json) as BlePeripheralStatus));
     }
 
     /** A subscribed characteristic changed. */
-    onNotification(handler: (payload: BleNotification) => void): () => void {
+    onNotification(handler: (payload: BleNotification) => void): Promise<() => void> {
         return this.transport.subscribe("ble.notification", json => handler(JSON.parse(json) as BleNotification));
     }
 
     /** A scan or a notification subscription failed and has ended. */
-    onError(handler: (payload: BleError) => void): () => void {
+    onError(handler: (payload: BleError) => void): Promise<() => void> {
         return this.transport.subscribe("ble.error", json => handler(JSON.parse(json) as BleError));
     }
 }

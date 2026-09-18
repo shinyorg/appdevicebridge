@@ -60,7 +60,10 @@ public interface IObdBridge
     [BridgeDelete("dtc")]
     Task<ObdClearResult> ClearTroubleCodesAsync(bool confirm, CancellationToken cancellationToken = default);
 
-    /// <summary>Reads up to 10 named values on an interval; readings arrive through <see cref="OnReadingAsync"/>.</summary>
+    /// <summary>
+    /// Reads up to 10 named values on an interval; readings arrive through <see cref="OnReadingAsync"/>, so listen first:
+    /// without a listener it fails with 409. The monitor stops once that has no listener left; the adapter stays connected.
+    /// </summary>
     [BridgePost("monitor")]
     Task<ObdMonitor> StartMonitorAsync(ObdMonitorRequest request, CancellationToken cancellationToken = default);
 

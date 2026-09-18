@@ -140,7 +140,7 @@ public class MountPointTests
         bridge.BridgePrefix = "/_native";
 
         var events = new WebAppEventHub();
-        var invoker = new WebAppInvoker(bridge, events);
+        var invoker = new WebAppInvoker(bridge);
 
         await using var host = app.CreateHost(options, bridge, events, [invoker]);
         var start = await host.StartAsync();
@@ -150,7 +150,7 @@ public class MountPointTests
 
         var script = await webView.GetStringAsync(new Uri(host.Origin!, "/kiosk/_native/invoke/client.js"));
 
-        Assert.Contains("\"/kiosk/_native/events\"", script);
+        Assert.Contains("\"/kiosk/_native/events?topics=host.invoke\"", script);
         Assert.Contains("\"/kiosk/_native/invoke/handlers\"", script);
         Assert.DoesNotContain("{bridge}", script);
     }

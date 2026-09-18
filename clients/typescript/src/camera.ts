@@ -155,7 +155,7 @@ export class CameraBridge {
     }
 
     /** The camera changed — opened, closed, switched mode, filed a capture. Raised with the whole state. */
-    onStatus(handler: (payload: CameraStatus) => void): () => void {
+    onStatus(handler: (payload: CameraStatus) => void): Promise<() => void> {
         return this.transport.subscribe("camera.status", json => handler(JSON.parse(json) as CameraStatus));
     }
 }

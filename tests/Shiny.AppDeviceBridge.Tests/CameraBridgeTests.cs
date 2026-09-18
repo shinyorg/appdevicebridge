@@ -125,7 +125,7 @@ public class CameraBridgeTests
     public async Task Shows_its_own_camera_screen_only_when_nothing_else_does()
     {
         var presenter = new FakePresenter();
-        var session = new CameraBridgeSession(new CameraBridgeOptions(), new WebAppEventHub(), presenter);
+        var session = new CameraBridgeSession(new CameraBridgeOptions(), presenter);
 
         await session.RequestOpenAsync();
         Assert.Equal(1, presenter.Presented);
@@ -142,7 +142,7 @@ public class CameraBridgeTests
             await session.RequestOpenAsync();
         Assert.Equal(0, asked);
 
-        var quiet = new CameraBridgeSession(new CameraBridgeOptions { PresentWhenOpened = false }, new WebAppEventHub(), presenter);
+        var quiet = new CameraBridgeSession(new CameraBridgeOptions { PresentWhenOpened = false }, presenter);
         await quiet.RequestOpenAsync();
         Assert.Equal(1, presenter.Presented);
     }
@@ -150,7 +150,7 @@ public class CameraBridgeTests
     [Fact]
     public void Leaves_the_live_camera_alone_when_an_older_screen_detaches()
     {
-        var session = new CameraBridgeSession(new CameraBridgeOptions(), new WebAppEventHub(), new FakePresenter());
+        var session = new CameraBridgeSession(new CameraBridgeOptions(), new FakePresenter());
 
         var first = session.Attach(new FakeCamera());
         var second = session.Attach(new FakeCamera());
@@ -167,7 +167,7 @@ public class CameraBridgeTests
     [Fact]
     public void Streams_frames_only_while_someone_is_watching()
     {
-        var session = new CameraBridgeSession(new CameraBridgeOptions(), new WebAppEventHub(), new FakePresenter());
+        var session = new CameraBridgeSession(new CameraBridgeOptions(), new FakePresenter());
         var camera = new FakeCamera();
         using var _ = session.Attach(camera);
 
@@ -232,21 +232,13 @@ public class CameraBridgeTests
         await using var fixture = await CameraFixture.StartAsync();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
-        using var response = await fixture.WebView.GetAsync("/_bridge/events", HttpCompletionOption.ResponseHeadersRead, timeout.Token);
-        using var reader = new StreamReader(await response.Content.ReadAsStreamAsync(timeout.Token));
-
-        while (!fixture.Events.HasSubscribers)
-            await Task.Delay(10, timeout.Token);
+        await using var stream = await TestEventStream.OpenAsync(fixture.WebView, "camera.status", timeout.Token);
 
         using var _ = fixture.Session.Attach(new FakeCamera());
 
-        string? line;
-        while ((line = await reader.ReadLineAsync(timeout.Token)) is not null && !line.StartsWith("event:", StringComparison.Ordinal))
-        {
-        }
-
-        Assert.Equal("camera.status", line?["event:".Length..].Trim());
-        Assert.Contains("\"live\":true", await reader.ReadLineAsync(timeout.Token));
+        var (name, data) = await stream.NextAsync(timeout.Token);
+        Assert.Equal("camera.status", name);
+        Assert.Contains("\"live\":true", data);
     }
 
     [Fact]
@@ -334,7 +326,7 @@ public class CameraBridgeTests
         public static async Task<CameraFixture> StartAsync()
         {
             var fixture = new CameraFixture();
-            fixture.Session = new CameraBridgeSession(new CameraBridgeOptions(), fixture.Events, fixture.Presenter);
+            fixture.Session = new CameraBridgeSession(new CameraBridgeOptions(), fixture.Presenter);
 
             fixture.host = await BuiltInClientTests.HostFixture.StartAsync(
                 _ => [new CameraBridge(fixture.Session)],

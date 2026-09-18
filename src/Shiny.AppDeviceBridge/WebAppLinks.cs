@@ -187,17 +187,9 @@ public sealed class WebAppLinks(WebAppLinkOptions options)
 /// acted on again after a reload.
 /// </para>
 /// </summary>
-public sealed class WebAppLinksBridge : IWebAppBridge, IDisposable
+public sealed class WebAppLinksBridge(WebAppLinks links) : IWebAppBridge
 {
-    readonly WebAppLinks links;
-    readonly WebAppEventHub events;
-
-    public WebAppLinksBridge(WebAppLinks links, WebAppEventHub events)
-    {
-        this.links = links;
-        this.events = events;
-        this.links.Received += this.OnReceived;
-    }
+    readonly WebAppLinks links = links;
 
     public string Name => "links";
 
@@ -206,6 +198,7 @@ public sealed class WebAppLinksBridge : IWebAppBridge, IDisposable
     public WebAppLinks Links => this.links;
 
     public void Map(WebAppBridgeRoutes routes) => routes
+        .MapEvent("app.link", this.Received, AppDeviceBridgeJsonContext.Default.AppLink)
         .MapGet("/pending", ctx => Respond(ctx, this.links.Pending))
         .MapDelete("/pending", ctx => Respond(ctx, this.links.Consume()));
 
@@ -213,10 +206,11 @@ public sealed class WebAppLinksBridge : IWebAppBridge, IDisposable
         ? WebAppBridgeResults.NoContent(context)
         : WebAppBridgeResults.Json(context, link, AppDeviceBridgeJsonContext.Default.AppLink);
 
-    void OnReceived(AppLink link)
-        => this.events.Publish("app.link", link, AppDeviceBridgeJsonContext.Default.AppLink);
-
-    public void Dispose() => this.links.Received -= this.OnReceived;
+    IAsyncEnumerable<AppLink> Received(CancellationToken cancellationToken) => WebAppEventStream.FromEvent<AppLink>(emit =>
+    {
+        this.links.Received += emit;
+        return () => this.links.Received -= emit;
+    }, cancellationToken);
 }
 
 public static class WebAppLinksServiceCollectionExtensions

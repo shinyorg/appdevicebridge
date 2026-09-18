@@ -103,6 +103,13 @@ public sealed class AppDeviceBridgeOptions
     /// <summary>How long a page that accepted a native call has to finish it.</summary>
     public TimeSpan PageInvocationTimeout { get; set; } = TimeSpan.FromSeconds(25);
 
+    /// <summary>
+    /// How often the event stream writes a comment when it has nothing else to send. A page that went away without a
+    /// word is only noticed when a write to it fails, so this bounds how long a native event stays hooked for a page
+    /// that is gone.
+    /// </summary>
+    public TimeSpan EventStreamHeartbeat { get; set; } = TimeSpan.FromSeconds(15);
+
     internal Action<AuthorizationPolicyBuilder>? BridgePolicy { get; private set; }
 
     /// <summary>
@@ -159,6 +166,9 @@ public sealed class AppDeviceBridgeOptions
 
         if (this.PageAcceptTimeout <= TimeSpan.Zero || this.PageInvocationTimeout <= TimeSpan.Zero)
             throw new InvalidOperationException("AppDeviceBridgeOptions invocation timeouts must be positive.");
+
+        if (this.EventStreamHeartbeat <= TimeSpan.Zero)
+            throw new InvalidOperationException("AppDeviceBridgeOptions.EventStreamHeartbeat must be positive.");
 
         if (this.MaxFileWriteBytes <= 0)
             throw new InvalidOperationException("AppDeviceBridgeOptions.MaxFileWriteBytes must be positive.");

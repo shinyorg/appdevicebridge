@@ -30,26 +30,13 @@ public sealed class WebAppFilesBridge : IWebAppBridge
     readonly WebAppFileRoots roots;
     readonly AppDeviceBridgeOptions options;
 
-    public WebAppFilesBridge(WebAppFileRoots roots, AppDeviceBridgeOptions options, WebAppEventHub events)
+    public WebAppFilesBridge(WebAppFileRoots roots, AppDeviceBridgeOptions options)
     {
         ArgumentNullException.ThrowIfNull(roots);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(events);
 
         this.roots = roots;
         this.options = options;
-
-        // Names and what happened, never where a root lives on disk. Nothing when files are switched off: the page has no
-        // roots to hear about.
-        roots.Changed += (_, e) =>
-        {
-            if (roots.Enabled)
-                events.Publish(
-            "files.roots",
-                    new FileRootsChanged(e.Name, e.Change),
-                    AppDeviceBridgeJsonContext.Default.FileRootsChanged
-                );
-        };
     }
 
     public string Name => "files";
@@ -57,6 +44,7 @@ public sealed class WebAppFilesBridge : IWebAppBridge
     public bool IsSupported => true;
 
     public void Map(WebAppBridgeRoutes routes) => routes
+        .MapEvent("files.roots", this.RootsChanged, AppDeviceBridgeJsonContext.Default.FileRootsChanged)
         .MapGet("", this.RootsAsync)
         .MapGet("/{root}/list", ctx => this.WithPath(ctx, (root, path) => this.ListAsync(ctx, root, path)))
         .MapGet("/{root}/info", ctx => this.WithPath(ctx, (root, path) => InfoAsync(ctx, root, path)))
@@ -67,6 +55,22 @@ public sealed class WebAppFilesBridge : IWebAppBridge
         .MapDelete("/{root}/entry", ctx => this.WithPath(ctx, (root, path) => DeleteAsync(ctx, root, path)))
         .MapPost("/{root}/move", ctx => this.WithRoot(ctx, root => TransferAsync(ctx, root, move: true)))
         .MapPost("/{root}/copy", ctx => this.WithRoot(ctx, root => TransferAsync(ctx, root, move: false)));
+
+    /// <summary>
+    /// Names and what happened, never where a root lives on disk. Nothing when files are switched off: the page has no
+    /// roots to hear about.
+    /// </summary>
+    IAsyncEnumerable<FileRootsChanged> RootsChanged(CancellationToken cancellationToken) => WebAppEventStream.FromEvent<FileRootsChanged>(emit =>
+    {
+        EventHandler<WebAppFileRootsChangedEventArgs> handler = (_, e) =>
+        {
+            if (this.roots.Enabled)
+                emit(new FileRootsChanged(e.Name, e.Change));
+        };
+
+        this.roots.Changed += handler;
+        return () => this.roots.Changed -= handler;
+    }, cancellationToken);
 
     ValueTask RootsAsync(HttpContext context)
     {

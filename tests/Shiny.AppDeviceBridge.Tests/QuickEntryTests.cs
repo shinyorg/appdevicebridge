@@ -16,7 +16,7 @@ public class QuickEntryTests
     public async Task Says_it_is_unsupported_and_answers_501_without_the_control()
     {
         var services = new ServiceCollection().BuildServiceProvider();
-        await using var fixture = await BuiltInClientTests.HostFixture.StartAsync(_ => [new QuickEntryBridge(services, new WebAppEventHub())]);
+        await using var fixture = await BuiltInClientTests.HostFixture.StartAsync(_ => [new QuickEntryBridge(services)]);
         var quickEntry = new QuickEntryBridgeClient(fixture.Transport);
 
         var status = await quickEntry.GetStatusAsync();
@@ -59,7 +59,7 @@ public class QuickEntryTests
         var services = new ServiceCollection()
             .AddSingleton(new QuickEntryBridgeOptions { MaxSuggestions = 2, MaxTextLength = 10 })
             .BuildServiceProvider();
-        var bridge = new QuickEntryBridge(services, new WebAppEventHub());
+        var bridge = new QuickEntryBridge(services);
 
         Assert.Null(bridge.Validate(new QuickEntryPromptInput(Placeholder: "Ask", Suggestions: [new("a"), new("b")])));
         Assert.Contains("At most 2", bridge.Validate(new QuickEntryPromptInput(Suggestions: [new("a"), new("b"), new("c")])));

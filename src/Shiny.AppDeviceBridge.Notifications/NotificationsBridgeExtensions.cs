@@ -114,12 +114,18 @@ public static class NotificationsBridgeExtensions
 /// </summary>
 public class WebAppNotificationDelegate(WebAppEventHub events, WebAppInvoker invoker, WebAppNotificationOptions options) : INotificationDelegate
 {
+    internal const string EntryEvent = "notification.entry";
+    internal const string ReceivedEvent = "notification.received";
+
+    readonly WebAppEventSource<Contracts.NotificationEvent> entries = events.Source(EntryEvent, Contracts.NotificationsJsonContext.Default.NotificationEvent);
+    readonly WebAppEventSource<Contracts.NotificationEvent> received = events.Source(ReceivedEvent, Contracts.NotificationsJsonContext.Default.NotificationEvent);
+
     public virtual Task OnEntry(NotificationResponse response)
-        => this.HandleAsync("notification.entry", response.Notification, response.ActionIdentifier, response.Text);
+        => this.HandleAsync(EntryEvent, this.entries, response.Notification, response.ActionIdentifier, response.Text);
 
     /// <summary>A notification presented while the app is in the foreground. Apple platforms only: nowhere else says so.</summary>
     public virtual Task OnReceived(Notification notification)
-        => this.HandleAsync("notification.received", notification, null, null);
+        => this.HandleAsync(ReceivedEvent, this.received, notification, null, null);
 
     /// <summary>Whether a notification goes to the web app. <see cref="WebAppNotificationOptions.Dispatch"/> by default.</summary>
     protected virtual bool ShouldDispatch(string handler, Notification notification) => options.Dispatch switch
@@ -129,7 +135,7 @@ public class WebAppNotificationDelegate(WebAppEventHub events, WebAppInvoker inv
         _ => false
     };
 
-    async Task HandleAsync(string name, Notification notification, string? action, string? text)
+    async Task HandleAsync(string name, WebAppEventSource<Contracts.NotificationEvent> source, Notification notification, string? action, string? text)
     {
         if (!this.ShouldDispatch(name, notification))
             return;
@@ -137,7 +143,7 @@ public class WebAppNotificationDelegate(WebAppEventHub events, WebAppInvoker inv
         var payload = NotificationContractMapping.ToEvent(notification, action, text);
 
         // As with push: the event is for pages that only display; the handler call is the one that does work.
-        events.Publish(name, payload, Contracts.NotificationsJsonContext.Default.NotificationEvent);
+        source.Publish(payload);
         await invoker.InvokeAsync(name, payload, Contracts.NotificationsJsonContext.Default.NotificationEvent);
     }
 }

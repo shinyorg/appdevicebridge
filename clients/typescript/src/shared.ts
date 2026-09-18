@@ -182,7 +182,7 @@ export class FilesBridge {
     }
 
     /** A root was added, replaced or removed while the app ran — a folder the user picked or the app mapped, a share it published. Call `getRoots` again, and drop anything listed from a root that was replaced or removed. */
-    onRootsChanged(handler: (payload: FileRootsChanged) => void): () => void {
+    onRootsChanged(handler: (payload: FileRootsChanged) => void): Promise<() => void> {
         return this.transport.subscribe("files.roots", json => handler(JSON.parse(json) as FileRootsChanged));
     }
 }
@@ -217,7 +217,7 @@ export class LinksBridge {
     }
 
     /** A link arrived while the page is open. It is also left pending until consumed. */
-    onLink(handler: (payload: AppLink) => void): () => void {
+    onLink(handler: (payload: AppLink) => void): Promise<() => void> {
         return this.transport.subscribe("app.link", json => handler(JSON.parse(json) as AppLink));
     }
 }

@@ -115,7 +115,7 @@ export class GeofencesBridge {
     }
 
     /** The device entered or left a region, while the page is open. */
-    onStatus(handler: (payload: GeofenceStatus) => void): () => void {
+    onStatus(handler: (payload: GeofenceStatus) => void): Promise<() => void> {
         return this.transport.subscribe("geofence.status", json => handler(JSON.parse(json) as GeofenceStatus));
     }
 }
@@ -160,7 +160,7 @@ export class GpsBridge {
     }
 
     /** A reading from the listener, while the page is open. */
-    onReading(handler: (payload: GpsReading) => void): () => void {
+    onReading(handler: (payload: GpsReading) => void): Promise<() => void> {
         return this.transport.subscribe("gps.reading", json => handler(JSON.parse(json) as GpsReading));
     }
 }
@@ -200,7 +200,7 @@ export class MotionBridge {
     }
 
     /** A reading from the listener, while the page is open. */
-    onActivity(handler: (payload: MotionActivity) => void): () => void {
+    onActivity(handler: (payload: MotionActivity) => void): Promise<() => void> {
         return this.transport.subscribe("motion.activity", json => handler(JSON.parse(json) as MotionActivity));
     }
 }

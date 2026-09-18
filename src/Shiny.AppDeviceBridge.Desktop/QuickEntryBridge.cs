@@ -111,9 +111,14 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
     readonly IQuickEntryService? service;
     readonly IGlobalHotKeyService? hotKeys;
     readonly QuickEntryBridgeOptions options;
-    readonly WebAppEventHub events;
     readonly WebAppInvoker? invoker;
     readonly ILogger? logger;
+    readonly WebAppEventSource<QuickEntryStatus> opened = new();
+    readonly WebAppEventSource<QuickEntryStatus> closed = new();
+    readonly WebAppEventSource<QuickEntrySubmission> submitted = new();
+    readonly WebAppEventSource<QuickEntrySubmission> suggestions = new();
+    readonly WebAppEventSource<QuickEntryPromptEvent> cancelled = new();
+    readonly WebAppEventSource<QuickEntryPromptEvent> microphone = new();
     readonly SemaphoreSlim gate = new(1, 1);
 
     // What the page asked the prompt to be, re-applied to a prompt the control builds afresh on every open.
@@ -124,16 +129,22 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
     bool started;
     bool disposed;
 
-    public QuickEntryBridge(IServiceProvider services, WebAppEventHub events)
+    public QuickEntryBridge(IServiceProvider services)
     {
         this.service = services.GetOptionalService<IQuickEntryService>();
         this.hotKeys = services.GetOptionalService<IGlobalHotKeyService>();
         this.options = services.GetOptionalService<QuickEntryBridgeOptions>() ?? new QuickEntryBridgeOptions();
         this.invoker = services.GetOptionalService<WebAppInvoker>();
         this.logger = services.GetOptionalService<ILogger<QuickEntryBridge>>();
-        this.events = events;
         this.hotKey = this.options.HotKey;
     }
+
+    const string OpenedEvent = "quickentry.opened";
+    const string ClosedEvent = "quickentry.closed";
+    const string SubmittedEvent = "quickentry.submitted";
+    const string SuggestionEvent = "quickentry.suggestion";
+    const string CancelledEvent = "quickentry.cancelled";
+    const string MicrophoneEvent = "quickentry.microphone";
 
     public string Name => "quickentry";
 
@@ -143,6 +154,12 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
         => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsMacCatalyst() || OperatingSystem.IsLinux();
 
     public void Map(WebAppBridgeRoutes routes) => routes
+        .MapEvent(OpenedEvent, ct => this.opened.ListenAsync(ct), QuickEntryJsonContext.Default.QuickEntryStatus)
+        .MapEvent(ClosedEvent, ct => this.closed.ListenAsync(ct), QuickEntryJsonContext.Default.QuickEntryStatus)
+        .MapEvent(SubmittedEvent, ct => this.submitted.ListenAsync(ct), QuickEntryJsonContext.Default.QuickEntrySubmission)
+        .MapEvent(SuggestionEvent, ct => this.suggestions.ListenAsync(ct), QuickEntryJsonContext.Default.QuickEntrySubmission)
+        .MapEvent(CancelledEvent, ct => this.cancelled.ListenAsync(ct), QuickEntryJsonContext.Default.QuickEntryPromptEvent)
+        .MapEvent(MicrophoneEvent, ct => this.microphone.ListenAsync(ct), QuickEntryJsonContext.Default.QuickEntryPromptEvent)
         .MapGet("", this.StatusAsync)
         .MapPut("/options", this.ConfigureAsync)
         .MapPost("/show", ctx => this.VisibilityAsync(ctx, x => x.Show()))
@@ -440,7 +457,8 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
             prompt.SuggestionSelected += this.OnSuggestionSelected;
             prompt.Cancelled += this.OnCancelled;
             prompt.MicrophoneCommand = new Command(() => this.Raise(
-                "quickentry.microphone",
+                this.microphone,
+                MicrophoneEvent,
                 new QuickEntryPromptEvent(prompt.Text ?? String.Empty),
                 QuickEntryJsonContext.Default.QuickEntryPromptEvent
             ));
@@ -472,7 +490,7 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
         try
         {
             await this.WirePromptAsync();
-            this.Raise("quickentry.opened", await MainAsync(this.DescribeStatus), QuickEntryJsonContext.Default.QuickEntryStatus);
+            this.Raise(this.opened, OpenedEvent, await MainAsync(this.DescribeStatus), QuickEntryJsonContext.Default.QuickEntryStatus);
         }
         catch (Exception ex)
         {
@@ -484,7 +502,7 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
     {
         try
         {
-            this.Raise("quickentry.closed", await MainAsync(this.DescribeStatus), QuickEntryJsonContext.Default.QuickEntryStatus);
+            this.Raise(this.closed, ClosedEvent, await MainAsync(this.DescribeStatus), QuickEntryJsonContext.Default.QuickEntryStatus);
         }
         catch (Exception ex)
         {
@@ -493,13 +511,13 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
     }
 
     void OnSubmitted(object? sender, PromptSubmittedEventArgs e)
-        => this.Raise("quickentry.submitted", this.ToSubmission(e), QuickEntryJsonContext.Default.QuickEntrySubmission);
+        => this.Raise(this.submitted, SubmittedEvent, this.ToSubmission(e), QuickEntryJsonContext.Default.QuickEntrySubmission);
 
     void OnSuggestionSelected(object? sender, PromptSubmittedEventArgs e)
-        => this.Raise("quickentry.suggestion", this.ToSubmission(e), QuickEntryJsonContext.Default.QuickEntrySubmission);
+        => this.Raise(this.suggestions, SuggestionEvent, this.ToSubmission(e), QuickEntryJsonContext.Default.QuickEntrySubmission);
 
     void OnCancelled(object? sender, EventArgs e)
-        => this.Raise("quickentry.cancelled", new QuickEntryPromptEvent((sender as PromptView)?.Text ?? String.Empty), QuickEntryJsonContext.Default.QuickEntryPromptEvent);
+        => this.Raise(this.cancelled, CancelledEvent, new QuickEntryPromptEvent((sender as PromptView)?.Text ?? String.Empty), QuickEntryJsonContext.Default.QuickEntryPromptEvent);
 
     QuickEntrySubmission ToSubmission(PromptSubmittedEventArgs e) => new(
         e.Text,
@@ -513,12 +531,12 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
     );
 
     /// <summary>
-    /// Published for a page that is listening, and called on the web app so <c>background.js</c> can answer when the app's
-    /// window is closed — which is when a window summoned over other applications earns its keep.
+    /// Published to whatever listens for the event, and called on the web app so <c>background.js</c> can answer when the
+    /// app's window is closed — which is when a window summoned over other applications earns its keep.
     /// </summary>
-    void Raise<T>(string name, T payload, JsonTypeInfo<T> typeInfo)
+    void Raise<T>(WebAppEventSource<T> source, string name, T payload, JsonTypeInfo<T> typeInfo)
     {
-        this.events.Publish(name, payload, typeInfo);
+        source.Publish(payload);
 
         if (this.invoker is { } target)
             _ = Forget(target.InvokeAsync(name, payload, typeInfo));

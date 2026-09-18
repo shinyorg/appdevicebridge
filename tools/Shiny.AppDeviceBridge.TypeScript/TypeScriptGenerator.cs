@@ -219,7 +219,7 @@ public static partial class TypeScriptGenerator
             if (method.GetCustomAttribute<BridgeEventAttribute>() is { } @event)
             {
                 var payload = reference(method.GetParameters()[0].ParameterType.GetGenericArguments()[0]);
-                body.AppendLine($"    {MemberName(method)}(handler: (payload: {payload}) => void): () => void {{");
+                body.AppendLine($"    {MemberName(method)}(handler: (payload: {payload}) => void): Promise<() => void> {{");
                 body.AppendLine($"        return this.transport.subscribe(\"{@event.EventName}\", json => handler(JSON.parse(json) as {payload}));");
                 body.AppendLine("    }");
                 continue;
