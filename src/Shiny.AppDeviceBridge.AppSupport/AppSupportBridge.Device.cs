@@ -51,10 +51,10 @@ public sealed partial class AppSupportBridge
         .MapGet("/battery", ctx => Essentials(ctx, "Battery", async () =>
         {
             var response = await ReadOnMainThread(() => new Contracts.BatteryInfo(
-                Battery.Default.ChargeLevel,
-                Convert<BatteryState, Contracts.BatteryState>(Battery.Default.State),
-                Convert<BatteryPowerSource, Contracts.BatteryPowerSource>(Battery.Default.PowerSource),
-                Convert<EnergySaverStatus, Contracts.EnergySaverStatus>(Battery.Default.EnergySaverStatus)
+                this.battery.ChargeLevel,
+                Convert<BatteryState, Contracts.BatteryState>(this.battery.State),
+                Convert<BatteryPowerSource, Contracts.BatteryPowerSource>(this.battery.PowerSource),
+                Convert<EnergySaverStatus, Contracts.EnergySaverStatus>(this.battery.EnergySaverStatus)
             ));
             await WebAppBridgeResults.Json(ctx, response, Contracts.AppJsonContext.Default.BatteryInfo);
         }))
@@ -275,7 +275,7 @@ public sealed partial class AppSupportBridge
             return () => Connectivity.Current.ConnectivityChanged -= handler;
         }, cancellationToken);
 
-    static IAsyncEnumerable<Contracts.BatteryChanged> BatteryChanges(CancellationToken cancellationToken)
+    IAsyncEnumerable<Contracts.BatteryChanged> BatteryChanges(CancellationToken cancellationToken)
         => FromMainThreadEvent<Contracts.BatteryChanged>(emit =>
         {
             EventHandler<BatteryInfoChangedEventArgs> handler = (_, e) => emit(new(
@@ -283,16 +283,16 @@ public sealed partial class AppSupportBridge
                 Convert<BatteryState, Contracts.BatteryState>(e.State),
                 Convert<BatteryPowerSource, Contracts.BatteryPowerSource>(e.PowerSource)
             ));
-            Battery.Default.BatteryInfoChanged += handler;
-            return () => Battery.Default.BatteryInfoChanged -= handler;
+            this.battery.BatteryInfoChanged += handler;
+            return () => this.battery.BatteryInfoChanged -= handler;
         }, cancellationToken);
 
-    static IAsyncEnumerable<Contracts.EnergySaverChanged> EnergySaverChanges(CancellationToken cancellationToken)
+    IAsyncEnumerable<Contracts.EnergySaverChanged> EnergySaverChanges(CancellationToken cancellationToken)
         => FromMainThreadEvent<Contracts.EnergySaverChanged>(emit =>
         {
             EventHandler<EnergySaverStatusChangedEventArgs> handler = (_, e) => emit(new(Convert<EnergySaverStatus, Contracts.EnergySaverStatus>(e.EnergySaverStatus)));
-            Battery.Default.EnergySaverStatusChanged += handler;
-            return () => Battery.Default.EnergySaverStatusChanged -= handler;
+            this.battery.EnergySaverStatusChanged += handler;
+            return () => this.battery.EnergySaverStatusChanged -= handler;
         }, cancellationToken);
 
     /// <summary>An Essentials event, hooked and unhooked on the main thread: UIDevice battery monitoring is main-thread only.</summary>

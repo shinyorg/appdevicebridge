@@ -38,6 +38,9 @@ triggers:
   - AddWebAppBridge
   - WebAppEventHub
   - WebAppEventSource
+  - AddAppSupportLinux
+  - UPowerBattery
+  - Shiny.AppDeviceBridge.AppSupport.Linux
   - WebAppEventStream
   - MapEvent
   - EventStreamHeartbeat
@@ -262,6 +265,7 @@ public class App : Application
 | --- | --- | --- |
 | built in | (always) | `Shiny.AppDeviceBridge.Client`: `IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge` |
 | `.AppSupport` | `AddAppSupportBridge()` | `IAppBridge` — info, orientation, browser, maps, store, launch at login, share, haptics, connectivity, battery, screen, clipboard; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), each stopped once nothing listens to its event |
+| `.AppSupport.Linux` | `AddAppSupportLinux()` on the GTK4 head, after `AddAppSupportBridge()` | battery and energy saver from UPower and power-profiles-daemon, with change events. The maui-labs GTK4 battery never raises them, so a Linux head without this gets no `app.battery` events |
 | `.Locations` | `AddGpsBridge()`, `AddGeofenceBridge()`, `AddMotionActivityBridge()` | `IGpsBridge`, `IGeofencesBridge`, `IMotionBridge` |
 | `.BluetoothLE` | `AddBluetoothLEBridge()` | `IBluetoothLEBridge` |
 | `.Obd` | `AddObdBridge()` | `IObdBridge` |

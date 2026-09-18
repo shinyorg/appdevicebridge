@@ -46,6 +46,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Core` | (dependency) | protocol contracts, version ordering, release signatures |
 | `Shiny.AppDeviceBridge.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
 | `Shiny.AppDeviceBridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, launch at login, share, haptics and vibration, connectivity, battery, screen and clipboard; and `/_bridge/sensors` — accelerometer, gyroscope, magnetometer, compass, barometer and orientation |
+| `Shiny.AppDeviceBridge.AppSupport.Linux` | the Linux (GTK4) head | `AddAppSupportLinux()`: battery and energy saver for `AddAppSupportBridge()` from UPower and power-profiles-daemon over D-Bus, with change events |
 | `Shiny.AppDeviceBridge.Locations` | the app | `AddGpsBridge()`, `AddGeofenceBridge()`, `AddLocationBridges()`, `AddMotionActivityBridge()` |
 | `Shiny.AppDeviceBridge.BluetoothLE` | the app | `AddBluetoothLEBridge()` |
 | `Shiny.AppDeviceBridge.Obd` | the app | `AddObdBridge()`: OBD-II over Bluetooth LE or Wi-Fi adapters — decoded PIDs, VIN, trouble codes, live readings |
@@ -652,7 +653,10 @@ await new AppBridge().share({ files: [{ root: "data", path: "photos/cat.jpg" }] 
 ```
 
 `app.connectivity`, `app.battery` and `app.energysaver` only run while a page listens to them, and a head without the
-feature answers the subscription with `bridge.error`. On Android,
+feature answers the subscription with `bridge.error`. Battery comes from the `IBattery` registered in the container when there is one, else `Battery.Default`. The
+macOS (AppKit) head gets it from `AddMacOSEssentials()`, without energy saver. The Linux (GTK4) head needs
+`Shiny.AppDeviceBridge.AppSupport.Linux`'s `AddAppSupportLinux()`: UPower for charge, state and power source,
+power-profiles-daemon for energy saver, with change events. The maui-labs GTK4 battery never raises its events. On Android,
 vibration needs `VIBRATE`, and battery needs `BATTERY_STATS` in the manifest (without it, `GET app/battery`
 returns `403`). `vibrate` is capped at 5 seconds.
 

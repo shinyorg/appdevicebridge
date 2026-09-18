@@ -26,6 +26,7 @@
   <ItemGroup>
     <ProjectReference Include="../Sample.App/Sample.App.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Desktop/Shiny.AppDeviceBridge.Desktop.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AppSupport.Linux/Shiny.AppDeviceBridge.AppSupport.Linux.csproj" />
   </ItemGroup>
 
 </Project>

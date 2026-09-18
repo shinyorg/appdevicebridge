@@ -43,6 +43,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.WebView/Shiny.AppDeviceBridge.WebView.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Desktop/Shiny.AppDeviceBridge.Desktop.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AppSupport.Linux/Shiny.AppDeviceBridge.AppSupport.Linux.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.RpiCamera/Shiny.AppDeviceBridge.RpiCamera.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AppSupport/Shiny.AppDeviceBridge.AppSupport.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AspNetCore/Shiny.AppDeviceBridge.AspNetCore.csproj" />

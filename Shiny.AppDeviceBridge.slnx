@@ -32,6 +32,7 @@
     <Project Path="src/Shiny.AppDeviceBridge.Camera.Client/Shiny.AppDeviceBridge.Camera.Client.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Tunnel/Shiny.AppDeviceBridge.Tunnel.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.AppSupport/Shiny.AppDeviceBridge.AppSupport.csproj" />
+    <Project Path="src/Shiny.AppDeviceBridge.AppSupport.Linux/Shiny.AppDeviceBridge.AppSupport.Linux.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.BluetoothLE/Shiny.AppDeviceBridge.BluetoothLE.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Jobs/Shiny.AppDeviceBridge.Jobs.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Wifi/Shiny.AppDeviceBridge.Wifi.csproj" />

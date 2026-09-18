@@ -34,9 +34,12 @@ public sealed partial class AppSupportBridge : IWebAppBridge
     readonly IAppSupport? app;
     readonly IAppStore? store;
     readonly WebAppFileRoots? fileRoots;
+    readonly IBattery battery;
 
     public AppSupportBridge(IServiceProvider services)
     {
+        // The maui-labs heads register theirs in the container: Linux only there, never as Battery.Default.
+        this.battery = services.GetOptionalService<IBattery>() ?? Battery.Default;
         this.app = services.GetOptionalService<IAppSupport>();
         this.store = services.GetOptionalService<IAppStore>();
         this.startup = services.GetOptionalService<IStartupService>();
