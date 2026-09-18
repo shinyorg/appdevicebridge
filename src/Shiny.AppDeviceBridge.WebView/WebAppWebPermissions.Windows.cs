@@ -41,7 +41,7 @@ static partial class WebAppWebViewPermissions
             var allow = policy.Allows(permission) && policy.IsHostOrigin(args.Uri);
 
             if (allow && permission == WebAppWebPermissions.Geolocation)
-                allow = await MainThread.InvokeOnMainThreadAsync(() => Permissions.RequestAsync<Permissions.LocationWhenInUse>()) == PermissionStatus.Granted;
+                allow = await MainThread.InvokeOnMainThreadAsync(() => Microsoft.Maui.ApplicationModel.Permissions.RequestAsync<Microsoft.Maui.ApplicationModel.Permissions.LocationWhenInUse>()) == PermissionStatus.Granted;
 
             args.State = allow ? CoreWebView2PermissionState.Allow : CoreWebView2PermissionState.Deny;
         }
