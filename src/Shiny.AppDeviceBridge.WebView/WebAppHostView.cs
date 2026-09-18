@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Shiny.AppDeviceBridge.Maui;
 using MauiWebView = Microsoft.Maui.Controls.WebView;
 
 namespace Shiny.AppDeviceBridge.WebView;
@@ -57,6 +58,20 @@ public class WebAppHostView : ContentView
 
     /// <summary>Raised on the UI thread once the web app has been handed to the WebView.</summary>
     public event EventHandler<Uri>? Ready;
+
+    /// <summary>
+    /// Shows <see cref="TrafficMonitorPage"/> over the web app: every request the server answered, and each one in full. Needs
+    /// <see cref="AppDeviceBridgeMauiExtensions.UseTrafficMonitor"/>; wire it to a gesture, a menu item or a button of your
+    /// own in a debug build.
+    /// </summary>
+    public Task ShowTrafficMonitorAsync()
+    {
+        var services = this.Handler?.MauiContext?.Services ?? IPlatformApplication.Current?.Services;
+        var recorder = services?.GetService<TrafficRecorder>()
+            ?? throw new InvalidOperationException("TrafficRecorder is not registered. Call UseTrafficMonitor in MauiProgram.");
+
+        return this.Navigation.PushModalAsync(new TrafficMonitorPage(recorder));
+    }
 
     // Not every backend raises Loaded — the maui-labs AppKit and GTK4 backends never do — so a handler being
     // attached is also taken as the moment to start. Both paths go through AttachAsync, which runs once.

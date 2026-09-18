@@ -35,7 +35,7 @@ app, served from the device itself, updated from your own server, and able to ca
 
 | Package | Use it in | What it does |
 | --- | --- | --- |
-| `Shiny.AppDeviceBridge.Maui` | the app | `UseAppDeviceBridge`: `AddShinyHttpServer` with the bridges on it, started with the app and restarted on resume |
+| `Shiny.AppDeviceBridge.Maui` | the app | `UseAppDeviceBridge`: `AddShinyHttpServer` with the bridges on it, started with the app and restarted on resume; `UseTrafficMonitor` and `TrafficMonitorPage` for debugging |
 | `Shiny.AppDeviceBridge.WebView` | the app | `UseWebAppHost`, `WebAppHostView`, `WebAppHostPage`, `AllowWebPermissions`: the web app in a WebView, over-the-air updates, the dev server proxy, the launch session and `background.js` |
 | `Shiny.AppDeviceBridge.Blazor` | the Blazor WebAssembly app | `AddWebAppHostClient()`: the page's transport, typed clients for the built-in bridges (`IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge`), `WebAppEvents`, `WebAppNativeCalls` (typed C# handlers for jobs, GPS, geofences and push), and `WebAppBridge` for endpoints of your own |
 | `Shiny.AppDeviceBridge.Client` | (dependency) | the typed-client foundation: `IBridgeTransport`, `BridgeException`, the `[BridgeClient]` attributes and the generator that implements them, and the built-in bridges' contracts |
@@ -1300,6 +1300,26 @@ starts:
 curl -s http://localhost:5288/_framework/aspnetcore-browser-refresh.js | grep webSocketUrls
 adb reverse tcp:<ws port> tcp:<ws port>
 ```
+
+## Traffic monitor
+
+Every request the server answers — the web app's files, bridge calls, your own endpoints, and the requests the bridge
+server refuses — with status, path, size, origin and timing, and each one in full with its headers and text bodies. For
+development:
+
+```csharp
+#if DEBUG
+builder.UseTrafficMonitor();
+#endif
+
+// from a button, gesture or menu item of your own
+await page.HostView.ShowTrafficMonitorAsync();
+```
+
+Kept in memory only: the newest 300 requests, text bodies up to 128 KB. Credential headers, cookies and `token` query
+parameters are always redacted, so the WebView's launch token and session cookie never appear. `RedactRequestBody`
+drops bodies you name, such as a login post. Without MAUI, `http.AddTrafficRecorder()` registers the same
+`TrafficRecorder`.
 
 ## Samples
 

@@ -41,6 +41,11 @@ public static class SampleConfiguration
         // page is told why there is no camera.
         builder.Services.AddShinyHttpServer(http => http.AddRpiCameraBridge(), autoStart: false);
 
+#if DEBUG
+        // Records every request the server answers, for the Traffic button in App to show.
+        builder.UseTrafficMonitor();
+#endif
+
         return builder
         .UseAppDeviceBridge(o => o.AppId = "sample")
         .UseWebAppHost(o =>

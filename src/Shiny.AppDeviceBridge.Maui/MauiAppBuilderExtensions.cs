@@ -91,6 +91,29 @@ public static class AppDeviceBridgeMauiExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Records every request the server answers, for <see cref="TrafficMonitorPage"/> to show — bridges, the web app's files
+    /// and the app's own endpoints, with their headers and text bodies. Meant for development, so register it in a debug
+    /// build; <c>WebAppHostView.ShowTrafficMonitorAsync</c> opens the page over the web app.
+    /// <code>
+    /// #if DEBUG
+    /// builder.UseTrafficMonitor();
+    /// #endif
+    /// </code>
+    /// <para>
+    /// Kept in memory only, and credentials are not kept at all: see <see cref="TrafficRecorderOptions.RedactedHeaders"/>
+    /// and <see cref="TrafficRecorderOptions.RedactedQueryParameters"/>.
+    /// </para>
+    /// </summary>
+    public static MauiAppBuilder UseTrafficMonitor(this MauiAppBuilder builder, Action<TrafficRecorderOptions>? configure = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.UseAppDeviceBridge();
+        builder.Services.AddShinyHttpServer(http => http.AddTrafficRecorder(configure), autoStart: false);
+        return builder;
+    }
+
     /// <summary>The port a MAUI app's server listens on unless the app chooses one.</summary>
     public const int DefaultPort = 5780;
 

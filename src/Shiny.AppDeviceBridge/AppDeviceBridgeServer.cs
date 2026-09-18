@@ -198,6 +198,10 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
         if (this.Options.MaxFileWriteBytes > (limits.MaxRequestBodySize ?? Int64.MaxValue))
             limits.MaxRequestBodySize = this.Options.MaxFileWriteBytes;
 
+        // Ahead of the guard, so a request it turns away — a 401, a 403, a 421 — is recorded too.
+        if (this.services.GetService<TrafficRecorder>() is { } traffic)
+            server.Use(traffic.RecordAsync);
+
         server.Use(this.GuardAsync);
 
         foreach (var extension in this.extensions)

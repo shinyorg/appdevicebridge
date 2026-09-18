@@ -38,6 +38,13 @@ triggers:
   - AddWebAppBridge
   - WebAppEventHub
   - WebAppInvoker
+  - UseTrafficMonitor
+  - AddTrafficRecorder
+  - TrafficRecorder
+  - TrafficRecorderOptions
+  - TrafficMonitorPage
+  - ShowTrafficMonitorAsync
+  - traffic monitor
   - WebAppNativeCalls
   - WebAppEvents
   - AddWebAppHostClient
@@ -282,6 +289,25 @@ await nativeCalls.HandleAsync("quickentry.submitted", QuickEntryJsonContext.Defa
 
 Null properties on `QuickEntryPromptInput` / `QuickEntryOptionsInput` leave values unchanged; `Response: ""` clears the
 response and `HotKey: ""` removes the hotkey.
+
+## Traffic monitor
+
+A debug window onto every request the server answers — files, bridge calls (including 401/403/421 refusals), the app's
+own endpoints. Register it in a debug build only, and open it from something of the app's own:
+
+```csharp
+#if DEBUG
+builder.UseTrafficMonitor(o => o.RedactRequestBody = ctx => ctx.Request.Path == "/api/login");
+#endif
+
+traffic.Clicked += async (_, _) => await page.HostView.ShowTrafficMonitorAsync();   // or TrafficMonitorPage.ShowAsync(Navigation)
+```
+
+In memory only (newest 300, text bodies up to 128 KB). `Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`
+and the `token`/`access_token` query parameters are redacted by default — that is what keeps the WebView's launch token
+and session cookie out of it; do not clear those sets in shipped code. Without MAUI: `http.AddTrafficRecorder()` and read
+`TrafficRecorder.Snapshot()` / `Changed`. When overlaying a button on `WebAppHostPage`, set `page.Content = null` before
+putting `HostView` in a new layout — replacing the content un-parents the old one and the view's `Navigation` goes dead.
 
 ## A Blazor page
 
