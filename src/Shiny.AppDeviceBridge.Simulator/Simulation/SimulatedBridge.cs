@@ -111,9 +111,21 @@ public sealed class SimulatedBridge(SimulatorState state, BridgeState bridge) : 
         }
 
         context.Response.StatusCode = StatusCodes.Status200OK;
-        await using var file = File.OpenRead(path);
+        await using var file = OpenChosen(path);
         await context.Response.WriteStreamAsync(file, ContentTypes.For(path), context.RequestAborted);
     }
+
+    /// <summary>
+    /// Opens the file a binary route was pointed at. Shared for reading, writing and deleting: the simulator is a dev tool
+    /// pointed at a file someone still owns, so serving it never locks it against being replaced or deleted meanwhile.
+    /// </summary>
+    internal static Stream OpenChosen(string path) => new FileStream(path, new FileStreamOptions
+    {
+        Mode = FileMode.Open,
+        Access = FileAccess.Read,
+        Share = FileShare.ReadWrite | FileShare.Delete,
+        Options = FileOptions.Asynchronous | FileOptions.SequentialScan
+    });
 
     static bool IsRaw(Type type) => type == typeof(Stream) || type == typeof(byte[]);
 }
