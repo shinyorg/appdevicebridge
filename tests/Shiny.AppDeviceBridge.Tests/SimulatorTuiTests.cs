@@ -70,6 +70,17 @@ public partial class SimulatorTuiTests : IAsyncLifetime
         return text;
     }
 
+    /// <summary>
+    /// The recorder closes an exchange once the response has been written, which can land after the client's call has
+    /// returned — the tab is only refreshed once the request it is about to list is actually in the recorder.
+    /// </summary>
+    async Task WaitForRecordedExchangeAsync(CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (!this.host.Traffic.Snapshot().Any(x => x.StatusCode > 0) && DateTime.UtcNow < deadline)
+            await Task.Delay(10, ct);
+    }
+
     [Fact]
     public void Opens_on_the_host_with_every_bridge_in_the_tree()
     {
@@ -130,6 +141,7 @@ public partial class SimulatorTuiTests : IAsyncLifetime
     public async Task The_traffic_tab_lists_requests_and_shows_the_whole_exchange()
     {
         await new WifiBridgeClient(new BuiltInClientTests.HttpTransport(this.http)).GetRadioAsync(TestContext.Current.CancellationToken);
+        await this.WaitForRecordedExchangeAsync(TestContext.Current.CancellationToken);
         this.shell.Traffic.Refresh();
         this.shell.SelectTab(1);
 

@@ -303,6 +303,22 @@ public class SimulatorServerTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_chosen_file_is_not_locked_while_it_is_served()
+    {
+        var file = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():n}.jpg");
+        await File.WriteAllBytesAsync(file, [0xFF, 0xD8, 0xFF, 0xD9], TestContext.Current.CancellationToken);
+
+        await using (SimulatedBridge.OpenChosen(file))
+        {
+            // the file still belongs to whoever pointed the route at it: replaceable and deletable while it is served
+            await File.WriteAllBytesAsync(file, [0xFF, 0xD8, 0xFF, 0xD8, 0xD9], TestContext.Current.CancellationToken);
+            File.Delete(file);
+        }
+
+        Assert.False(File.Exists(file));
+    }
+
+    [Fact]
     public void A_value_that_is_not_the_route_s_contract_is_refused()
     {
         var ex = Assert.Throws<ArgumentException>(() => this.State.SetValue("wifi", "GET radio", """{ "enabled": "maybe" }"""));
