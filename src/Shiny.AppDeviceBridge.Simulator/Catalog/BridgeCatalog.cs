@@ -19,6 +19,7 @@ using PushClient = Shiny.AppDeviceBridge.Push.Client;
 using RpiCameraClient = Shiny.AppDeviceBridge.RpiCamera.Client;
 using SpeechClient = Shiny.AppDeviceBridge.Speech.Client;
 using TransfersClient = Shiny.AppDeviceBridge.HttpTransfers.Client;
+using WearablesClient = Shiny.AppDeviceBridge.Wearables.Client;
 using WifiClient = Shiny.AppDeviceBridge.Wifi.Client;
 
 namespace Shiny.AppDeviceBridge.Simulator.Catalog;
@@ -115,6 +116,7 @@ public static class BridgeCatalog
             Describe(typeof(PushClient.IPushBridge), PushClient.PushJsonContext.Default),
             Describe(typeof(RpiCameraClient.IRpiCameraBridge), RpiCameraClient.RpiCameraJsonContext.Default),
             Describe(typeof(SpeechClient.ISpeechBridge), SpeechClient.SpeechJsonContext.Default),
+            Describe(typeof(WearablesClient.IWearablesBridge), WearablesClient.WearablesJsonContext.Default),
             Describe(typeof(WifiClient.IWifiBridge), WifiClient.WifiJsonContext.Default)
         }.OrderBy(x => x.Name, StringComparer.Ordinal)
     ];

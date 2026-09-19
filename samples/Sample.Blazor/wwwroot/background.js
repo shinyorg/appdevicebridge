@@ -51,6 +51,21 @@ appdevicebridge.on("transfer.failed", async ({ id, statusCode, error }) => {
     await log(`transfer ${id} failed: ${statusCode ?? "-"} ${error}`);
 });
 
+// A message from the watch with the app closed: what this returns is the reply the watch gets.
+appdevicebridge.on("wearables.message", async ({ path }) => {
+    await log(`watch message: ${path}`);
+    return { answeredBy: "background.js", path };
+});
+
+appdevicebridge.on("wearables.transfer", async ({ id, path }) => {
+    await log(`watch transfer ${id}: ${path}`);
+});
+
+// Already filed into a file root; `file` is the { root, path } the files bridge reads.
+appdevicebridge.on("wearables.file", async ({ fileName, file }) => {
+    await log(`watch file ${fileName}: ${file.root}/${file.path}`);
+});
+
 async function read(key) {
     const response = await fetch(`/_bridge/settings/local/${key}`);
     return response.ok ? response.json() : null;

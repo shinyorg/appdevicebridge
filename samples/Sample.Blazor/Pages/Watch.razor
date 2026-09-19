@@ -1,0 +1,55 @@
+@page "/watch"
+@inherits BridgePage
+@inject IWearablesBridge Wearables
+@inject IFilesBridge Files
+
+<h1>Watch</h1>
+<p class="muted">
+    The companion app on a paired Apple Watch or Wear OS device, through Shiny.Wearables. iOS and Android only; the watch app
+    itself speaks Shiny.Wearables' protocol. A message the watch sends is answered by the page while it is open (see Background)
+    and by background.js when it is not.
+</p>
+
+<div class="actions">
+    <button @onclick="@(() => Run(() => Wearables.GetStatusAsync(), Json.WearableStatus))">Status</button>
+    <button @onclick="@(() => Run(() => Wearables.SendMessageAsync(new WearableMessageRequest("ping", Data("{\"at\":\"" + DateTime.Now.ToString("O") + "\"}"))), Json.WearableReply))">Ping (live message)</button>
+    <button @onclick="@(() => Run(() => Wearables.UpdateContextAsync(new WearableContextUpdate(Data("{\"theme\":\"dark\",\"goal\":10000}"))), "Context shared."))">Share context</button>
+    <button @onclick="@(() => Run(() => Wearables.GetContextAsync(), Json.WearableContextState))">Read context</button>
+    <button @onclick="@(() => Run(() => Wearables.TransferAsync(new WearableTransferRequest("log", Data("{\"note\":\"queued from the page\"}"))), Json.WearableTransferTicket))">Queue transfer</button>
+    <button @onclick="SendFileAsync">Send a file</button>
+    <button @onclick="@(() => Run(() => Wearables.GetPendingTransfersAsync(), Json.IReadOnlyListWearablePendingTransfer))">Pending</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    static WearablesJsonContext Json => WearablesJsonContext.Default;
+
+    string log = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen<WearableStatus>(Wearables.OnStatusChangedAsync, e => Log("wearables.status", Compact(e, Json.WearableStatus)));
+        await Listen<WearableMessage>(Wearables.OnMessageAsync, e => Log("wearables.message", Compact(e, Json.WearableMessage)));
+        await Listen<WearableContext>(Wearables.OnContextAsync, e => Log("wearables.context", Compact(e, Json.WearableContext)));
+        await Listen<WearableTransfer>(Wearables.OnTransferAsync, e => Log("wearables.transfer", Compact(e, Json.WearableTransfer)));
+        await Listen<WearableReceivedFile>(Wearables.OnFileAsync, e => Log("wearables.file", Compact(e, Json.WearableReceivedFile)));
+        await Listen<WearableTransferCompleted>(Wearables.OnTransferCompletedAsync, e => Log("wearables.completed", Compact(e, Json.WearableTransferCompleted)));
+    }
+
+    // A file the page writes through the files bridge, then hands to the watch by the same { root, path }.
+    Task SendFileAsync() => Run(async () =>
+    {
+        await Files.WriteTextAsync("data", "watch/hello.txt", $"Hello from the page at {DateTime.Now:T}");
+        return await Wearables.SendFileAsync(new WearableFileRequest(
+            "notes",
+            new BridgeFile("data", "watch/hello.txt"),
+            new Dictionary<string, string> { ["from"] = "sample" }
+        ));
+    }, Json.WearableTransferTicket);
+
+    static System.Text.Json.JsonElement Data(string json) => System.Text.Json.JsonDocument.Parse(json).RootElement.Clone();
+
+    void Log(string name, string payload) => log = Prepend(log, $"{DateTime.Now:T}  {name}  {payload}");
+}

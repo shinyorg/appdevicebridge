@@ -122,6 +122,21 @@ triggers:
   - camera.status
   - remote viewfinder
   - device camera
+  - IWearablesBridge
+  - AddWearablesBridge
+  - AddWearablesBridgeClient
+  - WearablesBridgeClient
+  - WearablesBridgeOptions
+  - WebAppWearableDelegate
+  - Shiny.AppDeviceBridge.Wearables
+  - Shiny.AppDeviceBridge.Wearables.Client
+  - Shiny.Wearables
+  - wearables.message
+  - apple watch
+  - wear os
+  - watchos
+  - wearos
+  - WatchConnectivity
   - IRpiCameraBridge
   - AddRpiCameraBridge
   - Shiny.AppDeviceBridge.RpiCamera
@@ -199,7 +214,7 @@ calls device features from that web app, updates it over the air, or writes a br
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
   - **No MAUI** — BluetoothLE, Obd, Discovery, Wifi, HttpTransfers, Jobs (plain `net10.0`), Locations
-    (GPS/geofences/motion), Notifications, Push, Speech, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
+    (GPS/geofences/motion), Notifications, Push, Wearables, Speech, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless (on macOS they register Shiny's core services themselves).
@@ -314,6 +329,7 @@ public class App : Application
 | `.Wifi` | `AddWifiBridge(hotspot)` | `IWifiBridge` |
 | `.Discovery` | `AddDiscoveryBridge(protocols)` | `IDiscoveryBridge` |
 | `.Push` | `AddPushBridge()` | `IPushBridge` |
+| `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.8; iOS and Android only, `501` elsewhere |
 | `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
 | `.AppLinks` | `AddAppLinksBridge(o => …)` | `ILinksBridge` (built in) |
@@ -333,6 +349,36 @@ Client packages are `Shiny.AppDeviceBridge.{Bridge}.Client`, registered with `Ad
 name from the interface: `IAppBridge` → `AddAppBridgeClient()`, `ITransfersBridge` → `AddTransfersBridgeClient()`,
 `ITrayBridge` → `AddTrayBridgeClient()`, `IQuickEntryBridge` → `AddQuickEntryBridgeClient()`. The desktop bridges share
 `Shiny.AppDeviceBridge.Desktop.Client`.
+
+## Wearables
+
+`AddWearablesBridge()` puts the companion app on a paired Apple Watch (WatchConnectivity) or Wear OS device (Data Layer)
+behind `/_bridge/wearables`, backed by Shiny.Wearables (registers `AddWearables<WebAppWearableDelegate>()` itself unless
+`RegisterWearableService = false`). iOS and Android only; everything else answers `501` — check `GetStatusAsync().Supported`.
+
+- **Wire:** bodies are JSON. The page's `data` reaches the watch as UTF-8 JSON text; what the watch sends arrives as JSON,
+  or as a base64 string with `binary: true` when it is not JSON.
+- **Page → watch:** `SendMessageAsync(new WearableMessageRequest("sync", data))` waits for the reply (`WearableReply`);
+  never queues — `409 not_reachable` without a reachable watch. `UpdateContextAsync` (latest state only),
+  `TransferAsync` (queued, in order) and `SendFileAsync(new WearableFileRequest(path, new BridgeFile("data", "maps/city.bin")))`
+  return at once with a `WearableTransferTicket`; `wearables.completed` reports the id delivered/failed/cancelled.
+  A file must be in a root on disk and stay there until `wearables.completed`. `GetPendingTransfersAsync`, `CancelTransferAsync(id)`.
+- **Watch → web app:** events `wearables.status`, `wearables.message`, `wearables.context`, `wearables.transfer`,
+  `wearables.file`, `wearables.completed`. To act on traffic — including in the background — register a native-call
+  handler (`wearables.message`, `wearables.context`, `wearables.transfer`, `wearables.file`) in the page or
+  `background.js`: the platform wakes the app, and a `wearables.message` handler's **return value is the reply**.
+  Received files are filed to `data/wearables/{id}/{name}` and arrive as a `BridgeFile` for the files bridge.
+
+```js
+// background.js
+appdevicebridge.on("wearables.message", async ({ path, data }) => {
+    if (path === "steps") return { today: 8421 };
+    return null;
+});
+```
+
+The companion app speaks `Shiny.Wearables.WearableProtocol` (watchOS: `["path": String, "data": Data]` dictionaries;
+Wear OS: `/shiny/...` paths, the `shiny_wearable` capability, same application id and signing key).
 
 ## Quick entry
 

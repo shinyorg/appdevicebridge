@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Wearables.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge wearables bridge — the companion Apple Watch or Wear OS app: status, live messages with replies, shared context, queued transfers and files — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddWearablesBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

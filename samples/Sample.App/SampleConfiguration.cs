@@ -16,6 +16,7 @@ using Shiny.AppDeviceBridge.Notifications;
 using Shiny.AppDeviceBridge.Obd;
 using Shiny.AppDeviceBridge.Photos;
 using Shiny.AppDeviceBridge.Push;
+using Shiny.AppDeviceBridge.Wearables;
 using Shiny.AppDeviceBridge.RpiCamera;
 using Shiny.AppDeviceBridge.Speech;
 using Shiny.AppDeviceBridge.Wifi;
@@ -57,6 +58,9 @@ public static class SampleConfiguration
                         .AddWifiBridge()
                         .AddDiscoveryBridge()
                         .AddPushBridge(o => o.DispatchToWebApp = true)
+
+                        // A paired Apple Watch or Wear OS companion app; the page or background.js answers what it sends.
+                        .AddWearablesBridge()
                         .AddNotificationsBridge()
                         .AddHttpTransfersBridge()
                         .AddHealthBridge()

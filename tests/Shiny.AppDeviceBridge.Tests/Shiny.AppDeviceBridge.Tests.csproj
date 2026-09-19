@@ -59,6 +59,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Tunnel/Shiny.AppDeviceBridge.Tunnel.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Camera/Shiny.AppDeviceBridge.Camera.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Simulator/Shiny.AppDeviceBridge.Simulator.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wearables/Shiny.AppDeviceBridge.Wearables.csproj" />
     <!-- As an analyzer, for the test-only [BridgeClient] interface; and as an assembly, to run it against bad declarations. -->
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Client.SourceGenerators/Shiny.AppDeviceBridge.Client.SourceGenerators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="true" />

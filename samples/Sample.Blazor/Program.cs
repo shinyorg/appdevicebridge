@@ -20,6 +20,7 @@ using Shiny.AppDeviceBridge.BluetoothLE.Client;
 using Shiny.AppDeviceBridge.Contacts.Client;
 using Shiny.AppDeviceBridge.Wifi.Client;
 using Shiny.AppDeviceBridge.Push.Client;
+using Shiny.AppDeviceBridge.Wearables.Client;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -48,7 +49,8 @@ builder.Services
     .AddBluetoothLEBridgeClient()
     .AddContactsBridgeClient()
     .AddWifiBridgeClient()
-    .AddPushBridgeClient();
+    .AddPushBridgeClient()
+    .AddWearablesBridgeClient();
 builder.Services.AddScoped<NativeCallHandlers>();
 
 await builder.Build().RunAsync();

@@ -19,6 +19,7 @@
         <PackageVersion Include="Shiny.Jobs" Version="5.7.2"/>
         <PackageVersion Include="Shiny.Push" Version="5.7.2"/>
         <PackageVersion Include="Shiny.Notifications" Version="5.7.2"/>
+        <PackageVersion Include="Shiny.Wearables" Version="5.8.0"/>
         <PackageVersion Include="Shiny.Notifications.Linux" Version="5.7.2"/>
         <PackageVersion Include="Shiny.Net.Wifi" Version="5.7.2"/>
         <PackageVersion Include="Shiny.Net.Wifi.Linux" Version="5.7.2"/>

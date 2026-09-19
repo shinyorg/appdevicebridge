@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- One target: Shiny.Wearables carries the platform code (WatchConnectivity on iOS, the Wear OS Data Layer on
+         Android) and NuGet picks its build for the app's head. Everywhere else it registers no manager and the bridge
+         answers 501. -->
+    <RootNamespace>Shiny.AppDeviceBridge.Wearables</RootNamespace>
+    <Description>The companion Apple Watch or Wear OS app for a Shiny.AppDeviceBridge web app, backed by Shiny.Wearables — status, live messages answered by the page or background.js, shared context, queued transfers and file transfers through the file roots. One call: bridge.AddWearablesBridge().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shiny.Wearables" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Wearables.Client/Shiny.AppDeviceBridge.Wearables.Client.csproj" />
+  </ItemGroup>
+
+</Project>

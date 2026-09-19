@@ -55,6 +55,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Discovery` | the app | `AddDiscoveryBridge(DiscoveryProtocols.All)`: mDNS/Bonjour, SSDP/UPnP, WS-Discovery search, browse, resolve and publish |
 | `Shiny.AppDeviceBridge.Jobs` | the app | `AddWebAppJob(name, configure)`: background jobs handled by the page or `background.js` |
 | `Shiny.AppDeviceBridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
+| `Shiny.AppDeviceBridge.Wearables` | the app | `AddWearablesBridge()`: the companion Apple Watch or Wear OS app, through Shiny.Wearables — status, live messages the page or `background.js` answers, shared context, queued transfers and files through the file roots (iOS and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.Notifications` | the app | `AddNotificationsBridge()`: local notifications now, scheduled, repeating or at a geofence; pending, cancel, badge, channels; taps handed to the web app |
 | `Shiny.AppDeviceBridge.HttpTransfers` | the app | `AddHttpTransfersBridge()`: background uploads and downloads to and from file roots, with progress events and completion handlers |
 | `Shiny.AppDeviceBridge.AppLinks` | the app | `AddAppLinksBridge(o => o.Schemes.Add("myapp"))`: deep links and universal/app links routed to the page |
@@ -70,7 +71,7 @@ app, served from the device itself, updated from your own server, and able to ca
 
 AppSupport, AppSupport.Linux, AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
 `Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Obd, Discovery, Wifi,
-HttpTransfers, Jobs, Locations, Notifications, Push, Speech, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
+HttpTransfers, Jobs, Locations, Notifications, Push, Wearables, Speech, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
 ## The app
@@ -585,6 +586,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Discovery | `POST discovery/{mdns,ssdp,wsd}/search`, `POST discovery/{mdns,ssdp,wsd}/browse`, `GET discovery/mdns/resolve`, `GET discovery/wsd/resolve`, `GET discovery/ssdp/description?udn=`, `POST discovery/{mdns,ssdp,wsd}/publications`, `GET discovery/browses`, `DELETE discovery/browses/{id}`, `GET discovery/publications`, `DELETE discovery/publications/{id}` | `discovery.mdns`, `discovery.ssdp`, `discovery.wsd`, `discovery.error`, `discovery.stopped` |
 | Notifications | `GET notifications`, `POST notifications/access`, `POST notifications/send`, `GET notifications/pending`, `DELETE notifications[?scope=]`, `DELETE notifications/{id}`, `GET/PUT notifications/badge`, `GET/POST notifications/channels`, `DELETE notifications/channels/{id}` | `notification.entry`, `notification.received` |
 | HTTP transfers | `GET/POST/DELETE transfers`, `GET/DELETE transfers/{id}`, `POST transfers/{id}/pause`, `POST transfers/{id}/resume` | `transfer.progress`, `transfer.completed`, `transfer.failed`, `transfer.cancelled` |
+| Wearables | `GET wearables`, `POST wearables/messages`, `GET/PUT wearables/context`, `GET/POST wearables/transfers`, `DELETE wearables/transfers/{id}`, `POST wearables/files` | `wearables.status`, `wearables.message`, `wearables.context`, `wearables.transfer`, `wearables.file`, `wearables.completed` |
 | App links | `GET/DELETE links/pending` | `app.link` |
 | Health | `GET health`, `POST health/access`, `GET/POST health/samples/{type}`, `POST/DELETE health/listeners/{type}` | `health.reading`, `health.stopped` |
 | Speech | `GET speech/status`, `POST speech/access`, `POST speech/recognize`, `GET/POST/DELETE speech/listener`, `POST/DELETE speech/speak`, `GET speech/voices?culture=`, `GET speech/cultures` | `speech.partial`, `speech.result`, `speech.keyword`, `speech.ended`, `speech.spoken`, `speech.error` |
@@ -865,6 +867,26 @@ bridge.AddAppSupportBridge(startup: o => o.Arguments.Add("--autostart"));
 - **Platform setup:** `NSPhotoLibraryUsageDescription` on Apple platforms, plus the
   `com.apple.security.personal-information.photos-library` entitlement where the app is sandboxed.
   `READ_MEDIA_IMAGES` on Android 13 and later, `READ_EXTERNAL_STORAGE` before.
+
+**Wearables** (`Shiny.AppDeviceBridge.Wearables`, `AddWearablesBridge()`): the companion app on a paired Apple Watch
+(WatchConnectivity) or Wear OS device (the Data Layer), through Shiny.Wearables 5.8. iOS and Android only; every
+other platform answers `501`.
+- **JSON on the wire:** what the page sends reaches the watch as its UTF-8 JSON text. What the watch sends reaches the
+  page as JSON, or, when it isn't JSON, as a base64 string with `binary: true`.
+- **Messages:** `POST wearables/messages` with `{ path, data, nodeId? }` waits for the companion app's reply. A message
+  never queues: with no reachable watch it fails with `409` `not_reachable`. Keep it small (about 64 KB on iOS,
+  100 KB on Wear OS).
+- **Context and transfers queue:** `PUT wearables/context` replaces the shared state (only the latest is kept), and
+  `POST wearables/transfers` queues data delivered in order even when the watch is away. Both answer immediately;
+  `wearables.completed` reports a transfer delivered, failed or cancelled.
+- **Files:** `POST wearables/files` takes `{ path, file: { root, path }, metadata? }` — a file in a root on disk.
+  The platform reads it while it transfers, so leave it until `wearables.completed`. Files from the watch are filed
+  into `data/wearables/{id}/{name}` (`Root` and `Folder` options) and arrive as a `BridgeFile`.
+- **The watch calling the web app:** `wearables.message`, `wearables.context`, `wearables.transfer` and
+  `wearables.file` go to the page's handler, or `background.js` when no page is open — the platform wakes the app
+  for them. A `wearables.message` handler's return value is the reply the watch gets.
+- **The companion app** speaks Shiny.Wearables' protocol (paths under `/shiny` on Wear OS, `path`/`data` dictionaries
+  on watchOS). On Wear OS both apps share the application id and signing key.
 
 **Folders:**
 - **Picking:** `POST folders/pick` with `{ "root": "documents" }` shows the platform's folder picker. The folder
@@ -1318,6 +1340,7 @@ then the handler. It gets `BackgroundScriptTimeout` (25 s) and 64 MB.
 | Notification tapped | `notification.entry` with `{ id, title, message, channel, thread, data, action, text }` | `AddNotificationsBridge()` (Bridge.Notifications) |
 | Notification presented while the app is open (Apple platforms) | `notification.received` with the same shape | `AddNotificationsBridge()` |
 | HTTP transfer finished | `transfer.completed` / `transfer.failed` with the transfer | `AddHttpTransfersBridge()` (Bridge.HttpTransfers) |
+| Watch message, context, transfer or file | `wearables.message` (its return value is the reply), `wearables.context`, `wearables.transfer`, `wearables.file` | `AddWearablesBridge()` (Bridge.Wearables) |
 
 From your own native code, call `WebAppInvoker.InvokeAsync(name, payload, typeInfo)`.
 

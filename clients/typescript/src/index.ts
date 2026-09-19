@@ -19,4 +19,5 @@ export * from "./push.js";
 export * from "./rpi-camera.js";
 export * from "./shared.js";
 export * from "./speech.js";
+export * from "./wearables.js";
 export * from "./wifi.js";

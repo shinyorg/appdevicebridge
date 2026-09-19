@@ -5,6 +5,7 @@ using Shiny.AppDeviceBridge.HttpTransfers.Client;
 using Shiny.AppDeviceBridge.Locations.Client;
 using Shiny.AppDeviceBridge.Notifications.Client;
 using Shiny.AppDeviceBridge.Push.Client;
+using Shiny.AppDeviceBridge.Wearables.Client;
 using Shiny.AppDeviceBridge.Desktop.Client;
 
 namespace Sample.Blazor;
@@ -58,6 +59,15 @@ public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls, IQuickEntr
                     Response: $"The page heard \"{submission.Text}\"{(submission.Suggestion is { Value: { } value } ? $" (suggestion {value})" : "")}."
                 ));
             });
+
+            // What this returns is the reply the watch gets; background.js answers the same name with the app closed.
+            await nativeCalls.HandleAsync("wearables.message", WearablesJsonContext.Default.WearableMessage, SampleJson.Default.WatchReply, message =>
+            {
+                this.Record("wearables.message", message.Path);
+                return Task.FromResult(new WatchReply(AnsweredBy: "page", Path: message.Path));
+            });
+            await this.Record("wearables.transfer", WearablesJsonContext.Default.WearableTransfer, x => $"{x.Path} {x.Id}");
+            await this.Record("wearables.file", WearablesJsonContext.Default.WearableReceivedFile, x => $"{x.FileName} → {x.File.Root}/{x.File.Path}");
 
             await this.Record("transfer.completed", TransfersJsonContext.Default.TransferInfo, x => $"{x.Type} {x.Path}");
             await this.Record("transfer.failed", TransfersJsonContext.Default.TransferInfo, x => $"{x.Type} {x.Path}: {x.Error}");

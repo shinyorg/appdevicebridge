@@ -39,6 +39,7 @@
     <Project Path="src/Shiny.AppDeviceBridge.Wifi/Shiny.AppDeviceBridge.Wifi.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Discovery/Shiny.AppDeviceBridge.Discovery.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Push/Shiny.AppDeviceBridge.Push.csproj" />
+    <Project Path="src/Shiny.AppDeviceBridge.Wearables/Shiny.AppDeviceBridge.Wearables.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Locations/Shiny.AppDeviceBridge.Locations.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.AppLinks/Shiny.AppDeviceBridge.AppLinks.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Calendar/Shiny.AppDeviceBridge.Calendar.csproj" />
@@ -76,4 +77,5 @@
     <Project Path="src/Shiny.AppDeviceBridge.Contacts.Client/Shiny.AppDeviceBridge.Contacts.Client.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Wifi.Client/Shiny.AppDeviceBridge.Wifi.Client.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Push.Client/Shiny.AppDeviceBridge.Push.Client.csproj" />
+    <Project Path="src/Shiny.AppDeviceBridge.Wearables.Client/Shiny.AppDeviceBridge.Wearables.Client.csproj" />
 </Solution>

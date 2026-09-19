@@ -33,6 +33,7 @@ public static class SampleNav
             new NavItem("transfers", "Transfers", "transfer", "transfers")),
         new("Messaging",
             new NavItem("push", "Push", "bell", "push"),
+            new NavItem("watch", "Watch", "watch", "wearables"),
             new NavItem("notifications", "Notifications", "message", "notifications"),
             new NavItem("links", "Links", "link", "links")),
         new("Data",

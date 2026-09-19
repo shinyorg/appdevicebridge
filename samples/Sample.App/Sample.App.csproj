@@ -32,6 +32,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Photos/Shiny.AppDeviceBridge.Photos.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Camera/Shiny.AppDeviceBridge.Camera.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Push/Shiny.AppDeviceBridge.Push.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wearables/Shiny.AppDeviceBridge.Wearables.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.RpiCamera/Shiny.AppDeviceBridge.RpiCamera.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Speech/Shiny.AppDeviceBridge.Speech.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wifi/Shiny.AppDeviceBridge.Wifi.csproj" />
