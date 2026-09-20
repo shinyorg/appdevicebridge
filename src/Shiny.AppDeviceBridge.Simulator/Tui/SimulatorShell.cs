@@ -241,7 +241,11 @@ sealed class SimulatorShell
     {
         _ = this.revision.Value;
         var origin = this.Host.Origin?.AbsoluteUri ?? "not listening";
-        return $"[{Ui.Muted}]serving[/] [underline {Ui.Accent}]{Ui.Escape(origin)}[/]  [{Ui.Muted}]as[/] [bold {Ui.Violet}]{Ui.Escape(this.State.Platform)}[/]  [{Ui.Muted}]app[/] {Ui.Escape(this.State.AppId)}";
+        // The endpoint rewrites what the device answers, so a person watching the terminal should be able to see at a
+        // glance that it is open — and every change an agent makes shows up in the Activity tab beside their own.
+        var mcp = this.Host.McpToken is null ? "" : $"  [bold {Ui.Violet}]mcp[/]";
+
+        return $"[{Ui.Muted}]serving[/] [underline {Ui.Accent}]{Ui.Escape(origin)}[/]  [{Ui.Muted}]as[/] [bold {Ui.Violet}]{Ui.Escape(this.State.Platform)}[/]  [{Ui.Muted}]app[/] {Ui.Escape(this.State.AppId)}{mcp}";
     }
 
     string StatusMarkup()

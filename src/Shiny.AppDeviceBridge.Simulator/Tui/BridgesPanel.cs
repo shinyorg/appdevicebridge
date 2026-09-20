@@ -195,6 +195,9 @@ sealed class BridgesPanel
                     ResponseMode.Error => $"[{Ui.Red}]{b.StatusCode} {Ui.Escape(b.ErrorCode)}[/]",
                     _ when route.Route.Kind == ResponseKind.Empty => $"[{Ui.Green}]204[/]",
                     _ when route.Route.Kind == ResponseKind.Binary => $"[{Ui.Green}]200 {(b.FilePath is null ? "placeholder" : Ui.Escape(Path.GetFileName(b.FilePath)))}[/]",
+
+                    // A sequence answers differently each call, so "200 set" would be a lie about what the page will get.
+                    _ when b.Sequence is { Count: > 0 } sequence => $"[{Ui.Green}]200[/] [{Ui.Muted}]{Math.Min(route.Step, sequence.Count)}/{sequence.Count} in turn[/]",
                     _ => b.Json == route.DefaultJson ? $"[{Ui.Green}]200[/] [{Ui.Muted}]sample[/]" : $"[{Ui.Green}]200 set[/]"
                 };
 
@@ -238,6 +241,7 @@ sealed class BridgesPanel
         {
             ResponseMode.Null => $" [{Ui.Amber}]204[/]",
             ResponseMode.Error => $" [{Ui.Red}]{b.StatusCode}[/]",
+            _ when b.Sequence is { Count: > 0 } => $" [{Ui.Green}]●[/]",
             _ when route.Route.Kind == ResponseKind.Json && b.Json != route.DefaultJson => $" [{Ui.Green}]●[/]",
             _ => ""
         };

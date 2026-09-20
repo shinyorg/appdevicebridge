@@ -43,7 +43,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `@shinyorg/appdevicebridge` | a JavaScript or TypeScript web app | the same typed clients in TypeScript, generated from the same declarations (`clients/typescript`) |
 | `Shiny.AppDeviceBridge` | (dependency) | the bridge server: `http.AddAppDeviceBridge(bridge => …)` on Shiny.Net.HttpServer's `ShinyHttpServerBuilder`, `AppDeviceBridgeBuilder` (`Configure`, `AddBridge<T>()`), `AppDeviceBridgeOptions` (mount points, allowed hosts, the bridge policy), bridge contracts, built-in settings, files and native-call endpoints; no MAUI dependency |
 | `Shiny.AppDeviceBridge.Tunnel` | the app, or a headless device | `bridge.AddTunnel()`: a public HTTPS address for the server, opened and closed while the app runs; everything through it is treated as a remote caller |
-| `Shiny.AppDeviceBridge.Simulator` | a .NET tool | `shiny-bridge-sim`: a terminal UI that serves every bridge with answers you set, events you fire and trails you play (GPX walks included), with a traffic monitor — test a page without a device. See [Simulator](#simulator) |
+| `Shiny.AppDeviceBridge.Simulator` | a .NET tool | `shiny-bridge-sim`: a terminal UI that serves every bridge with answers you set, events you fire and trails you play (GPX walks included), with a traffic monitor, and an MCP endpoint an AI agent can drive it through — test a page without a device. See [Simulator](#simulator) |
 | `Shiny.AppDeviceBridge.Core` | (dependency) | protocol contracts, version ordering, release signatures |
 | `Shiny.AppDeviceBridge.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
 | `Shiny.AppDeviceBridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, launch at login, share, haptics and vibration, connectivity, battery, screen and clipboard; and `/_bridge/sensors` — accelerometer, gyroscope, magnetometer, compass, barometer and orientation |
@@ -1463,8 +1463,9 @@ shiny-bridge-sim --dev-server http://localhost:5288      # or --app ./publish/ww
 
 Open `http://127.0.0.1:5299/`. The page is served on the bridges' origin and needs no changes. In the terminal:
 
-- **Bridges**: set what each route answers (a value checked against its contract, a `204` null, or an error such as
-  `501 not_supported` or `403 access_denied`, after an optional delay), fire any event, switch a bridge off, pick the platform.
+- **Bridges**: set what each route answers (a value checked against its contract, a sequence of values answered one per
+  call, a `204` null, or an error such as `501 not_supported` or `403 access_denied`, after an optional delay), fire any
+  event, switch a bridge off, pick the platform.
 - **Traffic**: every request and response, from the same recorder as the MAUI traffic monitor.
 - **Trails**: timed scripts of those steps. A `.gpx` file plays as a GPS walk at its recorded pace, and Ctrl+R records what
   you do as a trail.
@@ -1472,6 +1473,12 @@ Open `http://127.0.0.1:5299/`. The page is served on the bridges' origin and nee
 
 Ctrl+S saves a scenario of the whole setup. `--scenario setup.json --trail walk.gpx --play walk --headless` replays it
 without the TUI, in CI. The server listens on loopback only, with the same bridge policy as a release build.
+
+`--mcp` serves an MCP endpoint on the same origin, so an AI agent can drive the simulator you are watching — set what a
+bridge answers, fire events, play trails, and read what the page actually requested (`wait_for_request` waits for the
+page to ask rather than guessing). It prints a paste-ready client config. The endpoint is off unless asked for, admits
+callers on this device holding the token it printed, and refuses any request carrying an `Origin` header, which is what
+keeps the page it serves from rewriting its own device answers. `--mcp-stdio` speaks MCP on stdin/stdout instead.
 
 ## Samples
 

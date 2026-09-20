@@ -70,7 +70,8 @@ public sealed class Scenario
                 saved.Routes[route.Route.Key] = new ScenarioRoute
                 {
                     Mode = TrailStep.FormatMode(behavior.Mode),
-                    Value = behavior.Mode == ResponseMode.Value && behavior.Json != route.DefaultJson && behavior.Json.Length > 0 ? JsonNode.Parse(behavior.Json) : null,
+                    Value = behavior.Mode == ResponseMode.Value && behavior.Sequence is null && behavior.Json != route.DefaultJson && behavior.Json.Length > 0 ? JsonNode.Parse(behavior.Json) : null,
+                    Values = behavior.Sequence is { Count: > 0 } sequence ? [.. sequence.Select(x => JsonNode.Parse(x))] : null,
                     Status = behavior.Mode == ResponseMode.Error ? behavior.StatusCode : null,
                     Code = behavior.Mode == ResponseMode.Error ? behavior.ErrorCode : null,
                     Message = behavior.Mode == ResponseMode.Error ? behavior.ErrorMessage : null,
@@ -120,14 +121,17 @@ public sealed class Scenario
                 try
                 {
                     var current = bridge.FindRoute(key) ?? throw new ArgumentException($"{name} has no route '{key}'.");
+                    var sequence = route.Values is { Count: > 0 } values ? values.Select(x => x?.ToJsonString() ?? "null").ToList() : null;
+
                     state.SetBehavior(name, key, new RouteBehavior(
                         TrailStep.ParseMode(route.Mode),
-                        route.Value?.ToJsonString() ?? current.DefaultJson,
+                        sequence?[0] ?? route.Value?.ToJsonString() ?? current.DefaultJson,
                         route.Status ?? 501,
                         route.Code ?? "not_supported",
                         route.Message ?? "Simulated failure.",
                         route.DelayMs ?? 0,
-                        route.File
+                        route.File,
+                        sequence
                     ));
                 }
                 catch (ArgumentException ex)
@@ -171,6 +175,9 @@ public sealed class ScenarioRoute
     public string? Mode { get; set; }
 
     public JsonNode? Value { get; set; }
+
+    /// <summary>Values answered one per call, the last repeating — instead of <see cref="Value"/>.</summary>
+    public List<JsonNode?>? Values { get; set; }
 
     public int? Status { get; set; }
 

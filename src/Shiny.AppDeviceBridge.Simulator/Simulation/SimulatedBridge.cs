@@ -74,7 +74,7 @@ public sealed class SimulatedBridge(SimulatorState state, BridgeState bridge) : 
 
             default:
                 context.Response.StatusCode = StatusCodes.Status200OK;
-                await context.Response.WriteTextAsync(PayloadTokens.Expand(behavior.Json, state.Time), "application/json; charset=utf-8", context.RequestAborted);
+                await context.Response.WriteTextAsync(PayloadTokens.Expand(route.NextJson(behavior), state.Time), "application/json; charset=utf-8", context.RequestAborted);
                 return;
         }
     }

@@ -23,6 +23,11 @@ public enum ResponseMode
 /// <param name="Json">The value, for <see cref="ResponseMode.Value"/>. May hold <see cref="PayloadTokens"/>.</param>
 /// <param name="DelayMs">Held before answering, to show the page's loading state or trip its timeout.</param>
 /// <param name="FilePath">For a binary route: the file to send. A small placeholder image when null.</param>
+/// <param name="Sequence">
+/// Values answered one per call, the last one repeating once they run out — a route that changes as the page polls it:
+/// queued, then running, then done. <see cref="Json"/> is the first of them, so anything reading a single value still
+/// sees something sensible.
+/// </param>
 public sealed record RouteBehavior(
     ResponseMode Mode,
     string Json,
@@ -30,7 +35,8 @@ public sealed record RouteBehavior(
     string ErrorCode = "not_supported",
     string ErrorMessage = "Simulated failure.",
     int DelayMs = 0,
-    string? FilePath = null
+    string? FilePath = null,
+    IReadOnlyList<string>? Sequence = null
 )
 {
     /// <summary>The failures a bridge sends, as the page's <c>BridgeException</c> sees them.</summary>
@@ -49,6 +55,7 @@ public sealed class RouteState
 {
     RouteBehavior behavior;
     int hits;
+    int step;
 
     internal RouteState(SimRoute route)
     {
@@ -65,7 +72,28 @@ public sealed class RouteState
     public RouteBehavior Behavior
     {
         get => Volatile.Read(ref this.behavior);
-        internal set => Volatile.Write(ref this.behavior, value);
+        internal set
+        {
+            // A new behavior starts its sequence again; otherwise setting one twice would answer from halfway through it.
+            Volatile.Write(ref this.step, 0);
+            Volatile.Write(ref this.behavior, value);
+        }
+    }
+
+    /// <summary>How far through <see cref="RouteBehavior.Sequence"/> the route is.</summary>
+    public int Step => Volatile.Read(ref this.step);
+
+    /// <summary>
+    /// The value this call answers with, advancing a sequence by one. The last value repeats, so a page that keeps
+    /// polling keeps getting the end state rather than falling off the end.
+    /// </summary>
+    internal string NextJson(RouteBehavior current)
+    {
+        if (current.Sequence is not { Count: > 0 } sequence)
+            return current.Json;
+
+        var index = Interlocked.Increment(ref this.step) - 1;
+        return sequence[Math.Min(index, sequence.Count - 1)];
     }
 
     /// <summary>How many times the page has called it.</summary>
@@ -235,11 +263,15 @@ public sealed class SimulatorState
     {
         var route = this.FindRoute(bridge, key) ?? throw new ArgumentException($"{bridge} has no route '{key}'.", nameof(key));
 
-        if (behavior.Mode == ResponseMode.Value
-            && route.Route.ResultType is { } type
-            && !SampleJson.TryValidate(behavior.Json, type, route.Route.Json, out var error))
+        if (behavior.Mode == ResponseMode.Value && route.Route.ResultType is { } type)
         {
-            throw new ArgumentException($"{route.Route.Path} answers {type.Name}, and that value is not one: {error}", nameof(behavior));
+            // Every value a sequence will answer with is checked now, not when the page reaches it: a sequence whose
+            // third value is wrong should fail where it was set, not two polls into someone's test.
+            foreach (var value in behavior.Sequence ?? [behavior.Json])
+            {
+                if (!SampleJson.TryValidate(value, type, route.Route.Json, out var error))
+                    throw new ArgumentException($"{route.Route.Path} answers {type.Name}, and that value is not one: {error}", nameof(behavior));
+            }
         }
 
         if (behavior.Mode == ResponseMode.Error && behavior.StatusCode is < 400 or > 599)
@@ -252,7 +284,8 @@ public sealed class SimulatorState
             Bridge = bridge,
             Route = route.Route.Key,
             Mode = TrailStep.FormatMode(behavior.Mode),
-            Value = behavior.Mode == ResponseMode.Value && behavior.Json.Length > 0 ? JsonNode.Parse(behavior.Json) : null,
+            Value = behavior.Mode == ResponseMode.Value && behavior.Sequence is null && behavior.Json.Length > 0 ? JsonNode.Parse(behavior.Json) : null,
+            Values = behavior.Sequence is { Count: > 0 } sequence ? [.. sequence.Select(x => JsonNode.Parse(x))] : null,
             Status = behavior.Mode == ResponseMode.Error ? behavior.StatusCode : null,
             Code = behavior.Mode == ResponseMode.Error ? behavior.ErrorCode : null,
             Message = behavior.Mode == ResponseMode.Error ? behavior.ErrorMessage : null,

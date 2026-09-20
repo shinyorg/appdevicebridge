@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <PackageReference Include="XenoAtom.Terminal.UI" />
+    <PackageReference Include="Shiny.Net.HttpServer.Mcp" />
   </ItemGroup>
 
   <ItemGroup>

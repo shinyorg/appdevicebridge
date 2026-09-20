@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using Shiny.AppDeviceBridge.Simulator.Control;
 using Shiny.AppDeviceBridge.Simulator.Scenarios;
 using Shiny.AppDeviceBridge.Simulator.Simulation;
 using Shiny.AppDeviceBridge.Simulator.Trails;
@@ -22,9 +23,10 @@ public sealed class SimulatorHost : IAsyncDisposable
     readonly ServiceProvider services;
     readonly string? ownedDataDirectory;
 
-    SimulatorHost(SimulatorOptions options, ServiceProvider services, string? ownedDataDirectory)
+    SimulatorHost(SimulatorOptions options, ServiceProvider services, string? ownedDataDirectory, string? mcpToken)
     {
         this.Options = options;
+        this.McpToken = mcpToken;
         this.services = services;
         this.ownedDataDirectory = ownedDataDirectory;
         this.Server = services.GetRequiredService<AppDeviceBridgeServer>();
@@ -43,6 +45,18 @@ public sealed class SimulatorHost : IAsyncDisposable
     public TrafficRecorder Traffic { get; }
 
     public TrailLibrary Trails { get; }
+
+    /// <summary>The container, for the stdio transport, which needs the same services the HTTP endpoint runs against.</summary>
+    internal IServiceProvider Services => this.services;
+
+    /// <summary>The control surface, for a caller holding the host rather than reaching it over MCP.</summary>
+    public SimulatorControl Control => this.services.GetRequiredService<SimulatorControl>();
+
+    /// <summary>The token the MCP endpoint requires; null when it is not being served.</summary>
+    public string? McpToken { get; }
+
+    /// <summary>Where an MCP client connects, once started. Null when the endpoint is not being served.</summary>
+    public Uri? McpEndpoint => this.McpToken is null || this.Origin is not { } origin ? null : new Uri(origin, McpSetup.Path.TrimStart('/'));
 
     /// <summary>Where the page is served, once started.</summary>
     public Uri? Origin => this.Server.Origin;
@@ -77,12 +91,24 @@ public sealed class SimulatorHost : IAsyncDisposable
 
         var hub = new WebAppEventHub();
         var state = new SimulatorState(hub, bridgeOptions, time);
+        // Both modes need the server and its tools; only --mcp puts an endpoint on the network, and only that endpoint
+        // needs a token. An agent speaking over stdio already has the process.
+        var mcp = options.Mcp || options.McpStdio;
+        var token = options.Mcp ? options.McpToken ?? McpSetup.NewToken() : null;
+
+        // The tools are built as the container is configured and the control they drive is only resolvable once it has
+        // been built. Nothing reads this before a tool is called, which is long after.
+        ServiceProvider? built = null;
 
         var services = new ServiceCollection();
         services.AddSingleton(bridgeOptions);
         services.AddSingleton(hub);
         services.AddSingleton(state);
         services.AddSingleton(sp => new TrailLibrary(sp.GetRequiredService<SimulatorState>()));
+        services.AddSingleton<SimulatorControl>();
+
+        if (mcp)
+            services.AddMcp(() => built!.GetRequiredService<SimulatorControl>());
 
         foreach (var bridge in state.Bridges)
             services.AddSingleton<IWebAppBridge>(new SimulatedBridge(state, bridge));
@@ -94,13 +120,18 @@ public sealed class SimulatorHost : IAsyncDisposable
                 http.Options.Port = options.Port;
                 http.AddAppDeviceBridge();
                 http.AddTrafficRecorder(o => o.MaxExchanges = 1000);
+
+                if (token is not null)
+                    McpSetup.MapMcp(http, token);
+
                 http.Configure(server => ServePages(server, options, state));
             },
             autoStart: false
         );
 
         var provider = services.BuildServiceProvider();
-        var host = new SimulatorHost(options, provider, owned);
+        built = provider;
+        var host = new SimulatorHost(options, provider, owned, token);
 
         // Resolving the server composes the bridges onto it, which maps their events; mapping them all now means a page can
         // subscribe to any of them before the first is fired.
@@ -132,6 +163,12 @@ public sealed class SimulatorHost : IAsyncDisposable
         var origin = await this.Server.StartAsync(cancellationToken);
         this.State.Log($"serving {origin}");
 
+        if (this.McpToken is { } token && this.McpEndpoint is { } endpoint)
+        {
+            this.State.Log($"mcp control at {endpoint} — token {token}");
+            this.WriteMcpConfig(endpoint, token);
+        }
+
         foreach (var name in this.Options.Play)
         {
             var player = this.Trails.Find(name) ?? throw new ArgumentException($"--play: no trail is named '{name}'. Loaded: {String.Join(", ", this.Trails.Trails.Select(x => x.Name))}.");
@@ -140,6 +177,26 @@ public sealed class SimulatorHost : IAsyncDisposable
         }
 
         return origin;
+    }
+
+    /// <summary>
+    /// Writes the client configuration beside the simulator's data, so connecting an agent is a copy rather than a
+    /// transcription of a generated token. Best effort: a simulator that cannot write it still runs.
+    /// </summary>
+    void WriteMcpConfig(Uri endpoint, string token)
+    {
+        try
+        {
+            // The simulator's own directory, not the shared temp root: two simulators running at once would otherwise
+            // overwrite each other's config, and the one you read would hold the other one's token.
+            var path = Path.Combine(this.ownedDataDirectory ?? this.Options.DataDirectory!, "mcp.json");
+            File.WriteAllText(path, McpSetup.ClientConfig(this.Origin!, token));
+            this.State.Log($"mcp client config written to {path}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            this.State.Log($"mcp client config could not be written: {ex.Message}");
+        }
     }
 
     static void ServePages(HttpServer server, SimulatorOptions options, SimulatorState state)
@@ -164,9 +221,15 @@ public sealed class SimulatorHost : IAsyncDisposable
         server.MapGet("/", context => context.Response.WriteTextAsync(LandingPage.Html(state), "text/html; charset=utf-8", context.RequestAborted));
     }
 
+    /// <summary>
+    /// What the simulator answers itself rather than forwarding to a dev server: the bridges, the host, and — when it is
+    /// being served — the MCP control endpoint, which is on this origin and would otherwise be proxied to the page's
+    /// dev server, which knows nothing about it.
+    /// </summary>
     static bool IsBridgeServer(HttpContext context)
         => AppDeviceBridgeServer.IsUnder(context.Request.Path, WebAppPaths.DefaultBridgePrefix)
-           || AppDeviceBridgeServer.IsUnder(context.Request.Path, WebAppPaths.HostSegment);
+           || AppDeviceBridgeServer.IsUnder(context.Request.Path, WebAppPaths.HostSegment)
+           || AppDeviceBridgeServer.IsUnder(context.Request.Path, "_sim");
 
     public async ValueTask DisposeAsync()
     {

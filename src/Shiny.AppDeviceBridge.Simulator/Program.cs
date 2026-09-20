@@ -1,3 +1,4 @@
+using Shiny.AppDeviceBridge.Simulator.Control;
 using Shiny.AppDeviceBridge.Simulator.Hosting;
 using Shiny.AppDeviceBridge.Simulator.Tui;
 using XenoAtom.Terminal;
@@ -42,6 +43,9 @@ await using (host)
         Console.Error.WriteLine(ex.Message);
         return 1;
     }
+
+    if (options.McpStdio)
+        return await McpStdio.RunAsync(host);
 
     return options.Headless ? await Headless.RunAsync(host) : await RunTuiAsync(host);
 }

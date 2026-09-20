@@ -34,6 +34,15 @@ static class Headless
 
         Console.WriteLine($"Shiny.AppDeviceBridge simulator on {host.Origin} as {host.State.Platform} — Ctrl+C stops.");
 
+        if (host.McpToken is { } token && host.McpEndpoint is not null)
+        {
+            Console.WriteLine();
+            Console.WriteLine("An agent drives this simulator through MCP. Point one at it with:");
+            Console.WriteLine();
+            Console.WriteLine(Control.McpSetup.ClientConfig(host.Origin!, token));
+            Console.WriteLine();
+        }
+
         try
         {
             await Task.Delay(Timeout.Infinite, stop.Token);

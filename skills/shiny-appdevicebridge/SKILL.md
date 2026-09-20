@@ -62,6 +62,8 @@ triggers:
   - shiny-bridge-sim
   - bridge simulator
   - simulate bridges
+  - simulator MCP
+  - drive the simulator
   - GPX trail
   - traffic monitor
   - WebAppNativeCalls
@@ -439,7 +441,32 @@ shiny-bridge-sim --scenario setup.json --trail walk.gpx --play walk --speed 4 --
   { "delayMs": 5000, "bridge": "wifi", "route": "GET current", "mode": "null" }, { "bridge": "ble", "supported": false } ] }`.
   Route keys are `"<METHOD> <pattern>"` from the interface (`GET current`, `DELETE regions/{identifier}`, `GET` for the root).
 - `.gpx` loads as `gps.reading` events plus `GET gps/current`/`GET gps/last` values at the recorded pace.
+- A route can also answer a **sequence**: values one per call, the last repeating — for a page that polls (queued →
+  running → done). In a trail step or scenario it is `"values": [ … ]` instead of `"value"`.
 - A new bridge must be added to `BridgeCatalog` and the simulator's csproj; `SimulatorCatalogTests` fail until it is.
+
+### Driving the simulator yourself (MCP)
+
+`shiny-bridge-sim --mcp` serves an MCP endpoint at `/_sim/mcp` on the simulator's own origin, printing a paste-ready
+client config (and writing it to `mcp.json` in the data directory). Use it when you need to put a page into a device
+state and then check what it did. `--mcp-stdio` instead speaks MCP on stdin/stdout, for starting the simulator yourself.
+
+Tools: `get_status`, `list_bridges`, `describe_bridge`, `get_route`; `set_route`, `set_route_sequence`, `reset_route`,
+`set_bridge_supported`, `set_platform`, `set_sticky_writes`; `fire_event`, `set_event_payload`; `list_trails`,
+`load_trail`, `load_trail_file`, `play_trail`, `pause_trail`, `stop_trail`, `remove_trail`; `apply_scenario`,
+`apply_scenario_file`, `capture_scenario`; `get_traffic`, `get_activity`, `clear_traffic`, `set_recording`,
+`wait_for_request`, `wait_for_quiet`.
+
+How to use it well:
+
+- Call `get_route` before `set_route` and shape the value on its `sample` — a value that is not the contract is refused,
+  and the refusal names the contract it should have matched.
+- Set the answer, then `wait_for_request` for the path the page will call. Do not sleep and then read `get_traffic`;
+  only requests made after the wait call count, so the loop is deterministic.
+- If an event seems not to arrive, read the listener count `fire_event` returns — `0` means the page never subscribed.
+- `capture_scenario` hands back the whole setup to check in beside the app as a reproduction.
+- The endpoint is loopback-only, needs the printed bearer token, and refuses any request carrying an `Origin` header —
+  so a page cannot drive it, and neither can a browser-based tool.
 
 ## A Blazor page
 

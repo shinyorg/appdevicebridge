@@ -37,6 +37,21 @@ public sealed class SimulatorOptions
     /// <summary>No TUI: serve, apply, play, and print the activity log — for a test run or CI.</summary>
     public bool Headless { get; set; }
 
+    /// <summary>
+    /// Serve the MCP control endpoint, so an agent can drive this simulator while it runs. Off unless asked for: it
+    /// rewrites what the device answers, and the page is served from the same origin.
+    /// </summary>
+    public bool Mcp { get; set; }
+
+    /// <summary>
+    /// Speak MCP on stdin and stdout, for an agent that starts the simulator itself. Implies <see cref="Headless"/>,
+    /// and everything that would have gone to stdout goes to stderr instead — stdout is the protocol.
+    /// </summary>
+    public bool McpStdio { get; set; }
+
+    /// <summary>The token the MCP endpoint requires. Generated and printed when <see cref="Mcp"/> is on and this is null.</summary>
+    public string? McpToken { get; set; }
+
     /// <summary>Where the settings and files bridges keep their data. A fresh temporary folder when null.</summary>
     public string? DataDirectory { get; set; }
 
@@ -58,6 +73,9 @@ public sealed class SimulatorOptions
           --speed <n>            playback speed for --play (default 1)
           --data <dir>           where the settings and files bridges keep data (default: a temp folder)
           --headless             no TUI: serve, apply, play and log to the console
+          --mcp                  serve the MCP control endpoint so an AI agent can drive this simulator
+          --mcp-token <t>        the token the MCP endpoint requires (default: generated and printed)
+          --mcp-stdio            speak MCP on stdin/stdout for an agent that starts the simulator itself (implies --headless)
           -h, --help             this help
 
         Open the printed URL in a browser. The page and the bridges share that origin, so a page built with
@@ -130,6 +148,21 @@ public sealed class SimulatorOptions
                     options.Headless = true;
                     break;
 
+                case "--mcp":
+                    options.Mcp = true;
+                    break;
+
+                case "--mcp-token":
+                    options.McpToken = Next() is { Length: > 0 } token
+                        ? token
+                        : throw new ArgumentException("--mcp-token: expected a token.");
+                    break;
+
+                case "--mcp-stdio":
+                    options.McpStdio = true;
+                    options.Headless = true;
+                    break;
+
                 case "-h" or "--help" or "-?":
                     options.ShowHelp = true;
                     break;
@@ -141,6 +174,9 @@ public sealed class SimulatorOptions
 
         if (options.AppDirectory is not null && options.DevServer is not null)
             throw new ArgumentException("Pass --app or --dev-server, not both.");
+
+        if (options.McpToken is not null && !options.Mcp)
+            throw new ArgumentException("--mcp-token: there is nothing to guard without --mcp. Talking MCP over stdio needs no token.");
 
         return options;
     }

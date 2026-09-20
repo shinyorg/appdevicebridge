@@ -62,6 +62,9 @@ public sealed class TrailStep
     /// <summary>What the route answers with, in <c>value</c> mode.</summary>
     public JsonNode? Value { get; set; }
 
+    /// <summary>Values answered one per call, the last repeating — instead of <see cref="Value"/>.</summary>
+    public List<JsonNode?>? Values { get; set; }
+
     /// <summary>The error's status, in <c>error</c> mode; 501 when absent.</summary>
     public int? Status { get; set; }
 
@@ -120,10 +123,13 @@ public sealed class TrailStep
             var current = route.Behavior;
             var mode = ParseMode(this.Mode);
 
+            var sequence = this.Values is { Count: > 0 } values ? values.Select(x => x?.ToJsonString() ?? "null").ToList() : null;
+
             state.SetBehavior(bridge, key, current with
             {
                 Mode = mode,
-                Json = this.Value?.ToJsonString() ?? current.Json,
+                Json = sequence?[0] ?? this.Value?.ToJsonString() ?? current.Json,
+                Sequence = sequence,
                 StatusCode = this.Status ?? (mode == ResponseMode.Error ? 501 : current.StatusCode),
                 ErrorCode = this.Code ?? current.ErrorCode,
                 ErrorMessage = this.Message ?? current.ErrorMessage,
