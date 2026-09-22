@@ -67,7 +67,10 @@
     <Delete Files="$(ValhallaNativeDir)valhalla-mobile.aar" Condition="'$(_ValhallaAarHash.ToLowerInvariant())' != '$(ValhallaAarSha256)'" />
     <Error Condition="'$(_ValhallaAarHash.ToLowerInvariant())' != '$(ValhallaAarSha256)'"
            Text="valhalla-mobile.aar has SHA-256 $(_ValhallaAarHash), not the pinned $(ValhallaAarSha256). It was deleted; the next build downloads it again." />
-    <Unzip SourceFiles="$(ValhallaNativeDir)valhalla-mobile.aar" DestinationFolder="$(ValhallaNativeDir)aar" Include="jni/**/*.so"
+    <!-- The whole .aar, not Include="jni/**/*.so": Unzip matches that pattern against entry names with the platform's
+         separator, so on Windows it matches nothing and the extraction silently produces no libraries. Only the four
+         AndroidNativeLibrary items below leave obj. -->
+    <Unzip SourceFiles="$(ValhallaNativeDir)valhalla-mobile.aar" DestinationFolder="$(ValhallaNativeDir)aar"
            Condition="!Exists('$(ValhallaNativeDir)aar/jni/arm64-v8a/libvalhalla-wrapper.so')" />
 
     <ItemGroup>

@@ -35,7 +35,6 @@
             "src/Shiny.AppDeviceBridge.MapPacks/Shiny.AppDeviceBridge.MapPacks.csproj",
             "src/Shiny.AppDeviceBridge.Maps.Blazor/Shiny.AppDeviceBridge.Maps.Blazor.csproj",
             "src/Shiny.AppDeviceBridge.Maps.Client/Shiny.AppDeviceBridge.Maps.Client.csproj",
-            "src/Shiny.AppDeviceBridge.Maps.Valhalla/Shiny.AppDeviceBridge.Maps.Valhalla.csproj",
             "src/Shiny.AppDeviceBridge.Maps/Shiny.AppDeviceBridge.Maps.csproj",
             "src/Shiny.AppDeviceBridge.Maui/Shiny.AppDeviceBridge.Maui.csproj",
             "src/Shiny.AppDeviceBridge.Notifications.Client/Shiny.AppDeviceBridge.Notifications.Client.csproj",
