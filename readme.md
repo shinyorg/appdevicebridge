@@ -43,7 +43,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `@shinyorg/appdevicebridge` | a JavaScript or TypeScript web app | the same typed clients in TypeScript, generated from the same declarations (`clients/typescript`) |
 | `Shiny.AppDeviceBridge` | (dependency) | the bridge server: `http.AddAppDeviceBridge(bridge => …)` on Shiny.Net.HttpServer's `ShinyHttpServerBuilder`, `AppDeviceBridgeBuilder` (`Configure`, `AddBridge<T>()`), `AppDeviceBridgeOptions` (mount points, allowed hosts, the bridge policy), bridge contracts, built-in settings, files and native-call endpoints; no MAUI dependency |
 | `Shiny.AppDeviceBridge.Tunnel` | the app, or a headless device | `bridge.AddTunnel()`: a public HTTPS address for the server, opened and closed while the app runs; everything through it is treated as a remote caller |
-| `Shiny.AppDeviceBridge.Simulator` | a .NET tool | `shiny-bridge-sim`: a terminal UI that serves every bridge with answers you set, events you fire and trails you play (GPX walks included), with a traffic monitor, and an MCP endpoint an AI agent can drive it through — test a page without a device. See [Simulator](#simulator) |
+| `Shiny.AppDeviceBridge.Simulator` | a .NET tool | `shiny-bridge-sim`: a terminal UI (or, with `--web`, a browser panel) that serves every bridge with answers you set, events you fire and trails you play (GPX walks included), with a traffic monitor, and an MCP endpoint an AI agent can drive it through — test a page without a device. See [Simulator](#simulator) |
 | `Shiny.AppDeviceBridge.Core` | (dependency) | protocol contracts, version ordering, release signatures |
 | `Shiny.AppDeviceBridge.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
 | `Shiny.AppDeviceBridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, launch at login, share, haptics and vibration, connectivity, battery, screen and clipboard; and `/_bridge/sensors` — accelerometer, gyroscope, magnetometer, compass, barometer and orientation |
@@ -56,6 +56,10 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Jobs` | the app | `AddWebAppJob(name, configure)`: background jobs handled by the page or `background.js` |
 | `Shiny.AppDeviceBridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
 | `Shiny.AppDeviceBridge.Wearables` | the app | `AddWearablesBridge()`: the companion Apple Watch or Wear OS app, through Shiny.Wearables — status, live messages the page or `background.js` answers, shared context, queued transfers and files through the file roots (iOS and Android; `501` elsewhere) |
+| `Shiny.AppDeviceBridge.Maps` | the app | `AddMapsBridge()`: vector map tiles online or from regions the user downloads (verified against a signed catalog), and turn-by-turn directions from an online Valhalla router (all platforms) |
+| `Shiny.AppDeviceBridge.Maps.Valhalla` | the app | `AddOnDeviceDirections()`: directions computed on the phone over a downloaded region's road network (Android and iOS; online elsewhere) |
+| `Shiny.AppDeviceBridge.Maps.Blazor` | the web app | `<BridgeMap>`: MapLibre GL JS bundled for offline use, with pins, lines, areas, circles, click-to-draw and routes |
+| `Shiny.AppDeviceBridge.MapPacks` | a tool | `shiny-map-packs`: builds downloadable regions — the map cut from a PMTiles planet, the road network built with Valhalla |
 | `Shiny.AppDeviceBridge.Notifications` | the app | `AddNotificationsBridge()`: local notifications now, scheduled, repeating or at a geofence; pending, cancel, badge, channels; taps handed to the web app |
 | `Shiny.AppDeviceBridge.HttpTransfers` | the app | `AddHttpTransfersBridge()`: background uploads and downloads to and from file roots, with progress events and completion handlers |
 | `Shiny.AppDeviceBridge.AppLinks` | the app | `AddAppLinksBridge(o => o.Schemes.Add("myapp"))`: deep links and universal/app links routed to the page |
@@ -587,6 +591,8 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Notifications | `GET notifications`, `POST notifications/access`, `POST notifications/send`, `GET notifications/pending`, `DELETE notifications[?scope=]`, `DELETE notifications/{id}`, `GET/PUT notifications/badge`, `GET/POST notifications/channels`, `DELETE notifications/channels/{id}` | `notification.entry`, `notification.received` |
 | HTTP transfers | `GET/POST/DELETE transfers`, `GET/DELETE transfers/{id}`, `POST transfers/{id}/pause`, `POST transfers/{id}/resume` | `transfer.progress`, `transfer.completed`, `transfer.failed`, `transfer.cancelled` |
 | Wearables | `GET wearables`, `POST wearables/messages`, `GET/PUT wearables/context`, `GET/POST wearables/transfers`, `DELETE wearables/transfers/{id}`, `POST wearables/files` | `wearables.status`, `wearables.message`, `wearables.context`, `wearables.transfer`, `wearables.file`, `wearables.completed` |
+| Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
+| Directions | `GET directions`, `POST directions/route` | |
 | App links | `GET/DELETE links/pending` | `app.link` |
 | Health | `GET health`, `POST health/access`, `GET/POST health/samples/{type}`, `POST/DELETE health/listeners/{type}` | `health.reading`, `health.stopped` |
 | Speech | `GET speech/status`, `POST speech/access`, `POST speech/recognize`, `GET/POST/DELETE speech/listener`, `POST/DELETE speech/speak`, `GET speech/voices?culture=`, `GET speech/cultures` | `speech.partial`, `speech.result`, `speech.keyword`, `speech.ended`, `speech.spoken`, `speech.error` |
@@ -887,6 +893,18 @@ other platform answers `501`.
   for them. A `wearables.message` handler's return value is the reply the watch gets.
 - **The companion app** speaks Shiny.Wearables' protocol (paths under `/shiny` on Wear OS, `path`/`data` dictionaries
   on watchOS). On Wear OS both apps share the application id and signing key.
+
+**Maps and directions** (`Shiny.AppDeviceBridge.Maps`, `AddMapsBridge()`): online by default, offline where the user
+downloaded a region. Every platform; on-device directions on Android and iOS with `Shiny.AppDeviceBridge.Maps.Valhalla`.
+- **Tiles:** `GET maps` gives the tile, glyph and sprite URL templates a renderer uses. A tile comes from an installed
+  region, then tiles already seen online, then the online source (a PMTiles archive read by Range, or a tile service) —
+  and `204` when none has it. Keys for the online source stay in the app.
+- **Regions:** from a catalog the release server signs (`MapMapPacks()`). `POST maps/regions/{id}` with
+  `{ "directions": true }` downloads the map and, optionally, the road network; `maps.download` reports progress. Every
+  part is checked against its signed hash; downloads resume after an interruption.
+- **Directions:** `POST directions/route` with `{ stops, mode, units, language, source, avoid }`. `source: "Auto"` routes
+  on the device inside a downloaded road network and online otherwise. `404 no_route`, `503 offline_unavailable`.
+- **The map in Blazor:** `<BridgeMap>` from `Shiny.AppDeviceBridge.Maps.Blazor` — pins, shapes, drawing and routes.
 
 **Folders:**
 - **Picking:** `POST folders/pick` with `{ "root": "documents" }` shows the platform's folder picker. The folder
@@ -1479,6 +1497,11 @@ bridge answers, fire events, play trails, and read what the page actually reques
 page to ask rather than guessing). It prints a paste-ready client config. The endpoint is off unless asked for, admits
 callers on this device holding the token it printed, and refuses any request carrying an `Origin` header, which is what
 keeps the page it serves from rewriting its own device answers. `--mcp-stdio` speaks MCP on stdin/stdout instead.
+
+`--web` swaps the terminal UI for a browser panel at `/_sim/` on the same origin: the same bridges, route answers,
+events, trails, traffic, activity and scenarios, with the activity log going to the console. It prints a link carrying
+the panel's token in its fragment. Its API, `POST /_sim/api/{operation}` with the MCP tool names and arguments as JSON,
+admits callers on this device holding that token, and only from this origin — so it is scriptable with `curl` too.
 
 ## Samples
 

@@ -53,6 +53,7 @@
         <PackageVersion Include="Microsoft.Maui.Platforms.MacOS.Essentials" Version="$(MauiLabsVersion)"/>
         <PackageVersion Include="Microsoft.Maui.Platforms.Linux.Gtk4" Version="$(MauiLabsVersion)"/>
         <PackageVersion Include="Microsoft.Maui.Platforms.Linux.Gtk4.Essentials" Version="$(MauiLabsVersion)"/>
+        <PackageVersion Include="Microsoft.Maui.DevFlow.Agent" Version="$(MauiLabsVersion)"/>
     </ItemGroup>
     <ItemGroup>
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12"/>

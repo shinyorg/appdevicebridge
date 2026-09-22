@@ -1,6 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- This machine's Xcode is newer than the one the Apple SDK packs expect; builds work, the check just refuses them. -->
+    <ValidateXcodeVersion>false</ValidateXcodeVersion>
+
     <!-- A true AppKit app via dotnet/maui-labs — not Mac Catalyst. -->
     <TargetFramework>net10.0-macos</TargetFramework>
     <OutputType>Exe</OutputType>
@@ -19,6 +22,11 @@
     <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Microsoft.Maui.Platforms.MacOS" />
     <PackageReference Include="Microsoft.Maui.Platforms.MacOS.Essentials" />
+  </ItemGroup>
+
+  <!-- MAUI DevFlow: lets an agent inspect and drive the app without the real mouse and keyboard. Debug only. -->
+  <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+    <PackageReference Include="Microsoft.Maui.DevFlow.Agent" />
   </ItemGroup>
 
   <ItemGroup>

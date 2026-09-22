@@ -120,6 +120,12 @@ public sealed class TrafficRecorderOptions
     /// </summary>
     public Func<HttpContext, bool>? RedactRequestBody { get; set; }
 
+    /// <summary>
+    /// Requests not to record at all, such as a tool's own polling, which would otherwise push the page's traffic out of
+    /// the window. A skipped request is passed straight through, as if recording were off.
+    /// </summary>
+    public Func<HttpContext, bool>? Skip { get; set; }
+
     internal void Validate()
     {
         if (this.MaxExchanges <= 0)
@@ -279,13 +285,13 @@ public sealed class TrafficRecorder
         }
     }
 
-    /// <summary>The middleware. A pass-through while <see cref="IsRecording"/> is off.</summary>
+    /// <summary>The middleware. A pass-through while <see cref="IsRecording"/> is off, and for what <see cref="TrafficRecorderOptions.Skip"/> skips.</summary>
     public ValueTask RecordAsync(HttpContext context, RequestDelegate next)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(next);
 
-        return this.recording ? this.RecordCoreAsync(context, next) : next(context);
+        return this.recording && this.options.Skip?.Invoke(context) != true ? this.RecordCoreAsync(context, next) : next(context);
     }
 
     async ValueTask RecordCoreAsync(HttpContext context, RequestDelegate next)

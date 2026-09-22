@@ -38,6 +38,15 @@ public sealed class SimulatorOptions
     public bool Headless { get; set; }
 
     /// <summary>
+    /// Serve the control panel in a browser in place of the TUI: the same bridges, values, events, trails and traffic,
+    /// at <c>/_sim/</c> on the simulator's origin. The console gets the activity log, as with <see cref="Headless"/>.
+    /// </summary>
+    public bool Web { get; set; }
+
+    /// <summary>The token the web panel's API requires. Generated when <see cref="Web"/> is on and this is null.</summary>
+    public string? WebToken { get; set; }
+
+    /// <summary>
     /// Serve the MCP control endpoint, so an agent can drive this simulator while it runs. Off unless asked for: it
     /// rewrites what the device answers, and the page is served from the same origin.
     /// </summary>
@@ -73,6 +82,8 @@ public sealed class SimulatorOptions
           --speed <n>            playback speed for --play (default 1)
           --data <dir>           where the settings and files bridges keep data (default: a temp folder)
           --headless             no TUI: serve, apply, play and log to the console
+          --web                  no TUI: control the simulator from a browser panel at /_sim/ (the URL is printed)
+          --web-token <t>        the token the panel's API requires (default: generated; it is in the printed URL)
           --mcp                  serve the MCP control endpoint so an AI agent can drive this simulator
           --mcp-token <t>        the token the MCP endpoint requires (default: generated and printed)
           --mcp-stdio            speak MCP on stdin/stdout for an agent that starts the simulator itself (implies --headless)
@@ -148,6 +159,16 @@ public sealed class SimulatorOptions
                     options.Headless = true;
                     break;
 
+                case "--web":
+                    options.Web = true;
+                    break;
+
+                case "--web-token":
+                    options.WebToken = Next() is { Length: > 0 } webToken
+                        ? webToken
+                        : throw new ArgumentException("--web-token: expected a token.");
+                    break;
+
                 case "--mcp":
                     options.Mcp = true;
                     break;
@@ -174,6 +195,13 @@ public sealed class SimulatorOptions
 
         if (options.AppDirectory is not null && options.DevServer is not null)
             throw new ArgumentException("Pass --app or --dev-server, not both.");
+
+        if (options.WebToken is not null && !options.Web)
+            throw new ArgumentException("--web-token: there is no panel to guard without --web.");
+
+        // stdout is the MCP protocol there, and the panel's address would be written into it.
+        if (options.Web && options.McpStdio)
+            throw new ArgumentException("Pass --web or --mcp-stdio, not both. --web with --mcp serves both over HTTP.");
 
         if (options.McpToken is not null && !options.Mcp)
             throw new ArgumentException("--mcp-token: there is nothing to guard without --mcp. Talking MCP over stdio needs no token.");

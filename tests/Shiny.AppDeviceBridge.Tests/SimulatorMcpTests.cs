@@ -156,6 +156,26 @@ public class SimulatorMcpTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task With_a_dev_server_the_endpoint_is_answered_here_not_forwarded()
+    {
+        // Nothing listens on the dev server's port: a request forwarded there comes back 502.
+        await using var proxied = SimulatorHost.Create(new SimulatorOptions { Port = 0, Mcp = true, McpToken = Token, DevServer = new Uri("http://127.0.0.1:1/") });
+        await proxied.StartAsync(TestContext.Current.CancellationToken);
+
+        await using var client = await McpClient.CreateAsync(
+            new HttpClientTransport(new HttpClientTransportOptions
+            {
+                Endpoint = proxied.McpEndpoint!,
+                AdditionalHeaders = new Dictionary<string, string> { ["Authorization"] = $"Bearer {Token}" }
+            }),
+            cancellationToken: TestContext.Current.CancellationToken
+        );
+
+        var tools = await client.ListToolsAsync(cancellationToken: TestContext.Current.CancellationToken);
+        Assert.Contains(tools, x => x.Name == "get_status");
+    }
+
+    [Fact]
     public void Every_control_operation_is_something_an_agent_can_call()
     {
         // The surface is only useful if it is whole: a new operation on the control that no tool exposes is invisible to

@@ -12,6 +12,7 @@ using DiscoveryClient = Shiny.AppDeviceBridge.Discovery.Client;
 using FoldersClient = Shiny.AppDeviceBridge.Folders.Client;
 using HealthClient = Shiny.AppDeviceBridge.Health.Client;
 using LocationsClient = Shiny.AppDeviceBridge.Locations.Client;
+using MapsClient = Shiny.AppDeviceBridge.Maps.Client;
 using NotificationsClient = Shiny.AppDeviceBridge.Notifications.Client;
 using ObdClient = Shiny.AppDeviceBridge.Obd.Client;
 using PhotosClient = Shiny.AppDeviceBridge.Photos.Client;
@@ -110,6 +111,8 @@ public static class BridgeCatalog
             Describe(typeof(LocationsClient.IGpsBridge), LocationsClient.LocationsJsonContext.Default),
             Describe(typeof(LocationsClient.IGeofencesBridge), LocationsClient.LocationsJsonContext.Default),
             Describe(typeof(LocationsClient.IMotionBridge), LocationsClient.LocationsJsonContext.Default),
+            Describe(typeof(MapsClient.IMapsBridge), MapsClient.MapsJsonContext.Default),
+            Describe(typeof(MapsClient.IDirectionsBridge), MapsClient.DirectionsJsonContext.Default),
             Describe(typeof(NotificationsClient.INotificationsBridge), NotificationsClient.NotificationsJsonContext.Default),
             Describe(typeof(ObdClient.IObdBridge), ObdClient.ObdJsonContext.Default),
             Describe(typeof(PhotosClient.IPhotosBridge), PhotosClient.PhotosJsonContext.Default),

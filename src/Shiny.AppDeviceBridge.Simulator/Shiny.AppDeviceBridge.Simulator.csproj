@@ -2,7 +2,7 @@
 
   <!--
     A terminal app that stands in for the native app: every bridge's endpoints, simulated from the same [BridgeClient]
-    interfaces the typed clients are generated from, answering with values set in the TUI, a scenario file or a trail.
+    interfaces the typed clients are generated from, answering with values set in the TUI, the web panel, a scenario file or a trail.
     Ships as a .NET tool. Add a new bridge's .Client project here and its interface to BridgeCatalog; a test fails until
     both are done.
   -->
@@ -19,6 +19,10 @@
   <ItemGroup>
     <PackageReference Include="XenoAtom.Terminal.UI" />
     <PackageReference Include="Shiny.Net.HttpServer.Mcp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Control/panel.html" LogicalName="Shiny.AppDeviceBridge.Simulator.panel.html" />
   </ItemGroup>
 
   <ItemGroup>
@@ -45,6 +49,7 @@
     <ProjectReference Include="../Shiny.AppDeviceBridge.RpiCamera.Client/Shiny.AppDeviceBridge.RpiCamera.Client.csproj" />
     <ProjectReference Include="../Shiny.AppDeviceBridge.Speech.Client/Shiny.AppDeviceBridge.Speech.Client.csproj" />
     <ProjectReference Include="../Shiny.AppDeviceBridge.Wearables.Client/Shiny.AppDeviceBridge.Wearables.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Maps.Client/Shiny.AppDeviceBridge.Maps.Client.csproj" />
     <ProjectReference Include="../Shiny.AppDeviceBridge.Wifi.Client/Shiny.AppDeviceBridge.Wifi.Client.csproj" />
   </ItemGroup>
 

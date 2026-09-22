@@ -18,16 +18,17 @@ namespace Shiny.AppDeviceBridge.Simulator.Control;
 /// contract, recorded by a trail that is recording, and written to the activity log the human is watching.
 /// </para>
 /// </summary>
-public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traffic, TrailLibrary trails, AppDeviceBridgeServer server)
+/// <param name="actor">Who the activity log says made a change: <c>agent</c> over MCP, <c>panel</c> from the web panel.</param>
+public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traffic, TrailLibrary trails, AppDeviceBridgeServer server, string actor = "agent")
 {
     /// <summary>Text kept per body in <see cref="GetTraffic"/>, so one exchange cannot fill an agent's context.</summary>
     public const int MaxBodyText = 4 * 1024;
 
     /// <summary>Over a host, for a caller that already has one.</summary>
-    public static SimulatorControl For(SimulatorHost host)
+    public static SimulatorControl For(SimulatorHost host, string actor = "agent")
     {
         ArgumentNullException.ThrowIfNull(host);
-        return new SimulatorControl(host.State, host.Traffic, host.Trails, host.Server);
+        return new SimulatorControl(host.State, host.Traffic, host.Trails, host.Server, actor);
     }
 
     public SimulatorStatus GetStatus() => new(
@@ -98,7 +99,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
             FilePath = file ?? current.FilePath
         });
 
-        state.Log($"agent set {route.Route.Path} → {TrailStep.FormatMode(parsed)}");
+        state.Log($"{actor} set {route.Route.Path} → {TrailStep.FormatMode(parsed)}");
         return Describe(found, route);
     }
 
@@ -126,7 +127,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
             DelayMs = delayMs ?? route.Behavior.DelayMs
         });
 
-        state.Log($"agent set {route.Route.Path} → {sequence.Count} values in turn");
+        state.Log($"{actor} set {route.Route.Path} → {sequence.Count} values in turn");
         return Describe(found, route);
     }
 
@@ -137,7 +138,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
         var route = this.Route(found, key);
 
         state.ResetRoute(bridge, route.Route.Key);
-        state.Log($"agent reset {route.Route.Path}");
+        state.Log($"{actor} reset {route.Route.Path}");
         return Describe(found, route);
     }
 
@@ -164,7 +165,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
     public SimulatorStatus SetStickyWrites(bool on)
     {
         state.StickyWrites = on;
-        state.Log($"agent turned sticky writes {(on ? "on" : "off")}");
+        state.Log($"{actor} turned sticky writes {(on ? "on" : "off")}");
         return this.GetStatus();
     }
 
@@ -184,7 +185,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
 
         var evt = this.Event(name);
         state.SetEventPayload(evt.Event.Name, payload.ToJsonString());
-        state.Log($"agent set the payload of {evt.Event.Name}");
+        state.Log($"{actor} set the payload of {evt.Event.Name}");
 
         var bridge = this.Bridge(evt.Event.Bridge);
         return Describe(bridge, evt);
@@ -201,7 +202,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
             throw new FileNotFoundException($"There is no trail at {full}.", full);
 
         var player = trails.Load(full);
-        state.Log($"agent loaded the trail {player.Trail.Name}");
+        state.Log($"{actor} loaded the trail {player.Trail.Name}");
         return Describe(player);
     }
 
@@ -218,7 +219,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
             throw new ArgumentException("A trail needs at least one step.", nameof(trail));
 
         var player = trails.Add(parsed);
-        state.Log($"agent added the trail {player.Trail.Name}");
+        state.Log($"{actor} added the trail {player.Trail.Name}");
         return Describe(player);
     }
 
@@ -239,7 +240,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
             player.Loop = repeat;
 
         _ = player.Play();
-        state.Log($"agent played the trail {player.Trail.Name}");
+        state.Log($"{actor} played the trail {player.Trail.Name}");
         return Describe(player);
     }
 
@@ -265,7 +266,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
     {
         var player = this.Trail(name);
         trails.Remove(player);
-        state.Log($"agent removed the trail {player.Trail.Name}");
+        state.Log($"{actor} removed the trail {player.Trail.Name}");
     }
 
     /// <summary>Applies a saved scenario: the platform, which bridges exist, what routes answer, and its trails.</summary>
@@ -282,7 +283,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
         foreach (var trail in scenario.Trails)
             trails.Add(trail);
 
-        state.Log($"agent applied the scenario {Path.GetFileName(full)}");
+        state.Log($"{actor} applied the scenario {Path.GetFileName(full)}");
         return problems;
     }
 
@@ -299,7 +300,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
         foreach (var trail in parsed.Trails)
             trails.Add(trail);
 
-        state.Log("agent applied a scenario");
+        state.Log($"{actor} applied a scenario");
         return problems;
     }
 

@@ -12,6 +12,7 @@ export * from "./folders.js";
 export * from "./health.js";
 export * from "./http-transfers.js";
 export * from "./locations.js";
+export * from "./maps.js";
 export * from "./notifications.js";
 export * from "./obd.js";
 export * from "./photos.js";

@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>shiny-bridge-sim</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f6f7f9; --panel: #fff; --line: #dfe3e8; --text: #1b1f24; --muted: #5d6671;
+    --accent: #2563eb; --ok: #15803d; --warn: #b45309; --bad: #b91c1c; --code: #f0f2f5;
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111418; --panel: #181c21; --line: #2b3138; --text: #e6e9ed; --muted: #8c96a1;
+      --accent: #60a5fa; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171; --code: #20252b; }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text); }
+  code, pre, textarea, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+  button, select, input { font: inherit; color: inherit; }
+  button { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: .25rem .65rem; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  select, input[type=text], input[type=number] { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: .2rem .4rem; }
+  textarea { width: 100%; min-height: 6rem; background: var(--code); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: .5rem; resize: vertical; }
+  textarea.invalid { border-color: var(--bad); }
+
+  header { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; align-items: center; padding: .6rem 1rem; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; }
+  header h1 { font-size: 1rem; margin: 0; }
+  header label { display: inline-flex; gap: .35rem; align-items: center; color: var(--muted); }
+  header .origin a { color: var(--accent); }
+  .spacer { flex: 1; }
+
+  main { display: grid; grid-template-columns: minmax(12rem, 16rem) minmax(0, 1fr) minmax(18rem, 28rem); gap: 0; min-height: calc(100vh - 3rem); }
+  @media (max-width: 1100px) { main { grid-template-columns: minmax(11rem, 14rem) minmax(0, 1fr); } #side { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line); } }
+  @media (max-width: 700px) { main { grid-template-columns: 1fr; } #bridges { border-right: 0; border-bottom: 1px solid var(--line); max-height: 40vh; } }
+
+  #bridges { border-right: 1px solid var(--line); overflow-y: auto; padding: .5rem; }
+  #bridges input { width: 100%; margin-bottom: .5rem; }
+  .bridge { display: flex; align-items: center; gap: .4rem; padding: .3rem .45rem; border-radius: 6px; cursor: pointer; }
+  .bridge:hover { background: var(--code); }
+  .bridge.selected { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+  .bridge .name { flex: 1; }
+  .bridge.off .name { text-decoration: line-through; color: var(--muted); }
+  .count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+  #detail { padding: 1rem; overflow-y: auto; }
+  #detail h2 { margin: 0 0 .25rem; font-size: 1.15rem; display: flex; align-items: center; gap: .75rem; }
+  #detail h3 { margin: 1.25rem 0 .5rem; font-size: .95rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: .65rem .8rem; margin-bottom: .6rem; }
+  .card summary { cursor: pointer; display: flex; align-items: center; gap: .5rem; list-style: none; }
+  .card summary::-webkit-details-marker { display: none; }
+  .card .body { margin-top: .6rem; display: grid; gap: .5rem; }
+  .row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  .method { font-weight: 600; min-width: 3.5rem; }
+  .badge { font-size: 11.5px; padding: .05rem .45rem; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .badge.value { color: var(--ok); border-color: currentColor; }
+  .badge.null { color: var(--warn); border-color: currentColor; }
+  .badge.error { color: var(--bad); border-color: currentColor; }
+  .hint { color: var(--muted); font-size: 12.5px; }
+  .msg { font-size: 12.5px; }
+  .msg.bad { color: var(--bad); }
+  .msg.ok { color: var(--ok); }
+
+  #side { border-left: 1px solid var(--line); display: flex; flex-direction: column; min-width: 0; }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); background: var(--panel); }
+  .tabs button { border: 0; border-radius: 0; border-bottom: 2px solid transparent; padding: .55rem .8rem; background: none; }
+  .tabs button.active { border-bottom-color: var(--accent); color: var(--accent); }
+  .pane { padding: .6rem; overflow-y: auto; flex: 1; max-height: calc(100vh - 6rem); }
+  .tools { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .5rem; align-items: center; }
+  .tools input[type=text] { flex: 1; min-width: 8rem; }
+  .ex { border-bottom: 1px solid var(--line); padding: .3rem .1rem; cursor: pointer; }
+  .ex .line { display: flex; gap: .45rem; align-items: baseline; }
+  .ex .target { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .s2 { color: var(--ok); } .s3 { color: var(--accent); } .s4 { color: var(--warn); } .s5 { color: var(--bad); }
+  .ex pre { white-space: pre-wrap; word-break: break-all; background: var(--code); padding: .4rem; border-radius: 6px; margin: .3rem 0 0; max-height: 16rem; overflow: auto; }
+  .log { font-size: 12.5px; padding: .15rem 0; border-bottom: 1px dashed var(--line); }
+  .log time { color: var(--muted); margin-right: .4rem; }
+  .empty { color: var(--muted); padding: 2rem 1rem; text-align: center; }
+
+  #auth { max-width: 32rem; margin: 5rem auto; padding: 1.5rem; }
+  #auth input { width: 100%; margin: .5rem 0; }
+  #offline { background: var(--bad); color: #fff; text-align: center; padding: .3rem; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<section id="auth" class="card" hidden>
+  <h2>Simulator panel</h2>
+  <p>This panel needs the token the simulator printed at startup. Open the link it printed, or paste the token:</p>
+  <input id="token" type="text" autocomplete="off" spellcheck="false" placeholder="token">
+  <button class="primary" id="use-token">Connect</button>
+  <p class="msg bad" id="auth-msg"></p>
+</section>
+
+<div id="app" hidden>
+  <div id="offline" hidden>The simulator is not answering. Is it still running?</div>
+  <header>
+    <h1>shiny-bridge-sim</h1>
+    <span class="origin hint">page at <a id="origin" target="_blank" rel="noopener"></a></span>
+    <label>platform <select id="platform"></select></label>
+    <label><input type="checkbox" id="sticky"> sticky writes</label>
+    <span class="spacer"></span>
+    <span class="hint" id="summary"></span>
+  </header>
+
+  <main>
+    <nav id="bridges">
+      <input type="text" id="filter" placeholder="filter bridges" autocomplete="off">
+      <div id="bridge-list"></div>
+    </nav>
+
+    <section id="detail"><div class="empty">Pick a bridge to set what it answers and fire its events.</div></section>
+
+    <aside id="side">
+      <div class="tabs">
+        <button data-tab="traffic" class="active">Traffic</button>
+        <button data-tab="activity">Activity</button>
+        <button data-tab="trails">Trails</button>
+        <button data-tab="scenario">Scenario</button>
+      </div>
+
+      <div class="pane" id="pane-traffic">
+        <div class="tools">
+          <input type="text" id="traffic-match" placeholder="match: wifi, POST, /_bridge/gps" autocomplete="off">
+          <label class="hint"><input type="checkbox" id="recording" checked> record</label>
+          <button id="clear-traffic">Clear</button>
+        </div>
+        <div id="traffic"></div>
+      </div>
+
+      <div class="pane" id="pane-activity" hidden><div id="activity"></div></div>
+
+      <div class="pane" id="pane-trails" hidden>
+        <div id="trails"></div>
+        <h4>Load a trail</h4>
+        <div class="tools">
+          <input type="text" id="trail-path" placeholder="path to a .gpx or .trail.json on this machine" autocomplete="off">
+          <button id="load-trail">Load</button>
+        </div>
+        <p class="msg" id="trail-msg"></p>
+      </div>
+
+      <div class="pane" id="pane-scenario" hidden>
+        <p class="hint">Everything set up right now, as a scenario to save beside the app and replay with <code>--scenario</code>. Edit it and apply, or apply a file.</p>
+        <div class="tools">
+          <button id="capture">Capture</button>
+          <button id="apply" class="primary">Apply</button>
+        </div>
+        <textarea id="scenario" style="min-height: 22rem" spellcheck="false"></textarea>
+        <div class="tools" style="margin-top: .5rem">
+          <input type="text" id="scenario-path" placeholder="or a scenario .json on this machine" autocomplete="off">
+          <button id="apply-file">Apply file</button>
+        </div>
+        <p class="msg" id="scenario-msg"></p>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+  const PLATFORMS = ["android", "ios", "maccatalyst", "macos", "windows", "linux"];
+  const KEY = "shiny-bridge-sim-token";
+
+  let token = null;
+  let selected = null;       // bridge name
+  let bridgeDetail = null;   // last describe_bridge
+  let tab = "traffic";
+  const openExchanges = new Set();
+
+  // The token arrives in the fragment, which no request carries; it is kept in this tab's session storage only.
+  function takeToken() {
+    const hash = new URLSearchParams(location.hash.slice(1));
+    if (hash.get("token")) {
+      try { sessionStorage.setItem(KEY, hash.get("token")); } catch { }
+      token = hash.get("token");
+      history.replaceState(null, "", location.pathname);
+      return;
+    }
+    try { token = sessionStorage.getItem(KEY); } catch { }
+  }
+
+  class ApiError extends Error { constructor(status, message) { super(message); this.status = status; } }
+
+  async function call(op, args) {
+    let res;
+    try {
+      res = await fetch(`api/${op}`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(args || {}),
+        cache: "no-store"
+      });
+    } catch (e) {
+      $("offline").hidden = false;
+      throw new ApiError(0, "The simulator is not answering.");
+    }
+    $("offline").hidden = true;
+
+    if (res.status === 401) { showAuth("That token was not accepted."); throw new ApiError(401, "unauthorized"); }
+    if (res.status === 204) return null;
+    const body = await res.json().catch(() => null);
+    if (!res.ok) throw new ApiError(res.status, body?.error?.message || `HTTP ${res.status}`);
+    return body;
+  }
+
+  function el(tag, props, ...children) {
+    const node = document.createElement(tag);
+    for (const [k, v] of Object.entries(props || {})) {
+      if (k === "class") node.className = v;
+      else if (k === "dataset") Object.assign(node.dataset, v);
+      else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+      else if (v !== undefined && v !== null && v !== false) node.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of children.flat()) if (c !== null && c !== undefined && c !== false) node.append(c instanceof Node ? c : String(c));
+    return node;
+  }
+
+  const pretty = v => v === undefined || v === null ? "" : JSON.stringify(v, null, 2);
+  const time = iso => new Date(iso).toLocaleTimeString([], { hour12: false }) + "." + String(new Date(iso).getMilliseconds()).padStart(3, "0");
+
+  function parseJson(textarea) {
+    const text = textarea.value.trim();
+    if (!text) return undefined;
+    try { textarea.classList.remove("invalid"); return JSON.parse(text); }
+    catch (e) { textarea.classList.add("invalid"); throw new ApiError(400, `Not JSON: ${e.message}`); }
+  }
+
+  function say(node, text, ok) {
+    node.textContent = text || "";
+    node.className = "msg " + (ok ? "ok" : "bad");
+  }
+
+  // ---- auth ----------------------------------------------------------------------------------------------------
+
+  function showAuth(message) {
+    $("app").hidden = true;
+    $("auth").hidden = false;
+    $("auth-msg").textContent = message || "";
+  }
+
+  $("use-token").addEventListener("click", () => {
+    token = $("token").value.trim();
+    try { sessionStorage.setItem(KEY, token); } catch { }
+    start();
+  });
+
+  // ---- header --------------------------------------------------------------------------------------------------
+
+  for (const p of PLATFORMS) $("platform").append(el("option", { value: p }, p));
+  $("platform").addEventListener("change", e => call("set_platform", { platform: e.target.value }).then(poll));
+  $("sticky").addEventListener("change", e => call("set_sticky_writes", { on: e.target.checked }));
+  $("recording").addEventListener("change", e => call("set_recording", { on: e.target.checked }).then(poll));
+  $("clear-traffic").addEventListener("click", () => call("clear_traffic").then(() => { openExchanges.clear(); poll(); }));
+  $("traffic-match").addEventListener("input", () => poll());
+
+  function renderStatus(status) {
+    const a = $("origin");
+    a.textContent = status.origin || "";
+    a.href = status.origin || "#";
+    if (document.activeElement !== $("platform")) $("platform").value = status.platform;
+    $("sticky").checked = status.stickyWrites;
+    $("recording").checked = status.isRecording;
+    $("summary").textContent = `${status.bridges} bridges · ${status.exchanges} requests · app id ${status.appId}`;
+  }
+
+  // ---- bridges -------------------------------------------------------------------------------------------------
+
+  $("filter").addEventListener("input", () => renderBridges(lastBridges));
+  let lastBridges = [];
+
+  function renderBridges(bridges) {
+    lastBridges = bridges;
+    const filter = $("filter").value.trim().toLowerCase();
+    const list = $("bridge-list");
+    list.replaceChildren(...bridges
+      .filter(b => !filter || b.name.toLowerCase().includes(filter) || b.package.toLowerCase().includes(filter))
+      .map(b => el("div", {
+          class: `bridge${b.name === selected ? " selected" : ""}${b.isSupported ? "" : " off"}`,
+          title: b.package,
+          onclick: () => select(b.name)
+        },
+        el("span", { class: "name" }, b.name),
+        el("span", { class: "count", title: "calls" }, b.hits || "")
+      )));
+  }
+
+  async function select(name) {
+    selected = name;
+    renderBridges(lastBridges);
+    bridgeDetail = await call("describe_bridge", { bridge: name });
+    renderDetail(bridgeDetail);
+  }
+
+  function renderDetail(b) {
+    const detail = $("detail");
+    const supported = el("input", { type: "checkbox", checked: b.isSupported, onchange: async e => {
+      await call("set_bridge_supported", { bridge: b.name, supported: e.target.checked });
+      poll();
+    } });
+
+    detail.replaceChildren(
+      el("h2", {}, b.name, el("label", { class: "hint" }, supported, " supported (off answers 501)")),
+      el("div", { class: "hint mono" }, b.package),
+      el("h3", {}, `Routes (${b.routes.length})`),
+      ...b.routes.map(routeCard),
+      b.events.length ? el("h3", {}, `Events (${b.events.length})`) : null,
+      ...b.events.map(eventCard)
+    );
+  }
+
+  function routeValueText(r) {
+    if (r.sequence) return pretty(r.sequence);
+    if (r.mode === "value") return pretty(r.value);
+    return pretty(r.sample);
+  }
+
+  function routeCard(r) {
+    const id = `${r.bridge}|${r.key}`;
+    const mode = el("select", {}, ...["value", "null", "error"].map(m => el("option", { value: m, selected: r.mode === m }, m)));
+    const value = el("textarea", { spellcheck: "false" });
+    value.value = routeValueText(r);
+    const asSequence = el("input", { type: "checkbox", checked: !!r.sequence });
+    const status = el("input", { type: "number", min: 100, max: 599, value: r.status ?? 501, style: "width: 5rem" });
+    const code = el("input", { type: "text", value: r.code ?? "not_supported", style: "width: 9rem" });
+    const message = el("input", { type: "text", value: r.message ?? "", placeholder: "message", style: "flex: 1; min-width: 8rem" });
+    const delay = el("input", { type: "number", min: 0, value: r.delayMs, style: "width: 6rem" });
+    const msg = el("span", { class: "msg" });
+    const valueRow = el("div", {}, value, el("label", { class: "hint" }, asSequence, " a JSON array answered one per call, the last repeating"));
+    const errorRow = el("div", { class: "row" }, "status", status, "code", code, message);
+
+    const sync = () => { valueRow.hidden = mode.value !== "value"; errorRow.hidden = mode.value !== "error"; };
+    mode.addEventListener("change", sync);
+    sync();
+
+    const save = async () => {
+      try {
+        const delayMs = Number(delay.value) || 0;
+        let result;
+        if (mode.value === "value" && asSequence.checked) {
+          const values = parseJson(value);
+          if (!Array.isArray(values)) throw new ApiError(400, "A sequence is a JSON array of values.");
+          result = await call("set_route_sequence", { bridge: r.bridge, key: r.key, values, delayMs });
+        } else {
+          const args = { bridge: r.bridge, key: r.key, mode: mode.value, delayMs };
+          if (mode.value === "value" && r.kind === "json") args.value = parseJson(value);
+          if (mode.value === "error") Object.assign(args, { status: Number(status.value), code: code.value, message: message.value });
+          result = await call("set_route", args);
+        }
+        card.dataset.dirty = "";
+        update(result);
+        say(msg, "saved", true);
+      } catch (e) { say(msg, e.message); }
+    };
+
+    const reset = async () => {
+      try {
+        const result = await call("reset_route", { bridge: r.bridge, key: r.key });
+        card.dataset.dirty = "";
+        value.value = routeValueText(result);
+        update(result);
+        say(msg, "reset to the sample", true);
+      } catch (e) { say(msg, e.message); }
+    };
+
+    const badge = el("span", { class: `badge ${r.mode}` }, r.mode);
+    const hits = el("span", { class: "count" });
+    const contract = el("span", { class: "hint mono" }, [r.bodyContract && `body ${r.bodyContract}`, r.contract && `→ ${r.contract}`].filter(Boolean).join("  "));
+
+    const card = el("details", { class: "card", dataset: { route: id } },
+      el("summary", {},
+        el("span", { class: "method mono" }, r.method),
+        el("span", { class: "mono", style: "flex: 1" }, r.path + (r.queryParameters.length ? `?${r.queryParameters.join("&")}` : "")),
+        badge, hits),
+      el("div", { class: "body" },
+        contract,
+        el("div", { class: "row" }, "answers", mode, "after", delay, "ms"),
+        r.kind === "binary" ? el("div", { class: "hint" }, "Answers with bytes — a placeholder image unless a file is set over MCP or the API.")
+          : r.kind === "empty" ? el("div", { class: "hint" }, "Returns nothing: value mode answers 204.")
+          : valueRow,
+        errorRow,
+        el("div", { class: "row" },
+          el("button", { class: "primary", onclick: save }, "Save"),
+          el("button", { onclick: reset }, "Reset"),
+          el("button", { onclick: () => { value.value = pretty(r.sample); card.dataset.dirty = "1"; } }, "Use sample"),
+          msg)
+      ));
+
+    for (const input of [mode, value, status, code, message, delay, asSequence]) input.addEventListener("input", () => card.dataset.dirty = "1");
+
+    function update(latest) {
+      badge.className = `badge ${latest.mode}`;
+      badge.textContent = latest.sequence ? `sequence ${latest.step}/${latest.sequence.length}` : latest.mode + (latest.mode === "error" ? ` ${latest.status}` : "");
+      hits.textContent = latest.hits ? `${latest.hits} calls` : "";
+      if (!card.dataset.dirty) {
+        mode.value = latest.mode;
+        asSequence.checked = !!latest.sequence;
+        if (document.activeElement !== value) value.value = routeValueText(latest);
+        if (latest.mode === "error") { status.value = latest.status; code.value = latest.code; message.value = latest.message ?? ""; }
+        delay.value = latest.delayMs;
+        sync();
+      }
+    }
+    card.update = update;
+    update(r);
+    return card;
+  }
+
+  function eventCard(e) {
+    const payload = el("textarea", { spellcheck: "false" });
+    payload.value = pretty(e.payload);
+    const msg = el("span", { class: "msg" });
+    const listeners = el("span", { class: "count" });
+
+    const fire = async () => {
+      try {
+        const result = await call("fire_event", { name: e.name, payload: parseJson(payload) });
+        say(msg, result.listeners ? `sent to ${result.listeners} stream${result.listeners === 1 ? "" : "s"}` : "no page stream is listening — it went nowhere", result.listeners > 0);
+      } catch (ex) { say(msg, ex.message); }
+    };
+
+    const keep = async () => {
+      try {
+        const payloadValue = parseJson(payload);
+        if (payloadValue === undefined) throw new ApiError(400, "Write a payload first.");
+        await call("set_event_payload", { name: e.name, payload: payloadValue });
+        card.dataset.dirty = "";
+        say(msg, "kept as the default payload", true);
+      } catch (ex) { say(msg, ex.message); }
+    };
+
+    const card = el("details", { class: "card", dataset: { event: e.name } },
+      el("summary", {},
+        el("span", { class: "method mono" }, "event"),
+        el("span", { class: "mono", style: "flex: 1" }, e.name),
+        listeners),
+      el("div", { class: "body" },
+        el("span", { class: "hint mono" }, e.contract, "  ·  $now and $uuid are filled in"),
+        payload,
+        el("div", { class: "row" },
+          el("button", { class: "primary", onclick: fire }, "Fire"),
+          el("button", { onclick: keep }, "Keep as payload"),
+          el("button", { onclick: () => { payload.value = pretty(e.sample); card.dataset.dirty = "1"; } }, "Use sample"),
+          msg)
+      ));
+
+    payload.addEventListener("input", () => card.dataset.dirty = "1");
+
+    card.update = latest => {
+      listeners.textContent = `${latest.listeners} listening · fired ${latest.fired}`;
+      if (!card.dataset.dirty && document.activeElement !== payload) payload.value = pretty(latest.payload);
+    };
+    card.update(e);
+    return card;
+  }
+
+  function refreshDetail(b) {
+    for (const r of b.routes) document.querySelector(`[data-route="${CSS.escape(`${r.bridge}|${r.key}`)}"]`)?.update(r);
+    for (const e of b.events) document.querySelector(`[data-event="${CSS.escape(e.name)}"]`)?.update(e);
+  }
+
+  // ---- side panes ----------------------------------------------------------------------------------------------
+
+  for (const button of document.querySelectorAll(".tabs button")) {
+    button.addEventListener("click", () => {
+      tab = button.dataset.tab;
+      for (const b of document.querySelectorAll(".tabs button")) b.classList.toggle("active", b === button);
+      for (const pane of document.querySelectorAll(".pane")) pane.hidden = pane.id !== `pane-${tab}`;
+      poll();
+    });
+  }
+
+  function renderTraffic(entries) {
+    const list = $("traffic");
+    if (!entries.length) { list.replaceChildren(el("div", { class: "empty" }, "Nothing requested yet. Open the page and use it.")); return; }
+
+    list.replaceChildren(...entries.map(x => {
+      const open = openExchanges.has(x.id);
+      const node = el("div", { class: "ex", onclick: () => { open ? openExchanges.delete(x.id) : openExchanges.add(x.id); poll(); } },
+        el("div", { class: "line mono" },
+          el("span", { class: `s${String(x.status)[0]}` }, x.status || "…"),
+          el("span", {}, x.method),
+          el("span", { class: "target", title: x.target }, x.target),
+          el("span", { class: "count" }, `${Math.round(x.elapsedMs)} ms`)),
+        open ? el("div", {},
+          el("div", { class: "hint" }, `${time(x.at)} · ${x.origin}${x.error ? " · " + x.error : ""}`),
+          x.requestBody ? el("pre", {}, "→ ", x.requestBody) : null,
+          x.responseBody ? el("pre", {}, "← ", x.responseBody) : null) : null);
+      return node;
+    }));
+  }
+
+  function renderActivity(entries) {
+    $("activity").replaceChildren(...entries.map(x => el("div", { class: "log" }, el("time", {}, time(x.at)), x.text)));
+  }
+
+  function renderTrails(trails) {
+    const list = $("trails");
+    if (!trails.length) { list.replaceChildren(el("div", { class: "empty" }, "No trails loaded. Load a .gpx walk or a .trail.json below, or start with --trail.")); return; }
+
+    list.replaceChildren(...trails.map(t => {
+      const speed = el("input", { type: "number", min: 0.1, step: 0.5, value: t.speed, style: "width: 4.5rem" });
+      const loop = el("input", { type: "checkbox", checked: t.loop });
+      const act = (op, extra) => () => call(op, { name: t.name, ...extra }).then(poll).catch(e => say($("trail-msg"), e.message));
+      return el("div", { class: "card" },
+        el("div", { class: "row" },
+          el("strong", { style: "flex: 1" }, t.name),
+          el("span", { class: `badge ${t.playback === "playing" ? "value" : t.playback === "paused" ? "null" : ""}` }, t.playback)),
+        el("div", { class: "hint" }, `${t.position < 0 ? "not started" : `step ${t.position + 1}/${t.steps}`} · pass ${t.passes} · ${(t.durationMs / 1000).toFixed(1)} s long`),
+        el("div", { class: "row", style: "margin-top: .4rem" },
+          el("button", { class: "primary", onclick: () => act("play_trail", { speed: Number(speed.value) || 1, loop: loop.checked })() }, "Play"),
+          el("button", { onclick: act("pause_trail") }, t.playback === "paused" ? "Resume" : "Pause"),
+          el("button", { onclick: act("stop_trail") }, "Stop"),
+          el("label", { class: "hint" }, "speed ", speed),
+          el("label", { class: "hint" }, loop, " loop"),
+          el("button", { onclick: act("remove_trail") }, "Remove")));
+    }));
+  }
+
+  $("load-trail").addEventListener("click", async () => {
+    try {
+      const t = await call("load_trail_file", { path: $("trail-path").value.trim() });
+      say($("trail-msg"), `loaded ${t.name}`, true);
+      poll();
+    } catch (e) { say($("trail-msg"), e.message); }
+  });
+
+  $("capture").addEventListener("click", async () => {
+    try { $("scenario").value = pretty(await call("capture_scenario")); say($("scenario-msg"), "captured — copy it to a .json file to replay with --scenario", true); }
+    catch (e) { say($("scenario-msg"), e.message); }
+  });
+
+  const applied = problems => problems.length ? say($("scenario-msg"), "applied, except: " + problems.join("; ")) : say($("scenario-msg"), "applied", true);
+
+  $("apply").addEventListener("click", async () => {
+    try {
+      const scenario = parseJson($("scenario"));
+      if (!scenario) throw new ApiError(400, "Capture or paste a scenario first.");
+      applied(await call("apply_scenario", { scenario }));
+      if (selected) select(selected);
+    } catch (e) { say($("scenario-msg"), e.message); }
+  });
+
+  $("apply-file").addEventListener("click", async () => {
+    try {
+      applied(await call("apply_scenario_file", { path: $("scenario-path").value.trim() }));
+      if (selected) select(selected);
+    } catch (e) { say($("scenario-msg"), e.message); }
+  });
+
+  // ---- polling -------------------------------------------------------------------------------------------------
+
+  let polling = false;
+  async function poll() {
+    if (polling || !token) return;
+    polling = true;
+    try {
+      const [status, bridges] = await Promise.all([call("get_status"), call("list_bridges")]);
+      renderStatus(status);
+      renderBridges(bridges);
+
+      if (selected) refreshDetail(await call("describe_bridge", { bridge: selected }));
+
+      if (tab === "traffic") renderTraffic(await call("get_traffic", { match: $("traffic-match").value.trim() || null, limit: 200, bodies: openExchanges.size > 0 }));
+      else if (tab === "activity") renderActivity(await call("get_activity", { limit: 300 }));
+      else if (tab === "trails") renderTrails(status.trails);
+    } catch (e) {
+      if (e.status === 401) return;
+    } finally {
+      polling = false;
+    }
+  }
+
+  async function start() {
+    if (!token) { showAuth(); return; }
+    try {
+      await call("get_status");
+    } catch (e) {
+      if (e.status !== 401) showAuth(e.message);
+      return;
+    }
+    $("auth").hidden = true;
+    $("app").hidden = false;
+    poll();
+  }
+
+  takeToken();
+  start();
+
+  // Pasting the printed link into a tab already on the panel changes only the fragment, which reloads nothing.
+  window.addEventListener("hashchange", () => { if (location.hash.includes("token=")) { takeToken(); start(); } });
+  // Every second while it is being looked at; every five in a background tab, so it is current when it comes back.
+  let ticks = 0;
+  setInterval(() => { ticks++; if (!$("app").hidden && (!document.hidden || ticks % 5 === 0)) poll(); }, 1000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && !$("app").hidden) poll(); });
+})();
+</script>
+</body>
+</html>

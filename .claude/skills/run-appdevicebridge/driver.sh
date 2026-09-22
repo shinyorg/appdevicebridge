@@ -62,7 +62,7 @@ cmd_up() {
   pkill -f "$APP_BIN" || true
   # open fails with LSOpenURLsWithCompletionHandler error -600 while the previous instance is still exiting.
   for _ in $(seq 1 50); do pgrep -f "$APP_BIN" > /dev/null || break; pause 0.2; done
-  open "$APP"
+  open -g "$APP"   # -g: launch behind whatever the user is working in
   wait_http http://127.0.0.1:5780/_host/ping 60 || die "the app did not start its loopback server; run 'shot' to see its error"
   echo "up: release server :5199, dev server :5288, app loopback :5780 (the Blazor UI renders 10-20 s later)"
 }

@@ -60,6 +60,10 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Camera/Shiny.AppDeviceBridge.Camera.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Simulator/Shiny.AppDeviceBridge.Simulator.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wearables/Shiny.AppDeviceBridge.Wearables.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps/Shiny.AppDeviceBridge.Maps.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Valhalla/Shiny.AppDeviceBridge.Maps.Valhalla.csproj" SetTargetFramework="TargetFramework=net10.0" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Blazor/Shiny.AppDeviceBridge.Maps.Blazor.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.MapPacks/Shiny.AppDeviceBridge.MapPacks.csproj" />
     <!-- As an analyzer, for the test-only [BridgeClient] interface; and as an assembly, to run it against bad declarations. -->
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Client.SourceGenerators/Shiny.AppDeviceBridge.Client.SourceGenerators.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="true" />
@@ -68,6 +72,7 @@
   <!-- The page-side script, run under Jint by BlazorInteropTests: the file that ships, not a copy of it. -->
   <ItemGroup>
     <None Include="../../src/Shiny.AppDeviceBridge.Blazor/wwwroot/appdevicebridge.js" Link="appdevicebridge.js" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Maps/Fixtures/*" CopyToOutputDirectory="PreserveNewest" LinkBase="Maps/Fixtures" />
   </ItemGroup>
 
 </Project>

@@ -23,10 +23,11 @@ public sealed class SimulatorHost : IAsyncDisposable
     readonly ServiceProvider services;
     readonly string? ownedDataDirectory;
 
-    SimulatorHost(SimulatorOptions options, ServiceProvider services, string? ownedDataDirectory, string? mcpToken)
+    SimulatorHost(SimulatorOptions options, ServiceProvider services, string? ownedDataDirectory, string? mcpToken, string? webToken)
     {
         this.Options = options;
         this.McpToken = mcpToken;
+        this.WebToken = webToken;
         this.services = services;
         this.ownedDataDirectory = ownedDataDirectory;
         this.Server = services.GetRequiredService<AppDeviceBridgeServer>();
@@ -57,6 +58,12 @@ public sealed class SimulatorHost : IAsyncDisposable
 
     /// <summary>Where an MCP client connects, once started. Null when the endpoint is not being served.</summary>
     public Uri? McpEndpoint => this.McpToken is null || this.Origin is not { } origin ? null : new Uri(origin, McpSetup.Path.TrimStart('/'));
+
+    /// <summary>The token the web panel's API requires; null when the panel is not being served.</summary>
+    public string? WebToken { get; }
+
+    /// <summary>The web panel's address with its token, once started. Null when the panel is not being served.</summary>
+    public Uri? PanelUrl => this.WebToken is not { } token || this.Origin is not { } origin ? null : WebPanel.Url(origin, token);
 
     /// <summary>Where the page is served, once started.</summary>
     public Uri? Origin => this.Server.Origin;
@@ -95,6 +102,7 @@ public sealed class SimulatorHost : IAsyncDisposable
         // needs a token. An agent speaking over stdio already has the process.
         var mcp = options.Mcp || options.McpStdio;
         var token = options.Mcp ? options.McpToken ?? McpSetup.NewToken() : null;
+        var webToken = options.Web ? options.WebToken ?? McpSetup.NewToken() : null;
 
         // The tools are built as the container is configured and the control they drive is only resolvable once it has
         // been built. Nothing reads this before a tool is called, which is long after.
@@ -105,7 +113,12 @@ public sealed class SimulatorHost : IAsyncDisposable
         services.AddSingleton(hub);
         services.AddSingleton(state);
         services.AddSingleton(sp => new TrailLibrary(sp.GetRequiredService<SimulatorState>()));
-        services.AddSingleton<SimulatorControl>();
+        services.AddSingleton(sp => new SimulatorControl(
+            sp.GetRequiredService<SimulatorState>(),
+            sp.GetRequiredService<TrafficRecorder>(),
+            sp.GetRequiredService<TrailLibrary>(),
+            sp.GetRequiredService<AppDeviceBridgeServer>()
+        ));
 
         if (mcp)
             services.AddMcp(() => built!.GetRequiredService<SimulatorControl>());
@@ -119,10 +132,21 @@ public sealed class SimulatorHost : IAsyncDisposable
                 http.Options.Address = IPAddress.Loopback;
                 http.Options.Port = options.Port;
                 http.AddAppDeviceBridge();
-                http.AddTrafficRecorder(o => o.MaxExchanges = 1000);
+                http.AddTrafficRecorder(o =>
+                {
+                    o.MaxExchanges = 1000;
+                    o.Skip = WebPanel.IsControl;
+                });
 
                 if (token is not null)
                     McpSetup.MapMcp(http, token);
+
+                // Its own control, so the activity log says a change came from the panel rather than an agent.
+                if (webToken is not null)
+                {
+                    SimulatorControl? panel = null;
+                    WebPanel.MapWebPanel(http, webToken, () => panel ??= Panel(built!));
+                }
 
                 http.Configure(server => ServePages(server, options, state));
             },
@@ -131,7 +155,7 @@ public sealed class SimulatorHost : IAsyncDisposable
 
         var provider = services.BuildServiceProvider();
         built = provider;
-        var host = new SimulatorHost(options, provider, owned, token);
+        var host = new SimulatorHost(options, provider, owned, token, webToken);
 
         // Resolving the server composes the bridges onto it, which maps their events; mapping them all now means a page can
         // subscribe to any of them before the first is fired.
@@ -156,6 +180,14 @@ public sealed class SimulatorHost : IAsyncDisposable
         return host;
     }
 
+    static SimulatorControl Panel(IServiceProvider services) => new(
+        services.GetRequiredService<SimulatorState>(),
+        services.GetRequiredService<TrafficRecorder>(),
+        services.GetRequiredService<TrailLibrary>(),
+        services.GetRequiredService<AppDeviceBridgeServer>(),
+        "panel"
+    );
+
     /// <summary>Starts listening and plays the trails named by <see cref="SimulatorOptions.Play"/>.</summary>
     /// <exception cref="ArgumentException">A trail to play was never loaded.</exception>
     public async Task<Uri> StartAsync(CancellationToken cancellationToken = default)
@@ -168,6 +200,9 @@ public sealed class SimulatorHost : IAsyncDisposable
             this.State.Log($"mcp control at {endpoint} — token {token}");
             this.WriteMcpConfig(endpoint, token);
         }
+
+        if (this.PanelUrl is { } panel)
+            this.State.Log($"web panel at {panel}");
 
         foreach (var name in this.Options.Play)
         {
@@ -222,14 +257,14 @@ public sealed class SimulatorHost : IAsyncDisposable
     }
 
     /// <summary>
-    /// What the simulator answers itself rather than forwarding to a dev server: the bridges, the host, and — when it is
-    /// being served — the MCP control endpoint, which is on this origin and would otherwise be proxied to the page's
+    /// What the simulator answers itself rather than forwarding to a dev server: the bridges, the host, and — when they are
+    /// being served — the web panel and the MCP control endpoint, which are on this origin and would otherwise be proxied to the page's
     /// dev server, which knows nothing about it.
     /// </summary>
     static bool IsBridgeServer(HttpContext context)
         => AppDeviceBridgeServer.IsUnder(context.Request.Path, WebAppPaths.DefaultBridgePrefix)
            || AppDeviceBridgeServer.IsUnder(context.Request.Path, WebAppPaths.HostSegment)
-           || AppDeviceBridgeServer.IsUnder(context.Request.Path, "_sim");
+           || WebPanel.IsControl(context);
 
     public async ValueTask DisposeAsync()
     {

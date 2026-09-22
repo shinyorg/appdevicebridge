@@ -93,6 +93,19 @@ dev server.
   launch with code 133 and leaves no crash report. Unresolved.
 - **No `sleep`.** Agent shells here block it, so the driver waits with `perl -e 'select(...)'`.
 
+- **Drive it with MAUI DevFlow, not `click`/`shot`, when someone is at the Mac.** Sample.MacOS registers the DevFlow agent
+  and its WebView (`DevFlowWebView.cs`, Debug only), and `up` launches the app with `open -g`, behind whatever is in front.
+  `maui devflow webview Runtime evaluate -ah 127.0.0.1 "<js>"` runs script in the page; `maui devflow ui screenshot
+  -ah 127.0.0.1 --overwrite --output x.png` captures the window. Pass `-ah 127.0.0.1` (`localhost` resolves to `::1`,
+  the agent listens on IPv4), and retry "Another DevFlow session is driving this app": the agent holds a lease of a
+  few seconds after each command. A window that was never on screen screenshots blank and throttles the page's timers;
+  the Maps page's **Snapshot** button renders the map to an `<img>` whose `src` can be read instead.
+- **After editing any JS in Sample.Blazor, restart `dotnet watch`** (`down` then `up`). The page's import map points at
+  fingerprinted file names that watch does not refresh, so the edited module fails with "Importing a module script
+  failed" until it restarts. Edit wwwroot files in place: a temp-file-and-rename save serves them as empty bodies.
+- **`dev server did not start` again and again:** earlier `dotnet watch` processes that crashed can hang and keep the
+  watcher; `pgrep -fl "dotnet watch run --launch-profile device"` and kill them before `up`.
+
 ## Troubleshooting
 
 - **`shot` says `could not create image from window`** while `status` is all green: the Mac's screen is locked

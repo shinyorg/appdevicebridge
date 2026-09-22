@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- One target: nothing here is platform code. Tiles, packs and the online router are plain managed HTTP and files,
+         so every head — Android, iOS, Mac Catalyst, macOS, Windows, Linux — gets the same build. On-device directions
+         are native, and live in Shiny.AppDeviceBridge.Maps.Valhalla. -->
+    <RootNamespace>Shiny.AppDeviceBridge.Maps</RootNamespace>
+    <!-- LibraryImport of setxattr, to keep downloaded regions out of iCloud backups. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Description>Vector maps and turn-by-turn directions for a Shiny.AppDeviceBridge web app — map tiles served online or from region packs the user downloads (PMTiles, verified against a signed catalog), the label fonts and icons they draw with, and directions from an online Valhalla router or, with Shiny.AppDeviceBridge.Maps.Valhalla, on the device. One call: bridge.AddMapsBridge().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Maps.Valhalla" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Maps.Client/Shiny.AppDeviceBridge.Maps.Client.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -63,6 +63,8 @@ triggers:
   - bridge simulator
   - simulate bridges
   - simulator MCP
+  - simulator web panel
+  - shiny-bridge-sim --web
   - drive the simulator
   - GPX trail
   - traffic monitor
@@ -139,6 +141,35 @@ triggers:
   - watchos
   - wearos
   - WatchConnectivity
+  - Shiny.AppDeviceBridge.Maps
+  - Shiny.AppDeviceBridge.Maps.Client
+  - Shiny.AppDeviceBridge.Maps.Blazor
+  - Shiny.AppDeviceBridge.Maps.Valhalla
+  - Shiny.AppDeviceBridge.MapPacks
+  - shiny-map-packs
+  - AddMapsBridge
+  - AddOnDeviceDirections
+  - MapsOptions
+  - IMapsBridge
+  - IDirectionsBridge
+  - AddMapsBridgeClient
+  - AddDirectionsBridgeClient
+  - AddBridgeMaps
+  - BridgeMap
+  - MapPin
+  - MapShape
+  - DirectionsRequest
+  - DirectionsRoute
+  - AddMapPacks
+  - MapMapPacks
+  - MapPackCatalog
+  - MapPackSignature
+  - offline maps
+  - map tiles
+  - pmtiles
+  - maplibre
+  - valhalla
+  - turn-by-turn directions
   - IRpiCameraBridge
   - AddRpiCameraBridge
   - Shiny.AppDeviceBridge.RpiCamera
@@ -332,6 +363,7 @@ public class App : Application
 | `.Discovery` | `AddDiscoveryBridge(protocols)` | `IDiscoveryBridge` |
 | `.Push` | `AddPushBridge()` | `IPushBridge` |
 | `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.8; iOS and Android only, `501` elsewhere |
+| `.Maps` | `AddMapsBridge(o => { o.OnlineTiles; o.Catalog; o.CatalogPublicKey; o.Directions.OnlineRouteUrl; o.Directions.ApiKey; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
 | `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
 | `.AppLinks` | `AddAppLinksBridge(o => …)` | `ILinksBridge` (built in) |
@@ -351,6 +383,36 @@ Client packages are `Shiny.AppDeviceBridge.{Bridge}.Client`, registered with `Ad
 name from the interface: `IAppBridge` → `AddAppBridgeClient()`, `ITransfersBridge` → `AddTransfersBridgeClient()`,
 `ITrayBridge` → `AddTrayBridgeClient()`, `IQuickEntryBridge` → `AddQuickEntryBridgeClient()`. The desktop bridges share
 `Shiny.AppDeviceBridge.Desktop.Client`.
+
+## Maps and directions
+
+`AddMapsBridge(o => …)` adds `/_bridge/maps` and `/_bridge/directions` on every platform. Online by default; offline
+where the user downloaded a region.
+
+- **Tiles:** `GET /_bridge/maps` returns `TilesUrl`/`GlyphsUrl`/`SpritesUrl` templates for MapLibre (never hard-code
+  them). A tile comes from an installed region, then the tile cache (`TileCacheBytes`), then `OnlineTiles` — a
+  `.pmtiles` URL read by Range, or a `{z}/{x}/{y}` template — else `204`. Keys in `OnlineTiles`/`ConfigureRequest` never
+  reach the page.
+- **Blazor:** reference `Shiny.AppDeviceBridge.Maps.Blazor`, `services.AddWebAppHostClient().AddBridgeMaps()`, and use
+  `<BridgeMap @ref="map" Latitude=… Longitude=… Zoom=… Style="height: 60vh" OnClick=… OnDrawn=… />`. Methods:
+  `AddPinAsync(new MapPin(id, new GeoPoint(lat, lon), label, Draggable: true))`, `AddShapeAsync(new MapShape(id,
+  MapShapeKind.Line|Polygon, points, color))`, `AddCircleAsync`, `ShowRouteAsync(route)`, `SetDrawModeAsync(MapDrawMode.Pin|Line|Polygon|None)`,
+  `FitBoundsAsync`, `FitAllAsync`, `FlyToAsync`, `ClearAsync`, `SnapshotAsync()`. MapLibre is bundled — don't add a CDN
+  script. In `Pin` mode `OnClick` gets `IsPinMode = true` and the page adds the pin; `OnDrawn` hands back a finished
+  line/area for the page to add.
+- **Regions:** `Catalog` + `CatalogPublicKey` (required together, usually the web app release key).
+  `GetRegionsAsync(refresh)`, `InstallAsync(id, new MapPackInstallRequest(Directions: true))` (202; progress on
+  `maps.download`/`OnDownloadAsync`), `RemoveAsync`, `RemoveDirectionsAsync`, `CancelDownloadAsync`. Parts are verified
+  against the signed hash; interrupted downloads resume. Server: `services.AddMapPacks(o => { o.SigningKey; o.PacksDirectory; })`
+  + `app.MapMapPacks("/maps")`; build the directory with `shiny-map-packs region|assets|list|remove`.
+- **Directions:** `RouteAsync(new DirectionsRequest([new RouteStop(lat, lon), …], TravelMode.Car, DistanceUnits.Kilometers,
+  Language, DirectionsSource.Auto, new RouteAvoid(Tolls: true)))` → `DirectionsRoute` (metres, seconds, `Shape` as
+  `[lon, lat]`, `Legs[].Maneuvers[]`). `Auto` = on the device when a downloaded road network covers every stop, else
+  online. Errors: `404 no_route`, `503 offline_unavailable`, `501` with no router at all.
+- **On-device:** `AddOnDeviceDirections()` from `.Maps.Valhalla` — Android and iOS (valhalla-mobile 0.6.3 / Valhalla
+  3.6.3); a no-op elsewhere. Road networks must be built with Valhalla 3.6.3 (`shiny-map-packs --valhalla docker`).
+- **macOS:** `HttpClientHandler` there can't do TLS 1.3; the macOS head adds
+  `bridge.AddMapsBridge(o => o.HttpMessageHandlerFactory = () => new NSUrlSessionHandler())`.
 
 ## Wearables
 
@@ -432,7 +494,13 @@ specific device states (offline, permission denied, `501` on a platform, a GPS w
 ```bash
 shiny-bridge-sim --dev-server http://localhost:5288            # or --app <published wwwroot>; page at http://127.0.0.1:5299/
 shiny-bridge-sim --scenario setup.json --trail walk.gpx --play walk --speed 4 --headless   # CI
+shiny-bridge-sim --dev-server http://localhost:5288 --web      # a browser panel at /_sim/ instead of the TUI
 ```
+
+- `--web` replaces the TUI with a browser control panel at `/_sim/` (link with `#token=…` printed at start). Its API is
+  `POST /_sim/api/{operation}` — the MCP tool names, arguments as a JSON object, `Authorization: Bearer <token>` — so a
+  script can drive it with `curl`. Callers on this device only; a browser `Origin` must be the simulator's own.
+  `--web-token <t>` fixes the token. Not combinable with `--mcp-stdio`; fine with `--mcp`.
 
 - A route answers `value` (JSON validated against the contract; a file for byte routes), `null` (204) or `error`
   (status + `code` + `message`, e.g. `403 access_denied`), with optional `DelayMs`. A bridge can be switched off (all `501`).

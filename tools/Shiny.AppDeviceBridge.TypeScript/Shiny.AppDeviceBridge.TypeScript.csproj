@@ -36,6 +36,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wifi.Client/Shiny.AppDeviceBridge.Wifi.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Push.Client/Shiny.AppDeviceBridge.Push.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wearables.Client/Shiny.AppDeviceBridge.Wearables.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Client/Shiny.AppDeviceBridge.Maps.Client.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,230 @@
+@namespace Shiny.AppDeviceBridge.Maps.Blazor
+@using System.Text.Json
+@using Microsoft.JSInterop
+@using Shiny.AppDeviceBridge.Maps.Client
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject IMapsBridge Maps
+
+<div @ref="element" class="bridge-map @Class" style="@Style"></div>
+
+@code {
+    const string Script = "./_content/Shiny.AppDeviceBridge.Maps.Blazor/bridgemap.js";
+
+    static MapOverlayJsonContext Json => MapOverlayJsonContext.Default;
+
+    readonly string id = "map-" + Guid.NewGuid().ToString("n");
+    ElementReference element;
+    IJSObjectReference? module;
+    DotNetObjectReference<BridgeMap>? self;
+    readonly TaskCompletionSource ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Where the map opens.</summary>
+    [Parameter] public double Latitude { get; set; }
+
+    [Parameter] public double Longitude { get; set; }
+
+    [Parameter] public double Zoom { get; set; } = 2;
+
+    /// <summary>The Protomaps style: <c>light</c>, <c>dark</c>, <c>white</c>, <c>grayscale</c> or <c>black</c>. Read when the map is created.</summary>
+    [Parameter] public string Flavor { get; set; } = "light";
+
+    /// <summary>The language labels are drawn in, where the map data has names in it. Read when the map is created.</summary>
+    [Parameter] public string Language { get; set; } = "en";
+
+    /// <summary>Whether to show zoom and compass buttons.</summary>
+    [Parameter] public bool Navigation { get; set; } = true;
+
+    /// <summary>The element's height and width come from here or <see cref="Class"/>; a map with no height draws nothing.</summary>
+    [Parameter] public string Style { get; set; } = "width: 100%; height: 400px;";
+
+    [Parameter] public string? Class { get; set; }
+
+    /// <summary>The map drew for the first time. Overlays added before this are queued and drawn then.</summary>
+    [Parameter] public EventCallback OnReady { get; set; }
+
+    [Parameter] public EventCallback<MapClick> OnClick { get; set; }
+
+    /// <summary>The user finished drawing a line or an area in <see cref="MapDrawMode.Line"/> or <see cref="MapDrawMode.Polygon"/>. The map does not keep it; add it with <see cref="AddShapeAsync"/>.</summary>
+    [Parameter] public EventCallback<MapDrawn> OnDrawn { get; set; }
+
+    [Parameter] public EventCallback<string> OnPinClicked { get; set; }
+
+    [Parameter] public EventCallback<MapPinMoved> OnPinMoved { get; set; }
+
+    [Parameter] public EventCallback<MapView> OnMoved { get; set; }
+
+    /// <summary>Completes once the map has drawn — after <see cref="OnReady"/>.</summary>
+    public Task Ready => this.ready.Task;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        var info = await Maps.GetInfoAsync();
+        this.self = DotNetObjectReference.Create(this);
+        var module = await JS.InvokeAsync<IJSObjectReference>("import", Script);
+
+        var options = new MapCreateOptions(
+            this.id,
+            info.TilesUrl,
+            info.GlyphsUrl,
+            info.SpritesUrl,
+            info.MaxZoom,
+            info.Attribution,
+            this.Flavor,
+            this.Language,
+            this.Latitude,
+            this.Longitude,
+            this.Zoom,
+            this.Navigation
+        );
+
+        await module.InvokeVoidAsync("create", this.element, this.self, JsonSerializer.Serialize(options, Json.MapCreateOptions));
+
+        // Published only now: until create has run, the script has no map under this id to queue calls for.
+        this.module = module;
+    }
+
+    public ValueTask AddPinAsync(MapPin pin)
+        => this.CallAsync("addPin", JsonSerializer.Serialize(pin, Json.MapPin));
+
+    public ValueTask RemovePinAsync(string pinId) => this.CallAsync("removePin", pinId);
+
+    public ValueTask AddShapeAsync(MapShape shape)
+    {
+        ArgumentNullException.ThrowIfNull(shape);
+
+        var needed = shape.Kind == MapShapeKind.Polygon ? 3 : 2;
+        if (shape.Points.Count < needed)
+            throw new ArgumentException($"A {shape.Kind} needs at least {needed} points.", nameof(shape));
+
+        return this.CallAsync("addShape", JsonSerializer.Serialize(shape, Json.MapShape));
+    }
+
+    /// <summary>A circle, drawn as an area of 64 points around its centre.</summary>
+    public ValueTask AddCircleAsync(string shapeId, GeoPoint center, double radiusMetres, string color = "#059669", string? label = null)
+    {
+        ArgumentNullException.ThrowIfNull(center);
+
+        var points = new List<GeoPoint>(64);
+        var latRadius = radiusMetres / 110_540d;
+        var lonRadius = radiusMetres / (111_320d * Math.Cos(center.Latitude * Math.PI / 180));
+
+        for (var i = 0; i < 64; i++)
+        {
+            var angle = i / 64d * 2 * Math.PI;
+            points.Add(new GeoPoint(center.Latitude + latRadius * Math.Sin(angle), center.Longitude + lonRadius * Math.Cos(angle)));
+        }
+
+        return this.AddShapeAsync(new MapShape(shapeId, MapShapeKind.Polygon, points, color, 2, 0.2, Label: label));
+    }
+
+    public ValueTask RemoveShapeAsync(string shapeId) => this.CallAsync("removeShape", shapeId);
+
+    /// <summary>
+    /// Draws a route from the directions bridge, with pins at its first and last stop, and fits the map to it. Replaces the
+    /// route drawn before under the same id.
+    /// </summary>
+    public async ValueTask ShowRouteAsync(DirectionsRoute route, string shapeId = "route")
+    {
+        ArgumentNullException.ThrowIfNull(route);
+
+        if (route.Shape.Count < 2)
+            return;
+
+        await this.AddShapeAsync(route.ToShape(shapeId));
+
+        var start = route.Shape[0];
+        var end = route.Shape[^1];
+        await this.AddPinAsync(new MapPin($"{shapeId}-start", new GeoPoint(start[1], start[0]), "Start", "#16a34a"));
+        await this.AddPinAsync(new MapPin($"{shapeId}-end", new GeoPoint(end[1], end[0]), "Destination", "#dc2626"));
+        await this.FitBoundsAsync(route.Bounds);
+    }
+
+    public ValueTask SetDrawModeAsync(MapDrawMode mode) => this.CallAsync("setDrawMode", mode.ToString());
+
+    public ValueTask FlyToAsync(GeoPoint center, double? zoom = null)
+        => this.CallAsync("flyTo", center.Latitude, center.Longitude, zoom);
+
+    /// <param name="bounds"><c>[west, south, east, north]</c>, as <see cref="DirectionsRoute.Bounds"/> and <see cref="MapRegion.Bounds"/> are.</param>
+    public ValueTask FitBoundsAsync(double[] bounds, int padding = 48)
+    {
+        ArgumentNullException.ThrowIfNull(bounds);
+        if (bounds.Length != 4)
+            throw new ArgumentException("Bounds are [west, south, east, north].", nameof(bounds));
+
+        return this.CallAsync("fitBounds", bounds[0], bounds[1], bounds[2], bounds[3], padding);
+    }
+
+    /// <summary>Fits the map to every pin and shape on it.</summary>
+    public ValueTask FitAllAsync(int padding = 48) => this.CallAsync("fitAll", padding);
+
+    /// <summary>Removes every pin and shape.</summary>
+    public ValueTask ClearAsync() => this.CallAsync("clear");
+
+    /// <summary>The map as it is drawn now, pins included, as a PNG <c>data:</c> URL.</summary>
+    public async ValueTask<string?> SnapshotAsync()
+    {
+        await this.Ready;
+        return await this.module!.InvokeAsync<string?>("snapshot", this.id);
+    }
+
+    async ValueTask CallAsync(string function, params object?[] args)
+    {
+        // Set once the map is created in OnAfterRenderAsync; a call made earlier waits for it. The script queues it until the
+        // style has loaded.
+        while (this.module is null)
+            await Task.Delay(20);
+
+        await this.module.InvokeVoidAsync(function, [this.id, .. args]);
+    }
+
+    [JSInvokable]
+    public async Task JsReady()
+    {
+        this.ready.TrySetResult();
+        await this.OnReady.InvokeAsync();
+    }
+
+    [JSInvokable]
+    public Task JsClicked(string pointJson, bool pinMode)
+        => this.OnClick.InvokeAsync(new MapClick(JsonSerializer.Deserialize(pointJson, Json.GeoPoint)!, pinMode));
+
+    [JSInvokable]
+    public Task JsDrawn(string mode, string pointsJson)
+        => this.OnDrawn.InvokeAsync(new MapDrawn(
+            mode == nameof(MapDrawMode.Polygon) ? MapShapeKind.Polygon : MapShapeKind.Line,
+            JsonSerializer.Deserialize(pointsJson, Json.ListGeoPoint) ?? []
+        ));
+
+    [JSInvokable]
+    public Task JsPinClicked(string pinId) => this.OnPinClicked.InvokeAsync(pinId);
+
+    [JSInvokable]
+    public Task JsPinMoved(string pinId, string pointJson)
+        => this.OnPinMoved.InvokeAsync(new MapPinMoved(pinId, JsonSerializer.Deserialize(pointJson, Json.GeoPoint)!));
+
+    [JSInvokable]
+    public Task JsMoved(string viewJson) => this.OnMoved.HasDelegate
+        ? this.OnMoved.InvokeAsync(JsonSerializer.Deserialize(viewJson, Json.MapView)!)
+        : Task.CompletedTask;
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (this.module is not null)
+            {
+                await this.module.InvokeVoidAsync("dispose", this.id);
+                await this.module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+
+        this.self?.Dispose();
+    }
+}

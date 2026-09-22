@@ -36,6 +36,8 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.RpiCamera/Shiny.AppDeviceBridge.RpiCamera.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Speech/Shiny.AppDeviceBridge.Speech.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wifi/Shiny.AppDeviceBridge.Wifi.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps/Shiny.AppDeviceBridge.Maps.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Valhalla/Shiny.AppDeviceBridge.Maps.Valhalla.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -67,8 +69,8 @@
       <WebAppZip>$(IntermediateOutputPath)webapp.zip</WebAppZip>
     </PropertyGroup>
     <ItemGroup>
-      <WebAppSource Include="$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.razor;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.cs;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.css;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.js;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.html;$(MSBuildThisFileDirectory)../Sample.Blazor/*.csproj;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Blazor/**/*.cs;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Blazor/**/*.js"
-                    Exclude="$(MSBuildThisFileDirectory)../Sample.Blazor/bin/**;$(MSBuildThisFileDirectory)../Sample.Blazor/obj/**;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Blazor/bin/**;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Blazor/obj/**" />
+      <WebAppSource Include="$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.razor;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.cs;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.css;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.js;$(MSBuildThisFileDirectory)../Sample.Blazor/**/*.html;$(MSBuildThisFileDirectory)../Sample.Blazor/*.csproj;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Blazor/**/*.cs;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Blazor/**/*.js;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Maps.Blazor/**/*.cs;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Maps.Blazor/**/*.razor;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Maps.Blazor/**/*.js"
+                    Exclude="$(MSBuildThisFileDirectory)../Sample.Blazor/bin/**;$(MSBuildThisFileDirectory)../Sample.Blazor/obj/**;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Blazor/bin/**;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Blazor/obj/**;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Maps.Blazor/bin/**;$(MSBuildThisFileDirectory)../../src/Shiny.AppDeviceBridge.Maps.Blazor/obj/**" />
     </ItemGroup>
   </Target>
 

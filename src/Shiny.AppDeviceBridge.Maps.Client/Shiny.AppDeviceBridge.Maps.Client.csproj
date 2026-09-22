@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Maps.Client</RootNamespace>
+    <Description>Typed clients and contracts for the Shiny.AppDeviceBridge maps and directions bridges — vector map tiles served online or from downloaded region packs, the pack catalog and downloads, and turn-by-turn directions computed online or on the device — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddMapsBridgeClient() and services.AddDirectionsBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

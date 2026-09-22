@@ -55,6 +55,11 @@ change unless there's a reason not to.
    - `native/shinyrpi-camera` is the C shim behind `Shiny.AppDeviceBridge.RpiCamera`. MSBuild never builds it (it links
      libcamera's C++ ABI); build it on a Pi or with its arm64 `Dockerfile`. Changing its header means bumping
      `SHINYRPI_CAMERA_ABI_VERSION` and `NativeMethods.ExpectedAbiVersion` together and updating the layout tests.
+   - `native/shiny-valhalla` is the C shim behind `Shiny.AppDeviceBridge.Maps.Valhalla` on iOS, compiled by that project's
+     `Valhalla.targets` against valhalla-mobile's static library (Android calls its JNI exports directly). The native
+     downloads are pinned by version and SHA-256 there. Changing the shim's C surface means bumping
+     `shiny_valhalla_abi_version` and `ExpectedAbiVersion` together; bumping valhalla-mobile means regenerating
+     `valhalla-config.json` from its `default.json` and building road networks with the matching Valhalla.
    - The trim/AOT analyzers are on for everything that ships. A change that introduces reflection or an
      unannotated dynamic dependency is a regression, not a warning to suppress.
    - **When behavior is visible in the app, see it in the app.** The `run-appdevicebridge` project skill

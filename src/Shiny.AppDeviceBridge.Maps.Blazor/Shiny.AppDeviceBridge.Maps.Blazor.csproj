@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Maps.Blazor</RootNamespace>
+    <Description>A vector map component for a Blazor WebAssembly app hosted by Shiny.AppDeviceBridge — BridgeMap draws the maps bridge's tiles with MapLibre GL JS (bundled, so it works offline), with pins, lines, areas, circles, click-to-draw and routes from the directions bridge. Register with services.AddBridgeMaps().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Blazor/Shiny.AppDeviceBridge.Blazor.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Maps.Client/Shiny.AppDeviceBridge.Maps.Client.csproj" />
+  </ItemGroup>
+
+</Project>

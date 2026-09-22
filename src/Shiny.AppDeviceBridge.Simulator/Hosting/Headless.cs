@@ -1,8 +1,8 @@
 namespace Shiny.AppDeviceBridge.Simulator.Hosting;
 
 /// <summary>
-/// The simulator without its TUI, for a test run or CI: serve, apply the scenario, play the trails, and write what happens
-/// — activity and every request — to the console until Ctrl+C.
+/// The simulator without its TUI, for a test run or CI — or with <c>--web</c>, driven from the browser panel instead: serve,
+/// apply the scenario, play the trails, and write what happens — activity and every request — to the console until Ctrl+C.
 /// </summary>
 static class Headless
 {
@@ -33,6 +33,15 @@ static class Headless
             Console.WriteLine($"{record.At:HH:mm:ss.fff}  {record.Text}");
 
         Console.WriteLine($"Shiny.AppDeviceBridge simulator on {host.Origin} as {host.State.Platform} — Ctrl+C stops.");
+
+        if (host.PanelUrl is { } panel)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Control it from a browser — the token is in the link:");
+            Console.WriteLine();
+            Console.WriteLine($"  {panel}");
+            Console.WriteLine();
+        }
 
         if (host.McpToken is { } token && host.McpEndpoint is not null)
         {

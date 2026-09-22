@@ -1,0 +1,124 @@
+<Project>
+
+  <!--
+    valhalla-mobile's native builds, fetched at build time rather than committed: about 35 MB of Android libraries and
+    45 MB of iOS static libraries. Each download is pinned to a version and a SHA-256, and the build fails on a mismatch.
+    Bumping valhalla-mobile means changing all three properties of a platform together, and regenerating
+    valhalla-config.json from the new release's apple/Sources/Valhalla/SupportData/default.json: the engine refuses a
+    config written for another Valhalla version. Its road networks must be built with the same Valhalla version too —
+    ShinyMapPacks pins its Docker image to it.
+  -->
+  <PropertyGroup>
+    <ValhallaMobileVersion>0.6.3</ValhallaMobileVersion>
+    <ValhallaAarUrl>https://repo1.maven.org/maven2/io/github/rallista/valhalla-mobile/$(ValhallaMobileVersion)/valhalla-mobile-$(ValhallaMobileVersion).aar</ValhallaAarUrl>
+    <ValhallaAarSha256>ac6d702371b6a0a4bc19f58d0f03d17a7fa7a89d77e997f0042a55618eb11cde</ValhallaAarSha256>
+    <ValhallaXcframeworkUrl>https://github.com/Rallista/valhalla-mobile/releases/download/$(ValhallaMobileVersion)/valhalla-wrapper.xcframework.zip</ValhallaXcframeworkUrl>
+    <ValhallaXcframeworkSha256>5bdc90b66651762aaf0347b31f60e8d878f91459fa0673cc8d0b2605524405df</ValhallaXcframeworkSha256>
+
+    <!-- The time zone database Valhalla's date library reads on iOS, from $HOME/Library/tzdata. valhalla-mobile's Swift layer
+         unpacks it there; without it the engine starts but finds no roads ("No suitable edges near location"). -->
+    <ValhallaTzdataUrl>https://raw.githubusercontent.com/Rallista/valhalla-mobile/$(ValhallaMobileVersion)/apple/Sources/Valhalla/SupportData/tzdata.tar</ValhallaTzdataUrl>
+    <ValhallaTzdataSha256>0d28b24fbbe940be9e0522086358ba74a438e4d81d2da4a2d290db929b7a8649</ValhallaTzdataSha256>
+
+    <ValhallaNativeDir>$(MSBuildProjectDirectory)/$(BaseIntermediateOutputPath)valhalla-mobile/$(ValhallaMobileVersion)/</ValhallaNativeDir>
+    <ValhallaShimSource>$(MSBuildThisFileDirectory)../../native/shiny-valhalla/shinyvalhalla.cpp</ValhallaShimSource>
+  </PropertyGroup>
+
+  <!-- native/shiny-valhalla compiled for the device and the simulator, again whenever its source changes. -->
+  <Target Name="ShinyValhallaShim" Inputs="$(ValhallaShimSource)" Outputs="$(ValhallaNativeDir)shim/shinyvalhalla.xcframework/Info.plist">
+    <PropertyGroup>
+      <_ShimDir>$(ValhallaNativeDir)shim/</_ShimDir>
+      <_ShimFlags>-std=c++17 -O2 -fPIC -fvisibility=hidden -c</_ShimFlags>
+    </PropertyGroup>
+
+    <RemoveDir Directories="$(_ShimDir)" />
+    <MakeDir Directories="$(_ShimDir)device;$(_ShimDir)simulator" />
+    <Exec Command="xcrun -sdk iphoneos clang++ $(_ShimFlags) -arch arm64 -miphoneos-version-min=15.0 &quot;$(ValhallaShimSource)&quot; -o &quot;$(_ShimDir)device/shim.o&quot;" />
+    <Exec Command="xcrun libtool -static -o &quot;$(_ShimDir)device/libshinyvalhalla.a&quot; &quot;$(_ShimDir)device/shim.o&quot;" />
+    <Exec Command="xcrun -sdk iphonesimulator clang++ $(_ShimFlags) -arch arm64 -mios-simulator-version-min=15.0 &quot;$(ValhallaShimSource)&quot; -o &quot;$(_ShimDir)simulator/shim-arm64.o&quot;" />
+    <Exec Command="xcrun -sdk iphonesimulator clang++ $(_ShimFlags) -arch x86_64 -mios-simulator-version-min=15.0 &quot;$(ValhallaShimSource)&quot; -o &quot;$(_ShimDir)simulator/shim-x86_64.o&quot;" />
+    <Exec Command="xcrun libtool -static -o &quot;$(_ShimDir)simulator/libshinyvalhalla.a&quot; &quot;$(_ShimDir)simulator/shim-arm64.o&quot; &quot;$(_ShimDir)simulator/shim-x86_64.o&quot;" />
+    <Exec Command="xcodebuild -create-xcframework -library &quot;$(_ShimDir)device/libshinyvalhalla.a&quot; -library &quot;$(_ShimDir)simulator/libshinyvalhalla.a&quot; -output &quot;$(_ShimDir)shinyvalhalla.xcframework&quot;" StandardOutputImportance="low" />
+  </Target>
+
+  <!-- A class library's NativeReference items reach the app only through a binding resource package — the
+       {Assembly}.resources beside the dll, packed into the NuGet with it — and the iOS SDK only writes one for binding
+       projects. This asks it to write one here too. -->
+  <Target Name="ShinyValhallaResourcePackage" AfterTargets="CoreCompile" Condition="$(TargetFramework.Contains('-ios'))"
+          Inputs="@(NativeReference->'%(Identity)/Info.plist')" Outputs="$(OutputPath)$(AssemblyName).resources.stamp">
+    <CreateBindingResourcePackage
+      NativeReferences="@(NativeReference)"
+      BindingResourcePath="$(OutputPath)$(AssemblyName).resources"
+      Compress="auto"
+      IntermediateOutputPath="$(IntermediateOutputPath)" />
+    <Touch AlwaysCreate="true" Files="$(OutputPath)$(AssemblyName).resources.stamp" />
+  </Target>
+
+  <!-- Android: the AAR's JNI libraries, and nothing else from it — the bridge calls their entry points directly, so none
+       of valhalla-mobile's Kotlin, Moshi or model dependencies come along. -->
+  <!-- Before _CategorizeAndroidLibraries, which is where a library's native libraries are gathered into its .aar — and the
+       .aar is how they reach the app. -->
+  <Target Name="ShinyValhallaAndroid" BeforeTargets="_CategorizeAndroidLibraries;PrepareForBuild" Condition="$(TargetFramework.Contains('-android'))">
+    <DownloadFile SourceUrl="$(ValhallaAarUrl)" DestinationFolder="$(ValhallaNativeDir)" DestinationFileName="valhalla-mobile.aar"
+                  Condition="!Exists('$(ValhallaNativeDir)valhalla-mobile.aar')" />
+    <GetFileHash Files="$(ValhallaNativeDir)valhalla-mobile.aar" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Hash" PropertyName="_ValhallaAarHash" />
+    </GetFileHash>
+    <Delete Files="$(ValhallaNativeDir)valhalla-mobile.aar" Condition="'$(_ValhallaAarHash.ToLowerInvariant())' != '$(ValhallaAarSha256)'" />
+    <Error Condition="'$(_ValhallaAarHash.ToLowerInvariant())' != '$(ValhallaAarSha256)'"
+           Text="valhalla-mobile.aar has SHA-256 $(_ValhallaAarHash), not the pinned $(ValhallaAarSha256). It was deleted; the next build downloads it again." />
+    <Unzip SourceFiles="$(ValhallaNativeDir)valhalla-mobile.aar" DestinationFolder="$(ValhallaNativeDir)aar" Include="jni/**/*.so"
+           Condition="!Exists('$(ValhallaNativeDir)aar/jni/arm64-v8a/libvalhalla-wrapper.so')" />
+
+    <ItemGroup>
+      <AndroidNativeLibrary Include="$(ValhallaNativeDir)aar/jni/arm64-v8a/libvalhalla-wrapper.so" Abi="arm64-v8a" />
+      <AndroidNativeLibrary Include="$(ValhallaNativeDir)aar/jni/armeabi-v7a/libvalhalla-wrapper.so" Abi="armeabi-v7a" />
+      <AndroidNativeLibrary Include="$(ValhallaNativeDir)aar/jni/x86_64/libvalhalla-wrapper.so" Abi="x86_64" />
+      <AndroidNativeLibrary Include="$(ValhallaNativeDir)aar/jni/x86/libvalhalla-wrapper.so" Abi="x86" />
+    </ItemGroup>
+  </Target>
+
+  <!-- iOS: valhalla-mobile's static library, and the C shim over it (native/shiny-valhalla) compiled for the device and
+       the simulator. Needs Xcode, which an iOS build needs anyway. -->
+  <Target Name="ShinyValhallaIos" BeforeTargets="PrepareForBuild" Condition="$(TargetFramework.Contains('-ios'))">
+    <DownloadFile SourceUrl="$(ValhallaXcframeworkUrl)" DestinationFolder="$(ValhallaNativeDir)" DestinationFileName="valhalla-wrapper.xcframework.zip"
+                  Condition="!Exists('$(ValhallaNativeDir)valhalla-wrapper.xcframework.zip')" />
+    <GetFileHash Files="$(ValhallaNativeDir)valhalla-wrapper.xcframework.zip" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Hash" PropertyName="_ValhallaXcHash" />
+    </GetFileHash>
+    <Delete Files="$(ValhallaNativeDir)valhalla-wrapper.xcframework.zip" Condition="'$(_ValhallaXcHash.ToLowerInvariant())' != '$(ValhallaXcframeworkSha256)'" />
+    <Error Condition="'$(_ValhallaXcHash.ToLowerInvariant())' != '$(ValhallaXcframeworkSha256)'"
+           Text="valhalla-wrapper.xcframework.zip has SHA-256 $(_ValhallaXcHash), not the pinned $(ValhallaXcframeworkSha256). It was deleted; the next build downloads it again." />
+    <!-- Not the Unzip task: the iOS SDK replaces it with one of its own that takes different parameters. -->
+    <Exec Command="unzip -oq &quot;$(ValhallaNativeDir)valhalla-wrapper.xcframework.zip&quot; -d &quot;$(ValhallaNativeDir)&quot;"
+          Condition="!Exists('$(ValhallaNativeDir)valhalla-wrapper.xcframework/Info.plist')" />
+
+    <CallTarget Targets="ShinyValhallaShim" />
+
+    <DownloadFile SourceUrl="$(ValhallaTzdataUrl)" DestinationFolder="$(ValhallaNativeDir)" DestinationFileName="tzdata.tar"
+                  Condition="!Exists('$(ValhallaNativeDir)tzdata.tar')" />
+    <GetFileHash Files="$(ValhallaNativeDir)tzdata.tar" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Hash" PropertyName="_ValhallaTzHash" />
+    </GetFileHash>
+    <Delete Files="$(ValhallaNativeDir)tzdata.tar" Condition="'$(_ValhallaTzHash.ToLowerInvariant())' != '$(ValhallaTzdataSha256)'" />
+    <Error Condition="'$(_ValhallaTzHash.ToLowerInvariant())' != '$(ValhallaTzdataSha256)'"
+           Text="tzdata.tar has SHA-256 $(_ValhallaTzHash), not the pinned $(ValhallaTzdataSha256). It was deleted; the next build downloads it again." />
+
+    <ItemGroup>
+      <EmbeddedResource Include="$(ValhallaNativeDir)tzdata.tar" LogicalName="valhalla-tzdata.tar" />
+      <NativeReference Include="$(ValhallaNativeDir)valhalla-wrapper.xcframework">
+        <Kind>Static</Kind>
+        <IsCxx>true</IsCxx>
+        <SmartLink>true</SmartLink>
+        <LinkerFlags>-lz</LinkerFlags>
+        <Frameworks>CoreFoundation</Frameworks>
+      </NativeReference>
+      <NativeReference Include="$(ValhallaNativeDir)shim/shinyvalhalla.xcframework">
+        <Kind>Static</Kind>
+        <IsCxx>true</IsCxx>
+        <ForceLoad>true</ForceLoad>
+      </NativeReference>
+    </ItemGroup>
+  </Target>
+
+</Project>

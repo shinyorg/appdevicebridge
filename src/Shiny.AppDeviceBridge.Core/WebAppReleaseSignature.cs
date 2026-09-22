@@ -155,6 +155,6 @@ public static class WebAppReleaseSignature
         return Convert.ToHexStringLower(hash);
     }
 
-    static bool IsSha256Hex(string? value)
+    internal static bool IsSha256Hex(string? value)
         => value is { Length: 64 } && value.All(Char.IsAsciiHexDigit);
 }

@@ -12,6 +12,8 @@ using Shiny.AppDeviceBridge.Health;
 using Shiny.AppDeviceBridge.HttpTransfers;
 using Shiny.AppDeviceBridge.Jobs;
 using Shiny.AppDeviceBridge.Locations;
+using Shiny.AppDeviceBridge.Maps;
+using Shiny.AppDeviceBridge.Maps.Valhalla;
 using Shiny.AppDeviceBridge.Notifications;
 using Shiny.AppDeviceBridge.Obd;
 using Shiny.AppDeviceBridge.Photos;
@@ -46,7 +48,15 @@ public static class SampleConfiguration
                 bridge =>
                 {
                     bridge
-                        .Configure(o => o.AppId = "sample")
+                        .Configure(o =>
+                        {
+                            o.AppId = "sample";
+#if DEBUG
+                            // Android has no entry assembly to read DebuggableAttribute from, so a debug build there is not
+                            // detected; this makes its bridges answer the development machine like every other head's.
+                            o.IsDebug = true;
+#endif
+                        })
 
                         // Launch at login rides along with the app bridge: same package behind it, and desktop-only in the
                         // sense that mobile answers { "supported": false } rather than the endpoints going missing.
@@ -77,6 +87,23 @@ public static class SampleConfiguration
                         // A Raspberry Pi camera through libcamera is as much for a headless Pi as for an app; everywhere
                         // but a Pi with the native shim, the page is told why there is no camera.
                         .AddRpiCameraBridge()
+
+                        // Vector maps and directions. The sample release server serves both the online tiles and the
+                        // downloadable regions from samples/Sample.ReleaseServer/maps — fill it with shiny-map-packs; see
+                        // the readme there. Online directions use FOSSGIS's public Valhalla, which is for light use such as
+                        // trying the sample; a real app runs its own or pays for a hosted one.
+                        .AddMapsBridge(o =>
+                        {
+                            o.OnlineTiles = $"http://{HostMachine}:5199/maps/files/planet.pmtiles";
+                            o.OnlineMaxZoom = 14;
+                            o.Catalog = new Uri($"http://{HostMachine}:5199/maps/catalog");
+                            o.CatalogPublicKey = ReadResource("Sample.dev-public.pem");
+                            o.Directions.OnlineRouteUrl = new Uri("https://valhalla1.openstreetmap.de/route");
+                        })
+
+                        // Routes on the phone inside a region whose road network was downloaded. Android and iOS; elsewhere
+                        // this registers nothing and directions stay online.
+                        .AddOnDeviceDirections()
 
                         // sample://device opens /device. Universal links would add o.Hosts, which needs a domain you control.
                         .AddAppLinksBridge(o =>

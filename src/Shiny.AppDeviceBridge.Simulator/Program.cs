@@ -47,7 +47,7 @@ await using (host)
     if (options.McpStdio)
         return await McpStdio.RunAsync(host);
 
-    return options.Headless ? await Headless.RunAsync(host) : await RunTuiAsync(host);
+    return options.Headless || options.Web ? await Headless.RunAsync(host) : await RunTuiAsync(host);
 }
 
 static async Task<int> RunTuiAsync(SimulatorHost host)

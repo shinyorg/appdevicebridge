@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Builds the directory Shiny.AppDeviceBridge.AspNetCore's FileSystemMapPackStore serves: a region's map cut from a
+    PMTiles planet with the pmtiles CLI, its road network built with Valhalla's tools (installed, or in Docker), the
+    shared glyphs and sprites, and regions.json. Ships as a .NET tool.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Shiny.AppDeviceBridge.MapPacks</RootNamespace>
+    <Description>Builds downloadable map regions for Shiny.AppDeviceBridge.Maps — a region's vector map cut from a PMTiles planet, its road network for on-device directions built with Valhalla, and the glyphs and sprites they draw with — into the directory the release server's MapMapPacks serves. Install with dotnet tool install -g Shiny.AppDeviceBridge.MapPacks; run shiny-map-packs.</Description>
+    <PackageTags>$(PackageTags) maps pmtiles valhalla offline</PackageTags>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>shiny-map-packs</ToolCommandName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge.AspNetCore/Shiny.AppDeviceBridge.AspNetCore.csproj" />
+  </ItemGroup>
+
+</Project>

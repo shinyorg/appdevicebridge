@@ -1,0 +1,221 @@
+@page "/map"
+@inherits BridgePage
+@inject IMapsBridge MapsBridge
+@inject IDirectionsBridge DirectionsBridge
+
+<h1>Maps</h1>
+<p class="muted">
+    Vector tiles from the maps bridge — online, or from a region you download so it draws with no connection — and
+    directions from the directions bridge, computed on the device inside a region whose road network you downloaded.
+</p>
+
+<div class="actions">
+    <button class="@Selected(MapDrawMode.None)" @onclick="@(() => Draw(MapDrawMode.None))">Pan</button>
+    <button class="@Selected(MapDrawMode.Pin)" @onclick="@(() => Draw(MapDrawMode.Pin))">Drop pins</button>
+    <button class="@Selected(MapDrawMode.Line)" @onclick="@(() => Draw(MapDrawMode.Line))">Draw line</button>
+    <button class="@Selected(MapDrawMode.Polygon)" @onclick="@(() => Draw(MapDrawMode.Polygon))">Draw area</button>
+    <button @onclick="Circle">Circle 1 km</button>
+    <button @onclick="Clear">Clear</button>
+    <button @onclick="Snapshot">Snapshot</button>
+</div>
+<p class="muted">Lines and areas: click to add points, double-click to finish. Pins can be dragged.</p>
+
+<BridgeMap @ref="map" Latitude="39.74" Longitude="-104.99" Zoom="10" Style="width: 100%; height: 55vh; border-radius: 8px; overflow: hidden;"
+           OnClick="OnMapClick" OnDrawn="OnDrawn" OnPinMoved="OnPinMoved" OnMoved="@(v => center = v.Center)" />
+
+<h2>Directions <span class="muted">(between the first two pins)</span></h2>
+<div class="form">
+    <select @bind="mode">
+        @foreach (var m in Enum.GetValues<TravelMode>())
+        {
+            <option value="@m">@m</option>
+        }
+    </select>
+    <select @bind="source">
+        @foreach (var s in Enum.GetValues<DirectionsSource>())
+        {
+            <option value="@s">@s</option>
+        }
+    </select>
+</div>
+<div class="actions">
+    <button @onclick="Route" disabled="@(pins.Count < 2)">Route</button>
+</div>
+@if (route is not null)
+{
+    <p><strong>@((route.Distance / 1000).ToString("0.0")) km, @TimeSpan.FromSeconds(route.Duration).ToString(@"h\:mm")</strong> — computed @(route.Source == DirectionsSource.Device ? "on the device" : "online")</p>
+    <ol class="list">
+        @foreach (var step in route.Legs.SelectMany(l => l.Maneuvers))
+        {
+            <li>@step.Instruction <span class="muted">@(step.Distance >= 1000 ? $"{step.Distance / 1000:0.0} km" : $"{step.Distance:0} m")</span></li>
+        }
+    </ol>
+}
+
+<h2>Offline regions</h2>
+@if (regions is null)
+{
+    <p class="muted">Loading the catalog…</p>
+}
+else
+{
+    <p class="muted">
+        @(regions.CatalogReachable ? "From the app's signed catalog." : "The catalog is unreachable; showing what is installed and last seen.")
+        On the device: @Megabytes(regions.InstalledBytes).
+    </p>
+    <label><input type="checkbox" @bind="withDirections" /> Include the road network for offline directions</label>
+    <ul class="list">
+        @foreach (var region in regions.Regions)
+        {
+            var download = downloads.GetValueOrDefault(region.Id) ?? region.Download;
+            <li>
+                <strong>@region.Name</strong>
+                <span class="muted">
+                    map @Megabytes(region.MapSize)@(region.DirectionsSize is { } d ? $", directions {Megabytes(d)}" : "")
+                    @(region.MapInstalled ? " · installed" : "")@(region.DirectionsInstalled ? " with directions" : "")@(region.UpdateAvailable ? " · update available" : "")
+                </span>
+                @if (download is { State: MapPackDownloadState.Queued or MapPackDownloadState.Downloading or MapPackDownloadState.Verifying })
+                {
+                    <progress max="@download.TotalBytes" value="@download.BytesDownloaded"></progress>
+                    <span class="muted">@download.State</span>
+                    <button @onclick="@(() => Run(() => MapsBridge.CancelDownloadAsync(region.Id), "Cancelled."))">Cancel</button>
+                }
+                else
+                {
+                    <button @onclick="@(() => Install(region))">@(region.MapInstalled ? (region.UpdateAvailable ? "Update" : "Add directions") : "Download")</button>
+                    <button @onclick="@(() => map!.FitBoundsAsync(region.Bounds, 12))">Show</button>
+                    @if (region.DirectionsInstalled)
+                    {
+                        <button @onclick="@(() => Change(() => MapsBridge.RemoveDirectionsAsync(region.Id)))">Remove directions</button>
+                    }
+                    @if (region.MapInstalled)
+                    {
+                        <button @onclick="@(() => Change(() => MapsBridge.RemoveAsync(region.Id)))">Remove</button>
+                    }
+                    @if (download is { State: MapPackDownloadState.Failed, Error: { } error })
+                    {
+                        <span class="muted">Failed: @error</span>
+                    }
+                }
+            </li>
+        }
+    </ul>
+}
+
+@if (snapshot is not null)
+{
+    <h2>Snapshot</h2>
+    <img id="map-snapshot" src="@snapshot" alt="The map as drawn" style="max-width: 100%; border-radius: 8px;" />
+}
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    BridgeMap? map;
+    MapCatalog? regions;
+    DirectionsRoute? route;
+    GeoPoint? center;
+    string? snapshot;
+    MapDrawMode drawMode;
+    TravelMode mode = TravelMode.Car;
+    DirectionsSource source = DirectionsSource.Auto;
+    bool withDirections = true;
+    int drawn;
+    readonly List<MapPin> pins = [];
+    readonly Dictionary<string, MapPackDownload> downloads = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen<MapPackDownload>(MapsBridge.OnDownloadAsync, e =>
+        {
+            downloads[e.RegionId] = e;
+            if (e.State is MapPackDownloadState.Installed or MapPackDownloadState.Cancelled)
+                _ = this.InvokeAsync(this.Refresh);
+        });
+        await this.Refresh();
+    }
+
+    async Task Refresh()
+    {
+        try
+        {
+            regions = await MapsBridge.GetRegionsAsync();
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+
+        StateHasChanged();
+    }
+
+    string? Selected(MapDrawMode m) => drawMode == m ? "primary" : null;
+
+    async Task Draw(MapDrawMode m)
+    {
+        drawMode = m;
+        await map!.SetDrawModeAsync(m);
+    }
+
+    async Task OnMapClick(MapClick click)
+    {
+        if (!click.IsPinMode)
+            return;
+
+        var pin = new MapPin($"pin-{pins.Count + 1}", click.Position, $"Pin {pins.Count + 1}", Draggable: true);
+        pins.Add(pin);
+        await map!.AddPinAsync(pin);
+    }
+
+    void OnPinMoved(MapPinMoved moved)
+    {
+        var index = pins.FindIndex(p => p.Id == moved.Id);
+        if (index >= 0)
+            pins[index] = pins[index] with { Position = moved.Position };
+    }
+
+    async Task OnDrawn(MapDrawn shape)
+    {
+        drawn++;
+        var color = shape.Kind == MapShapeKind.Polygon ? "#7c3aed" : "#f59e0b";
+        await map!.AddShapeAsync(new MapShape($"drawn-{drawn}", shape.Kind, shape.Points, color, Label: $"{shape.Kind} {drawn}"));
+    }
+
+    async Task Circle()
+    {
+        drawn++;
+        await map!.AddCircleAsync($"circle-{drawn}", center ?? new GeoPoint(39.74, -104.99), 1000, label: "1 km");
+    }
+
+    async Task Clear()
+    {
+        pins.Clear();
+        route = null;
+        await map!.ClearAsync();
+    }
+
+    Task Route() => Run(async () =>
+    {
+        route = await DirectionsBridge.RouteAsync(new DirectionsRequest(
+            [.. pins.Take(2).Select(p => new RouteStop(p.Position.Latitude, p.Position.Longitude))],
+            mode,
+            Source: source
+        ));
+        await map!.ShowRouteAsync(route);
+    }, "Routed.");
+
+    Task Install(MapRegion region) => Run(async () =>
+    {
+        downloads[region.Id] = await MapsBridge.InstallAsync(region.Id, new MapPackInstallRequest(withDirections));
+    }, $"Downloading {region.Name}…");
+
+    Task Change(Func<Task> call) => Run(async () =>
+    {
+        await call();
+        await this.Refresh();
+    }, "Done.");
+
+    async Task Snapshot() => snapshot = await map!.SnapshotAsync();
+
+    static string Megabytes(long bytes) => $"{bytes / 1048576d:0} MB";
+}
