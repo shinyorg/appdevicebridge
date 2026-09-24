@@ -327,8 +327,9 @@ public sealed class ScreenRecorderBridge : IWebAppBridge, IDisposable
             this.Finish(new ScreenRecordingEnded(ScreenRecordingEndReason.EncoderFailed, null, ex.Message));
             await WebAppBridgeResults.Error(context, ex.StatusCode, ex.Code, ex.Message);
         }
-        catch (Native.ScreenRecorderException ex)
+        catch (Exception ex)
         {
+            // Anything else — the disk filled while filing, say — still ends the recording, or the bridge would stay busy.
             this.Finish(new ScreenRecordingEnded(ScreenRecordingEndReason.EncoderFailed, null, ex.Message));
             await WebAppBridgeResults.Error(context, StatusCodes.Status500InternalServerError, "recording_failed", ex.Message);
         }

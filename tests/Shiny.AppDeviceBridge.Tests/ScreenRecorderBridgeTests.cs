@@ -415,6 +415,27 @@ public class ScreenRecorderBridgeTests
     }
 
     [Fact]
+    public async Task A_stop_that_fails_still_frees_the_recorder()
+    {
+        var recorder = new FakeScreenRecorder { Capabilities = Desktop, StopThrows = new IOException("The disk is full.") };
+        await using var fixture = await ScreenRecorderFixture.StartAsync(recorder);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await using var stream = await TestEventStream.OpenAsync(fixture.WebView, "screenrecorder.ended", timeout.Token);
+
+        await fixture.Client.StartAsync(new ScreenRecordingRequest());
+        var failed = await Assert.ThrowsAsync<BridgeException>(() => fixture.Client.StopAsync());
+
+        Assert.Equal(HttpStatusCode.InternalServerError, failed.StatusCode);
+        Assert.Equal("recording_failed", failed.Code);
+        var ended = Deserialize<ScreenRecordingEnded>(await stream.NextAsync("screenrecorder.ended", timeout.Token));
+        Assert.Equal(ScreenRecordingEndReason.EncoderFailed, ended.Reason);
+        Assert.Equal("The disk is full.", ended.Message);
+
+        recorder.StopThrows = null;
+        await fixture.Client.StartAsync(new ScreenRecordingRequest());
+    }
+
+    [Fact]
     public void Registers_once_and_answers_501_where_nothing_records()
     {
         var services = new ServiceCollection();
@@ -505,6 +526,7 @@ public class ScreenRecorderBridgeTests
         public Native.ScreenRecorderState State { get; set; }
         public Shiny.AccessState Access { get; init; } = Shiny.AccessState.Available;
         public Exception? StartThrows { get; set; }
+        public Exception? StopThrows { get; set; }
 
         public List<Native.ScreenRecordingRequest> Requests { get; } = [];
         public List<Native.ScreenRecordingRequest> AccessRequests { get; } = [];
@@ -574,6 +596,9 @@ public class ScreenRecorderBridgeTests
         {
             this.finished = true;
             recorder.Move(Native.ScreenRecorderState.Idle);
+            if (recorder.StopThrows is { } ex)
+                throw ex;
+
             return Task.FromResult(this.Result());
         }
 
