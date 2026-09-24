@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Cleared: src/Directory.Build.props sets the single target. -->
+    <TargetFramework></TargetFramework>
+
+    <!-- Shiny.ScreenRecorder declares AddScreenRecorder on its platform targets only: MediaProjection on Android,
+         ReplayKit on iOS and Mac Catalyst, ScreenCaptureKit on macOS, Windows.Graphics.Capture on Windows. The net10.0
+         build serves Linux with the xdg-desktop-portal implementation, and registers nothing anywhere else. No MAUI:
+         Android's recorder needs Shiny's host, which the app's host starts. -->
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
+    <RootNamespace>Shiny.AppDeviceBridge.ScreenRecorder</RootNamespace>
+    <Description>Screen recording for a Shiny.AppDeviceBridge web app, backed by Shiny.ScreenRecorder — record the device's screen to a video filed into a file root, with the microphone or system audio where the platform has them, pause and resume, and events for every state change and every recording's end. One call: bridge.AddScreenRecorderBridge().</Description>
+
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-macos'))">14.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shiny.ScreenRecorder" />
+  </ItemGroup>
+
+  <!-- Linux recording is the portal's ScreenCast API over D-Bus, shipped separately so no other platform carries it.
+       Only the net10.0 build references it, and it is only called when the process is actually on Linux. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Shiny.ScreenRecorder.Linux" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <DefineConstants>$(DefineConstants);SCREENRECORDER_LINUX</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.ScreenRecorder.Client/Shiny.AppDeviceBridge.ScreenRecorder.Client.csproj" />
+  </ItemGroup>
+
+</Project>

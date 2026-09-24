@@ -58,6 +58,9 @@
     <!-- HTTP transfers bridge: Shiny's transfer loop runs in a dataSync foreground service -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- Screen recorder bridge: MediaProjection runs in a mediaProjection foreground service (RECORD_AUDIO is above) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
     <!-- Health bridge: one permission per Health Connect record the page reads or writes -->
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_HEART_RATE" />

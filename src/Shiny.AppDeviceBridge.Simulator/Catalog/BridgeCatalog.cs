@@ -18,6 +18,7 @@ using ObdClient = Shiny.AppDeviceBridge.Obd.Client;
 using PhotosClient = Shiny.AppDeviceBridge.Photos.Client;
 using PushClient = Shiny.AppDeviceBridge.Push.Client;
 using RpiCameraClient = Shiny.AppDeviceBridge.RpiCamera.Client;
+using ScreenRecorderClient = Shiny.AppDeviceBridge.ScreenRecorder.Client;
 using SpeechClient = Shiny.AppDeviceBridge.Speech.Client;
 using TransfersClient = Shiny.AppDeviceBridge.HttpTransfers.Client;
 using WearablesClient = Shiny.AppDeviceBridge.Wearables.Client;
@@ -118,6 +119,7 @@ public static class BridgeCatalog
             Describe(typeof(PhotosClient.IPhotosBridge), PhotosClient.PhotosJsonContext.Default),
             Describe(typeof(PushClient.IPushBridge), PushClient.PushJsonContext.Default),
             Describe(typeof(RpiCameraClient.IRpiCameraBridge), RpiCameraClient.RpiCameraJsonContext.Default),
+            Describe(typeof(ScreenRecorderClient.IScreenRecorderBridge), ScreenRecorderClient.ScreenRecorderJsonContext.Default),
             Describe(typeof(SpeechClient.ISpeechBridge), SpeechClient.SpeechJsonContext.Default),
             Describe(typeof(WearablesClient.IWearablesBridge), WearablesClient.WearablesJsonContext.Default),
             Describe(typeof(WifiClient.IWifiBridge), WifiClient.WifiJsonContext.Default)

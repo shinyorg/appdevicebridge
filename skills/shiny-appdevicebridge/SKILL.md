@@ -107,6 +107,17 @@ triggers:
   - ITransfersBridge
   - IHealthBridge
   - ISpeechBridge
+  - IScreenRecorderBridge
+  - AddScreenRecorderBridge
+  - AddScreenRecorderBridgeClient
+  - ScreenRecorderBridgeClient
+  - ScreenRecorderBridgeOptions
+  - Shiny.AppDeviceBridge.ScreenRecorder
+  - Shiny.AppDeviceBridge.ScreenRecorder.Client
+  - Shiny.ScreenRecorder
+  - screenrecorder.ended
+  - screen recording
+  - screen recorder
   - IContactsBridge
   - ICalendarBridge
   - IPhotosBridge
@@ -247,7 +258,7 @@ calls device features from that web app, updates it over the air, or writes a br
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
   - **No MAUI** — BluetoothLE, Obd, Discovery, Wifi, HttpTransfers, Jobs (plain `net10.0`), Locations
-    (GPS/geofences/motion), Notifications, Push, Wearables, Speech, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
+    (GPS/geofences/motion), Notifications, Push, Wearables, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless (on macOS they register Shiny's core services themselves).
@@ -369,6 +380,7 @@ public class App : Application
 | `.AppLinks` | `AddAppLinksBridge(o => …)` | `ILinksBridge` (built in) |
 | `.Health` | `AddHealthBridge()` | `IHealthBridge` |
 | `.Speech` | `AddSpeechBridge()` | `ISpeechBridge` |
+| `.ScreenRecorder` | `AddScreenRecorderBridge(o => o.MaxDuration = TimeSpan.FromMinutes(10))` — `ScreenRecorderBridgeOptions`: `Root` (`data`), `Folder` (`screen-recordings`), `MaxDuration` (1 h; `null` for none), `ConfirmStart`, `RegisterScreenRecorder` (on) | `IScreenRecorderBridge` — the device's screen to a video via Shiny.ScreenRecorder; all platforms — see Screen recorder below |
 | `.Contacts` | `AddContactsBridge()` | `IContactsBridge` |
 | `.Calendar` | `AddCalendarBridge()` | `ICalendarBridge` |
 | `.Photos` | `AddPhotosBridge()` | `IPhotosBridge` |
@@ -443,6 +455,34 @@ appdevicebridge.on("wearables.message", async ({ path, data }) => {
 
 The companion app speaks `Shiny.Wearables.WearableProtocol` (watchOS: `["path": String, "data": Data]` dictionaries;
 Wear OS: `/shiny/...` paths, the `shiny_wearable` capability, same application id and signing key).
+
+## Screen recorder
+
+`AddScreenRecorderBridge()` records **the device's** screen and registers Shiny.ScreenRecorder's recorder (portal on
+Linux). For the screen of a browser showing the page, use `getDisplayMedia` instead. The WebViews on iOS and Android don't
+have it, which is why this bridge exists.
+
+```csharp
+var status = await recorder.GetStatusAsync();              // Capabilities decide what to offer
+if (!status.Capabilities.Contains(ScreenRecorderCapability.Recording)) return;
+await using var sub = await recorder.OnEndedAsync(e => …);  // every ending: Stopped, Cancelled, RevokedByUser, MaxDurationReached, …
+await recorder.StartAsync(new ScreenRecordingRequest(IncludeMicrophone: true, MaxWidth: 1280));  // returns after consent
+var recording = await recorder.StopAsync();                // recording.File is a BridgeFile → IFilesBridge
+```
+
+- Only set request fields whose `ScreenRecorderCapability` is listed; anything else answers `501` (`not_supported`).
+  Pause and resume need `PauseResume`, which macOS 15 lacks.
+- `409` `recording_busy` (one at a time, including a recording the app started itself), `409` `not_recording` (stop,
+  pause or resume with nothing running; cancel is fine), `403` `permission_denied` (consent declined) or `declined`
+  (`ConfirmStart` said no).
+- The device can end a recording on its own. Always handle `screenrecorder.ended` rather than assuming `StopAsync` will
+  find one; the salvaged file is in `ended.Recording`.
+- Scope: whole screen on Android, macOS, Windows and Linux; this app only on iOS and Mac Catalyst. No display or window
+  picking. **Windows records without asking**: generate `o.ConfirmStart = (request, ct) => ShowMyConfirmationAsync()`
+  for Windows apps. Keep `MaxDuration` set; it is what stops a recording nobody is watching.
+- Setup: Android `FOREGROUND_SERVICE_MEDIA_PROJECTION` (+ `RECORD_AUDIO` for the microphone); Apple
+  `NSMicrophoneUsageDescription` for the microphone; packaged Windows `graphicsCapture`; Linux xdg-desktop-portal +
+  GStreamer or ffmpeg.
 
 ## Quick entry
 

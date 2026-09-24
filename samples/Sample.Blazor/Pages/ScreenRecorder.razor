@@ -1,0 +1,51 @@
+@page "/screen-recorder"
+@inherits BridgePage
+@inject IScreenRecorderBridge ScreenRecorderBridge
+
+<h1>Screen recorder</h1>
+<p class="muted">
+    Records this device's screen into the data root. Android, macOS, Windows and Linux record the whole screen, other apps
+    included; iOS and Mac Catalyst record only this app. The sample stops a recording after five minutes.
+</p>
+
+<div class="row">
+    <button @onclick="@(() => Run(() => ScreenRecorderBridge.GetStatusAsync(), Json.ScreenRecorderStatus))">Status</button>
+    <button @onclick="@(() => Run(() => ScreenRecorderBridge.RequestAccessAsync(new ScreenRecorderAccessRequest(IncludeMicrophone: microphone)), Json.ScreenRecorderAccessResult))">Request access</button>
+    <label><input type="checkbox" @bind="microphone" /> Microphone</label>
+</div>
+
+<div class="row">
+    <button @onclick="Start" disabled="@Busy">Start</button>
+    <button @onclick="@(() => Run(() => ScreenRecorderBridge.StopAsync(), Json.ScreenRecording))">Stop</button>
+    <button @onclick="@(() => Run(() => ScreenRecorderBridge.PauseAsync(), "Paused."))">Pause</button>
+    <button @onclick="@(() => Run(() => ScreenRecorderBridge.ResumeAsync(), "Resumed."))">Resume</button>
+    <button @onclick="@(() => Run(() => ScreenRecorderBridge.CancelAsync(), "Cancelled."))">Cancel</button>
+</div>
+
+@if (state is not null)
+{
+    <p class="muted">@state</p>
+}
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    static ScreenRecorderJsonContext Json => ScreenRecorderJsonContext.Default;
+
+    bool microphone;
+    string? state;
+    string log = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen<ScreenRecorderStatus>(ScreenRecorderBridge.OnStatusAsync, e => state = e.ElapsedSeconds is { } s ? $"{e.State} · {s:0}s" : e.State.ToString());
+        await Listen<ScreenRecordingEnded>(ScreenRecorderBridge.OnEndedAsync, e =>
+            Log("screenrecorder.ended", e.Recording is { } r ? $"{e.Reason}: {r.File.Root}/{r.File.Path} ({r.DurationSeconds:0.0}s, {r.Width}×{r.Height})" : $"{e.Reason} {e.Message}"));
+    }
+
+    // Answers once frames are being written, which can be after a consent dialog on the device.
+    Task Start() => Run(() => ScreenRecorderBridge.StartAsync(new ScreenRecordingRequest(IncludeMicrophone: microphone, MaxDurationSeconds: 300)), Json.ScreenRecorderStatus);
+
+    void Log(string name, string detail) => log = Prepend(log, $"{DateTime.Now:T}  {name}  {detail}");
+}

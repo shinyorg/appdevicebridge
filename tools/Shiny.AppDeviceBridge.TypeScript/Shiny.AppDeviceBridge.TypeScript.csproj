@@ -29,6 +29,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Discovery.Client/Shiny.AppDeviceBridge.Discovery.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.HttpTransfers.Client/Shiny.AppDeviceBridge.HttpTransfers.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Locations.Client/Shiny.AppDeviceBridge.Locations.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.ScreenRecorder.Client/Shiny.AppDeviceBridge.ScreenRecorder.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Speech.Client/Shiny.AppDeviceBridge.Speech.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Health.Client/Shiny.AppDeviceBridge.Health.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.BluetoothLE.Client/Shiny.AppDeviceBridge.BluetoothLE.Client.csproj" />

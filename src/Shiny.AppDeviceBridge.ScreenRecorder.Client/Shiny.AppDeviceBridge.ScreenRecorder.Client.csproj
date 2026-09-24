@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.ScreenRecorder.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge screen recorder bridge — record the device's screen to a video filed into a file root, with the microphone or system audio where the platform has them, pause and resume, and events for every state change and every recording's end. Register with services.AddScreenRecorderBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

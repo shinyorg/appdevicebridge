@@ -60,6 +60,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Camera/Shiny.AppDeviceBridge.Camera.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Simulator/Shiny.AppDeviceBridge.Simulator.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wearables/Shiny.AppDeviceBridge.Wearables.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.ScreenRecorder/Shiny.AppDeviceBridge.ScreenRecorder.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps/Shiny.AppDeviceBridge.Maps.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Valhalla/Shiny.AppDeviceBridge.Maps.Valhalla.csproj" SetTargetFramework="TargetFramework=net10.0" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Blazor/Shiny.AppDeviceBridge.Maps.Blazor.csproj" />

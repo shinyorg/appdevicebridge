@@ -14,6 +14,7 @@ using Shiny.AppDeviceBridge.AppSupport.Client;
 using Shiny.AppDeviceBridge.Discovery.Client;
 using Shiny.AppDeviceBridge.HttpTransfers.Client;
 using Shiny.AppDeviceBridge.Locations.Client;
+using Shiny.AppDeviceBridge.ScreenRecorder.Client;
 using Shiny.AppDeviceBridge.Speech.Client;
 using Shiny.AppDeviceBridge.Health.Client;
 using Shiny.AppDeviceBridge.BluetoothLE.Client;
@@ -46,6 +47,7 @@ builder.Services
     .AddGeofencesBridgeClient()
     .AddMotionBridgeClient()
     .AddSpeechBridgeClient()
+    .AddScreenRecorderBridgeClient()
     .AddHealthBridgeClient()
     .AddBluetoothLEBridgeClient()
     .AddContactsBridgeClient()

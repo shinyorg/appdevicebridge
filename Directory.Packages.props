@@ -34,6 +34,8 @@
         <PackageVersion Include="Shiny.Contacts" Version="5.8.0-beta-0001"/>
         <PackageVersion Include="Shiny.Calendar" Version="5.8.0-beta-0001"/>
         <PackageVersion Include="Shiny.Speech" Version="3.0.0-beta-0030"/>
+        <PackageVersion Include="Shiny.ScreenRecorder" Version="5.8.0-beta-0001"/>
+        <PackageVersion Include="Shiny.ScreenRecorder.Linux" Version="5.8.0-beta-0001"/>
         <PackageVersion Include="Shiny.Net.Http" Version="5.8.0-beta-0001"/>
         <PackageVersion Include="Shiny.Core.Linux" Version="5.8.0-beta-0001"/>
         <PackageVersion Include="Xamarin.AndroidX.DocumentFile" Version="1.1.0.3"/>

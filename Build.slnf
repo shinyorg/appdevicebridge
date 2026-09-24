@@ -47,6 +47,8 @@
             "src/Shiny.AppDeviceBridge.Push/Shiny.AppDeviceBridge.Push.csproj",
             "src/Shiny.AppDeviceBridge.RpiCamera.Client/Shiny.AppDeviceBridge.RpiCamera.Client.csproj",
             "src/Shiny.AppDeviceBridge.RpiCamera/Shiny.AppDeviceBridge.RpiCamera.csproj",
+            "src/Shiny.AppDeviceBridge.ScreenRecorder.Client/Shiny.AppDeviceBridge.ScreenRecorder.Client.csproj",
+            "src/Shiny.AppDeviceBridge.ScreenRecorder/Shiny.AppDeviceBridge.ScreenRecorder.csproj",
             "src/Shiny.AppDeviceBridge.Simulator/Shiny.AppDeviceBridge.Simulator.csproj",
             "src/Shiny.AppDeviceBridge.Speech.Client/Shiny.AppDeviceBridge.Speech.Client.csproj",
             "src/Shiny.AppDeviceBridge.Speech/Shiny.AppDeviceBridge.Speech.csproj",

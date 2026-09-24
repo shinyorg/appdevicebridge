@@ -18,6 +18,7 @@ export * from "./obd.js";
 export * from "./photos.js";
 export * from "./push.js";
 export * from "./rpi-camera.js";
+export * from "./screen-recorder.js";
 export * from "./shared.js";
 export * from "./speech.js";
 export * from "./wearables.js";

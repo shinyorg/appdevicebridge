@@ -20,6 +20,7 @@ using Shiny.AppDeviceBridge.Photos;
 using Shiny.AppDeviceBridge.Push;
 using Shiny.AppDeviceBridge.Wearables;
 using Shiny.AppDeviceBridge.RpiCamera;
+using Shiny.AppDeviceBridge.ScreenRecorder;
 using Shiny.AppDeviceBridge.Speech;
 using Shiny.AppDeviceBridge.Wifi;
 using Shiny.AppDeviceBridge.Maui;
@@ -75,6 +76,10 @@ public static class SampleConfiguration
                         .AddHttpTransfersBridge()
                         .AddHealthBridge()
                         .AddSpeechBridge()
+
+                        // The whole screen, other apps included, everywhere but iOS and Mac Catalyst. Ten minutes at most,
+                        // so a page that went away cannot leave it recording.
+                        .AddScreenRecorderBridge(o => o.MaxDuration = TimeSpan.FromMinutes(10))
                         .AddContactsBridge()
                         .AddCalendarBridge()
                         .AddPhotosBridge()

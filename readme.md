@@ -65,6 +65,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.AppLinks` | the app | `AddAppLinksBridge(o => o.Schemes.Add("myapp"))`: deep links and universal/app links routed to the page |
 | `Shiny.AppDeviceBridge.Health` | the app | `AddHealthBridge()`: HealthKit and Health Connect permissions, bucketed reads, writes and live readings |
 | `Shiny.AppDeviceBridge.Speech` | the app | `AddSpeechBridge()`: on-device speech recognition, dictation as events, text-to-speech, voices |
+| `Shiny.AppDeviceBridge.ScreenRecorder` | the app | `AddScreenRecorderBridge()`: record the device's screen to a video filed into a file root, through Shiny.ScreenRecorder — microphone and system audio where the platform has them, pause and resume, a time limit, and events for every state change and ending (all platforms) |
 | `Shiny.AppDeviceBridge.Contacts` | the app | `AddContactsBridge()`: access, paged search, read, photos, create, update and delete (Android, iOS) |
 | `Shiny.AppDeviceBridge.Calendar` | the app | `AddCalendarBridge()`: access, calendars, events in a date range, create, update and delete |
 | `Shiny.AppDeviceBridge.Camera` | the app | `AddCameraBridge()`: this device's own camera driven from a page anywhere — a live MJPEG viewfinder, photos and video filed into a file root, lens, zoom, torch and effects; `CameraBridgeView` for a camera screen of your own |
@@ -75,7 +76,7 @@ app, served from the device itself, updated from your own server, and able to ca
 
 AppSupport, AppSupport.Linux, AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
 `Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Obd, Discovery, Wifi,
-HttpTransfers, Jobs, Locations, Notifications, Push, Wearables, Speech, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
+HttpTransfers, Jobs, Locations, Notifications, Push, Wearables, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
 ## The app
@@ -596,6 +597,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | App links | `GET/DELETE links/pending` | `app.link` |
 | Health | `GET health`, `POST health/access`, `GET/POST health/samples/{type}`, `POST/DELETE health/listeners/{type}` | `health.reading`, `health.stopped` |
 | Speech | `GET speech/status`, `POST speech/access`, `POST speech/recognize`, `GET/POST/DELETE speech/listener`, `POST/DELETE speech/speak`, `GET speech/voices?culture=`, `GET speech/cultures` | `speech.partial`, `speech.result`, `speech.keyword`, `speech.ended`, `speech.spoken`, `speech.error` |
+| Screen recorder | `GET screenrecorder`, `POST screenrecorder/access`, `POST/DELETE screenrecorder/recording`, `POST screenrecorder/recording/cancel`, `POST screenrecorder/recording/pause`, `POST screenrecorder/recording/resume` | `screenrecorder.status`, `screenrecorder.ended` |
 | Contacts | `GET contacts`, `POST contacts/access`, `GET/POST contacts/items`, `GET/PUT/DELETE contacts/items/{id}`, `GET contacts/items/{id}/photo` | |
 | Calendar | `GET calendar`, `POST calendar/access`, `GET calendar/calendars`, `GET/POST calendar/events`, `GET/PUT/DELETE calendar/events/{id}` | |
 | Photos | `GET photos`, `POST photos/access`, `POST photos/pick`, `GET photos/library`, `GET photos/library/{id}/thumbnail`, `POST photos/library/{id}/export` | |
@@ -816,6 +818,33 @@ const steps = await health.getSamples("StepCount", today, new Date(), { interval
 - **Platform setup:** Android needs `RECORD_AUDIO`, plus a `<queries>` entry for
   `android.intent.action.TTS_SERVICE`. Apple platforms need `NSSpeechRecognitionUsageDescription` and
   `NSMicrophoneUsageDescription`, plus the `com.apple.security.device.audio-input` entitlement for sandboxed apps.
+
+**Screen recorder:** built on Shiny.ScreenRecorder, which is still a prerelease package. It records the device's
+screen: in a browser that is `getDisplayMedia`, which the WebViews on iOS and Android don't offer.
+- **What gets recorded:** Android, macOS, Windows and Linux record the whole screen, other apps included. iOS and Mac
+  Catalyst record only this app. Picking a display or window is left out on purpose, because listing them would give the
+  page every other app's window titles.
+- **Consent:** every platform except Windows asks the user before recording. Android asks each time, macOS asks once for
+  Screen Recording permission, and Linux shows the compositor's picker. `POST recording` answers once frames are being
+  written, so it takes as long as the user takes to answer. Windows doesn't ask; it only draws a yellow border. Set
+  `o.ConfirmStart` to show your own confirmation. Returning `false` answers `403` `declined`.
+- **Recording:** `POST recording` takes `includeMicrophone`, `includeSystemAudio`, `showCursor`, `frameRate`,
+  `videoBitrate`, `maxWidth` and `maxDurationSeconds`. Each needs a capability that `GET screenrecorder` lists; one the
+  device can't honour answers `501` before anyone is asked anything. `DELETE recording` finishes the file and files it
+  into `data/screen-recordings/REC_<timestamp>.mp4` (`o.Root`, `o.Folder`). `recording/cancel` keeps nothing.
+- **One at a time:** a second start answers `409` `recording_busy`, and stop, pause or resume with nothing recording
+  answers `409` `not_recording`.
+- **Time limit:** `o.MaxDuration` caps every recording, one hour by default, so a page that went away can't leave the
+  screen recording. When it runs out, the recording is filed. Set it to `null` for no limit.
+- **Endings:** the device can end a recording itself, for example from Android's notification or the macOS menu bar.
+  Whatever could be salvaged is filed, and `screenrecorder.ended` reports every ending with its `reason` and the
+  recording.
+- **Pause:** only where the `PauseResume` capability is listed. macOS 15's capture path doesn't have it; elsewhere it
+  answers `501`.
+- **Platform setup:** Android needs `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_MEDIA_PROJECTION`, plus `RECORD_AUDIO`
+  for the microphone, and Shiny's host started by the app. Apple platforms need `NSMicrophoneUsageDescription` for the
+  microphone. Packaged Windows apps declare the `graphicsCapture` capability. Linux needs xdg-desktop-portal and
+  GStreamer or ffmpeg; without them, it reports no capabilities and answers `501`.
 
 **Contacts:**
 - **Platforms:** Android and iOS. Shiny.Contacts has no Mac Catalyst, macOS, Windows or Linux backend, so there
