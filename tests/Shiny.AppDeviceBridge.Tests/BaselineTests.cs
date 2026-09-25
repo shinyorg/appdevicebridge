@@ -11,7 +11,7 @@ public class BaselineTests
     /// No update server, no manifest, no signing key, and no network at any point.
     /// </summary>
     [Fact]
-    public async Task ServesAnEmbeddedZipWithNoUpdateServer()
+    public async Task ServesAnEmbeddedZipWithNoUpdateProvider()
     {
         await using var app = new TestApp();
         var options = new WebAppHostOptions
@@ -21,8 +21,7 @@ public class BaselineTests
 
         options.UseBaseline(typeof(BaselineTests).Assembly, Resource);
 
-        Assert.Null(options.UpdateServer);
-        Assert.Null(options.PublicKey);
+        Assert.Null(options.UpdateProvider);
         Assert.Equal("1.0.0", options.Baseline!.Version);
 
         await using var host = app.CreateHost(options);
@@ -41,7 +40,7 @@ public class BaselineTests
         Assert.False(Directory.Exists(options.InstallDirectory));
     }
 
-    /// <summary>A baseline alone satisfies Validate; only an UpdateServer drags the signing key in with it.</summary>
+    /// <summary>A baseline alone satisfies Validate, and so does an update provider alone.</summary>
     [Fact]
     public void ABaselineIsEnoughOnItsOwn()
     {
@@ -53,7 +52,8 @@ public class BaselineTests
         options.UseBaseline(typeof(BaselineTests).Assembly, Resource);
         options.Validate();
 
-        options.UpdateServer = new Uri("https://example.com/webapps");
-        Assert.Contains("PublicKey is required", Assert.Throws<InvalidOperationException>(options.Validate).Message);
+        using var provider = new GitHubReleasesUpdateProvider("https://github.com/acme/field-app");
+        var remoteOnly = new WebAppHostOptions { UpdateProvider = provider };
+        remoteOnly.Validate();
     }
 }

@@ -104,6 +104,10 @@ public static class SampleConfiguration
                             o.Catalog = new Uri($"http://{HostMachine}:5199/maps/catalog");
                             o.CatalogPublicKey = ReadResource("Sample.dev-public.pem");
                             o.Directions.OnlineRouteUrl = new Uri("https://valhalla1.openstreetmap.de/route");
+
+                            // Live traffic, when the build was given a TomTom key (see Sample.App.csproj).
+                            if (Metadata("TomTomApiKey") is { Length: > 0 } tomTom)
+                                o.Traffic = new TomTomTrafficProvider(tomTom);
                         })
 
                         // Routes on the phone inside a region whose road network was downloaded. Android and iOS; elsewhere
@@ -128,8 +132,12 @@ public static class SampleConfiguration
 
                     // samples/Sample.ReleaseServer. With it not running the check fails fast and the installed build is
                     // served. Plain HTTP and a committed key pair are development conveniences; see samples/keys.
-                    webApp.UpdateServer = new Uri($"http://{HostMachine}:5199/webapps");
-                    webApp.PublicKey = ReadResource("Sample.dev-public.pem");
+                    // A GitHub repository's releases work the same way:
+                    //     webApp.UpdateProvider = new GitHubReleasesUpdateProvider("https://github.com/acme/field-app");
+                    webApp.UpdateProvider = new ReleaseServerUpdateProvider(
+                        new Uri($"http://{HostMachine}:5199/webapps"),
+                        ReadResource("Sample.dev-public.pem")
+                    );
                     webApp.CheckTimeout = TimeSpan.FromSeconds(2);
 
 #if DEBUG
@@ -144,12 +152,14 @@ public static class SampleConfiguration
             .AllowWebPermissions(WebAppWebPermissions.Camera | WebAppWebPermissions.Microphone | WebAppWebPermissions.Geolocation);
     }
 
+    static string? Metadata(string key) => typeof(App).Assembly
+        .GetCustomAttributes<AssemblyMetadataAttribute>()
+        .FirstOrDefault(x => x.Key == key)?.Value;
+
 #if DEBUG
     static Uri? DevServer()
     {
-        var configured = typeof(App).Assembly
-            .GetCustomAttributes<AssemblyMetadataAttribute>()
-            .FirstOrDefault(x => x.Key == "WebAppDevServer")?.Value;
+        var configured = Metadata("WebAppDevServer");
 
         if (String.Equals(configured, "off", StringComparison.OrdinalIgnoreCase))
             return null;

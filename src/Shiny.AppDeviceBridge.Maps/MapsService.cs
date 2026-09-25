@@ -36,6 +36,10 @@ sealed class MapsService : IDisposable
     DateTimeOffset onlineRetryAt;
 
     (MapPackCatalog Catalog, DateTimeOffset FetchedAt)? catalog;
+
+    // Traffic tiles by position, each kept for the layer's refresh interval. A map on screen asks for a few dozen.
+    const int TrafficCacheLimit = 512;
+    readonly ConcurrentDictionary<(int Z, int X, int Y), (TrafficTile? Tile, DateTimeOffset Expires)> trafficTiles = new();
     readonly SemaphoreSlim catalogGate = new(1, 1);
 
     long tileCacheBytes = -1;
@@ -839,6 +843,51 @@ sealed class MapsService : IDisposable
         => stop.Longitude >= bounds[0] && stop.Latitude >= bounds[1] && stop.Longitude <= bounds[2] && stop.Latitude <= bounds[3];
 
     public long InstalledBytes => this.Installed.Sum(x => x.MapSize + x.DirectionsSize);
+
+    /// <summary>
+    /// A live traffic tile from <see cref="MapsOptions.Traffic"/>, or null: outside the layer's zooms, where the provider has
+    /// nothing, or when it cannot be reached. Failures are not kept, so the next request tries again.
+    /// </summary>
+    public async Task<TrafficTile?> GetTrafficTileAsync(int z, int x, int y, CancellationToken cancellationToken)
+    {
+        if (this.options.Traffic is not { } provider)
+            return null;
+
+        var layer = provider.Layer;
+        if (z < layer.MinZoom || z > layer.MaxZoom)
+            return null;
+
+        var now = DateTimeOffset.UtcNow;
+        if (this.trafficTiles.TryGetValue((z, x, y), out var cached) && cached.Expires > now)
+            return cached.Tile;
+
+        TrafficTile? tile;
+        try
+        {
+            tile = await provider.GetTileAsync(z, x, y, this.http, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            this.logger.LogDebug(ex, "Traffic tile {Z}/{X}/{Y} unavailable", z, x, y);
+            return null;
+        }
+
+        if (this.trafficTiles.Count >= TrafficCacheLimit)
+        {
+            foreach (var (key, entry) in this.trafficTiles)
+            {
+                if (entry.Expires <= now)
+                    this.trafficTiles.TryRemove(key, out _);
+            }
+
+            // Still full of live tiles: a map panned across a continent. Start again rather than track use.
+            if (this.trafficTiles.Count >= TrafficCacheLimit)
+                this.trafficTiles.Clear();
+        }
+
+        this.trafficTiles[(z, x, y)] = (tile, now + layer.Refresh);
+        return tile;
+    }
 
     public void Dispose()
     {

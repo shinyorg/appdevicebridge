@@ -109,6 +109,8 @@ export interface MapsInfo {
     catalog: boolean;
     /** The credit the map data's licence requires, as HTML. */
     attribution: string;
+    /** The live traffic layer, when the app configured a traffic provider. Null otherwise. */
+    traffic: TrafficInfo | null;
 }
 
 export interface RouteAvoid {
@@ -146,6 +148,32 @@ export interface RouteStop {
     longitude: number;
     name?: string | null;
 }
+
+/** A live traffic layer, whatever provider is behind it. Tiles come through the bridge, which holds the provider's key, and only while online: offline the layer is simply empty. */
+export interface TrafficInfo {
+    /** The traffic tiles: `…/maps/traffic/{z}/{x}/{y}`. */
+    tilesUrl: string;
+    format: TrafficTileFormat;
+    /** Below this the layer draws nothing, and no tiles are asked for. */
+    minZoom: number;
+    /** The highest zoom the provider has. The renderer scales past it. */
+    maxZoom: number;
+    /** How often the provider's data changes, so how often the page should fetch the tiles again. */
+    refreshSeconds: number;
+    /** Vector: the layer inside each tile holding the road segments. */
+    sourceLayer: string | null;
+    /** Vector: the property holding current speed over free-flow speed, from 0 (stopped) to 1 (free flow). */
+    speedRatioProperty: string | null;
+    /** Vector: the property that is true on a closed road. Null when the provider does not mark closures. */
+    closedProperty: string | null;
+    /** Raster: the images' size in pixels. */
+    tileSize: number;
+    /** The credit the provider's terms require, as HTML. */
+    attribution: string;
+}
+
+/** How a traffic provider's tiles are drawn. */
+export type TrafficTileFormat = "Vector" | "Raster";
 
 export type TravelMode = "Car" | "Bicycle" | "Walking" | "Truck";
 
@@ -201,6 +229,11 @@ export class MapsBridge {
     /** One vector tile, as MapLibre asks for it through `tilesUrl`. 204 when no source has it — outside every downloaded region while offline. */
     getTile(z: number, x: number, y: number, options?: { signal?: AbortSignal }): Promise<Blob> {
         return callBlob(this.transport, "GET", `maps/tiles/${segment(z)}/${segment(x)}/${segment(y)}`, { signal: options?.signal });
+    }
+
+    /** One live traffic tile, as the renderer asks for it through `tilesUrl`: a vector tile or an image, as `format` says. 204 when the provider has nothing there or cannot be reached; 501 when the app configured no traffic provider. */
+    getTrafficTile(z: number, x: number, y: number, options?: { signal?: AbortSignal }): Promise<Blob> {
+        return callBlob(this.transport, "GET", `maps/traffic/${segment(z)}/${segment(x)}/${segment(y)}`, { signal: options?.signal });
     }
 
     /** A range of label glyphs, as MapLibre asks for it through `glyphsUrl`: `0-255.pbf`. */

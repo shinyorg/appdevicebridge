@@ -1,6 +1,6 @@
 ---
 name: shiny-appdevicebridge
-description: Generate code using Shiny.AppDeviceBridge, device bridges on your app's own Shiny.Net.HttpServer that also host a web app (Blazor WebAssembly, React, Vue, any static build) inside a .NET MAUI app on Android, iOS, Mac Catalyst, Windows and the maui-labs macOS and Linux heads — served from a loopback HTTP server, updated over the air from a signed release server, and given device access through bridges with typed C# and TypeScript clients
+description: Generate code using Shiny.AppDeviceBridge, device bridges on your app's own Shiny.Net.HttpServer that also host a web app (Blazor WebAssembly, React, Vue, any static build) inside a .NET MAUI app on Android, iOS, Mac Catalyst, Windows and the maui-labs macOS and Linux heads — served from a loopback HTTP server, updated over the air from a signed release server, GitHub releases or a provider of your own, and given device access through bridges with typed C# and TypeScript clients
 auto_invoke: true
 triggers:
   - Shiny.AppDeviceBridge
@@ -166,6 +166,13 @@ triggers:
   - AddMapsBridgeClient
   - AddDirectionsBridgeClient
   - AddBridgeMaps
+  - ITrafficProvider
+  - TomTomTrafficProvider
+  - TrafficLayer
+  - TrafficTile
+  - TrafficInfo
+  - ShowTraffic
+  - traffic map
   - BridgeMap
   - MapPin
   - MapShape
@@ -233,6 +240,13 @@ triggers:
   - "@shinyorg/appdevicebridge"
   - hybrid web app
   - over-the-air web app updates
+  - IUpdateProvider
+  - UpdateInfo
+  - UpdateProvider
+  - ReleaseServerUpdateProvider
+  - GitHubReleasesUpdateProvider
+  - GitHubUpdateInfo
+  - github releases
 ---
 
 # Shiny.AppDeviceBridge
@@ -319,9 +333,9 @@ builder
             .AddFoldersBridge(),
         webApp =>
         {
-            webApp.UseBaseline(typeof(App).Assembly, "webapp.zip");   // offline, no update server needed
-            // webApp.UpdateServer = new Uri("https://api.example.com/webapps");
-            // webApp.PublicKey = "-----BEGIN PUBLIC KEY-----…";
+            webApp.UseBaseline(typeof(App).Assembly, "webapp.zip");   // offline, no update provider needed
+            // webApp.UpdateProvider = new ReleaseServerUpdateProvider(new Uri("https://api.example.com/webapps"), "-----BEGIN PUBLIC KEY-----…");
+            // webApp.UpdateProvider = new GitHubReleasesUpdateProvider("https://github.com/acme/field-app");
         }
     );
 
@@ -350,6 +364,14 @@ public class App : Application
 }
 ```
 
+Updates come from `webApp.UpdateProvider` (an `IUpdateProvider`): `ReleaseServerUpdateProvider(uri, publicKey)` for the
+signed ASP.NET Core release server (`Channel` for prereleases), `GitHubReleasesUpdateProvider("https://github.com/owner/repo")`
+for GitHub releases (`AssetName`, `IncludePrereleases`, `TagPrefix`, `Token`, `RequiredWhen`), or a class of the app's
+own: `GetUpdateInfoAsync(Version host, WebAppVersion? app, ct)` returns an `UpdateInfo` (derive it to carry a download
+URL; null = nothing newer) and `DownloadAsync(update, ct)` returns the zip stream. The host enforces newer-only, the
+size/`Sha256` when given, and the archive opening; an exception is offline, `InvalidDataException` rejects. Never
+generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFactory` — those options don't exist.
+
 - `UseAppDeviceBridge` listens on loopback port 5780 unless the app sets a port of its own.
 - Without MAUI: `services.AddShinyHttpServer(http => http.AddAppDeviceBridge(bridge => bridge.Configure(o => …).AddRpiCameraBridge().AddTunnel().AddBridge<ClipboardBridge>()))`.
   A non-MAUI web host is the same overload on the server's builder: `http.AddAppDeviceBridge(bridge => …, webApp => …)`.
@@ -374,7 +396,7 @@ public class App : Application
 | `.Discovery` | `AddDiscoveryBridge(protocols)` | `IDiscoveryBridge` |
 | `.Push` | `AddPushBridge()` | `IPushBridge` |
 | `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.8; iOS and Android only, `501` elsewhere |
-| `.Maps` | `AddMapsBridge(o => { o.OnlineTiles; o.Catalog; o.CatalogPublicKey; o.Directions.OnlineRouteUrl; o.Directions.ApiKey; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
+| `.Maps` | `AddMapsBridge(o => { o.OnlineTiles; o.Catalog; o.CatalogPublicKey; o.Directions.OnlineRouteUrl; o.Directions.ApiKey; o.Traffic; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
 | `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
 | `.AppLinks` | `AddAppLinksBridge(o => …)` | `ILinksBridge` (built in) |
@@ -412,6 +434,13 @@ where the user downloaded a region.
   `FitBoundsAsync`, `FitAllAsync`, `FlyToAsync`, `ClearAsync`, `SnapshotAsync()`. MapLibre is bundled — don't add a CDN
   script. In `Pin` mode `OnClick` gets `IsPinMode = true` and the page adds the pin; `OnDrawn` hands back a finished
   line/area for the page to add.
+- **Traffic:** `o.Traffic = new TomTomTrafficProvider(key) { MinZoom = 6, Refresh = TimeSpan.FromMinutes(2) }` (the key
+  stays native), then `<BridgeMap ShowTraffic="traffic" />` or `SetTrafficAsync(bool)`; `map.HasTraffic` is false
+  without a provider. For another source implement `ITrafficProvider`: `Layer` (a `TrafficLayer` —
+  `TrafficTileFormat.Vector` with `SourceLayer`, `SpeedRatioProperty` (current/free-flow 0–1) and optional
+  `ClosedProperty`, or `Raster` with `TileSize`) and `GetTileAsync(z, x, y, http, ct)` → `TrafficTile(bytes,
+  contentType, contentEncoding)` or null. Tiles are served at `maps/traffic/{z}/{x}/{y}`: `204` when there's no data
+  or no connection, `501` without a provider. Live only; directions don't use traffic.
 - **Regions:** `Catalog` + `CatalogPublicKey` (required together, usually the web app release key).
   `GetRegionsAsync(refresh)`, `InstallAsync(id, new MapPackInstallRequest(Directions: true))` (202; progress on
   `maps.download`/`OnDownloadAsync`), `RemoveAsync`, `RemoveDirectionsAsync`, `CancelDownloadAsync`. Parts are verified
@@ -822,7 +851,9 @@ public static TBuilder AddOrdersBridge<TBuilder>(this TBuilder bridge) where TBu
   applies), `server.UseAuthentication(); server.UseAuthorization();` in `http.Configure`. Nothing is authenticated by
   default unless the app sets a fallback policy. `WebAppPolicies.Session` accepts only the WebView. Bridge policy and
   endpoint policies are separate, and the bridges enforce theirs without the app's pipeline.
-- Update downloads are ECDSA P-256 signed; keep `PublicKey` compiled into the app.
+- Release-server downloads are ECDSA P-256 signed; keep the public key given to `ReleaseServerUpdateProvider` compiled
+  into the app. GitHub releases are not signed — the asset's SHA-256 (`digest`) is checked when GitHub reports it — so
+  prefer the release server when anything other than repository write access must stand between an attacker and the app.
 
 ## Trim and AOT
 

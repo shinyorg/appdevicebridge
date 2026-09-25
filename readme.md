@@ -56,9 +56,9 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Jobs` | the app | `AddWebAppJob(name, configure)`: background jobs handled by the page or `background.js` |
 | `Shiny.AppDeviceBridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
 | `Shiny.AppDeviceBridge.Wearables` | the app | `AddWearablesBridge()`: the companion Apple Watch or Wear OS app, through Shiny.Wearables — status, live messages the page or `background.js` answers, shared context, queued transfers and files through the file roots (iOS and Android; `501` elsewhere) |
-| `Shiny.AppDeviceBridge.Maps` | the app | `AddMapsBridge()`: vector map tiles online or from regions the user downloads (verified against a signed catalog), and turn-by-turn directions from an online Valhalla router (all platforms) |
+| `Shiny.AppDeviceBridge.Maps` | the app | `AddMapsBridge()`: vector map tiles online or from regions the user downloads (verified against a signed catalog), live traffic from a pluggable provider (TomTom built in), and turn-by-turn directions from an online Valhalla router (all platforms) |
 | `Shiny.AppDeviceBridge.Maps.Valhalla` | the app | `AddOnDeviceDirections()`: directions computed on the phone over a downloaded region's road network (Android and iOS; online elsewhere) |
-| `Shiny.AppDeviceBridge.Maps.Blazor` | the web app | `<BridgeMap>`: MapLibre GL JS bundled for offline use, with pins, lines, areas, circles, click-to-draw and routes |
+| `Shiny.AppDeviceBridge.Maps.Blazor` | the web app | `<BridgeMap>`: MapLibre GL JS bundled for offline use, with pins, lines, areas, circles, click-to-draw, routes and live traffic |
 | `Shiny.AppDeviceBridge.MapPacks` | a tool | `shiny-map-packs`: builds downloadable regions — the map cut from a PMTiles planet, the road network built with Valhalla |
 | `Shiny.AppDeviceBridge.Notifications` | the app | `AddNotificationsBridge()`: local notifications now, scheduled, repeating or at a geofence; pending, cancel, badge, channels; taps handed to the web app |
 | `Shiny.AppDeviceBridge.HttpTransfers` | the app | `AddHttpTransfersBridge()`: background uploads and downloads to and from file roots, with progress events and completion handlers |
@@ -93,12 +93,7 @@ builder
         webApp =>
         {
             webApp.UseBaseline(typeof(App).Assembly, "webapp.zip", "1.0.0");   // runs offline on first launch
-            webApp.UpdateServer = new Uri("https://api.example.com/webapps");
-            webApp.PublicKey = """
-                -----BEGIN PUBLIC KEY-----
-                ...
-                -----END PUBLIC KEY-----
-                """;
+            webApp.UpdateProvider = new GitHubReleasesUpdateProvider("https://github.com/acme/field-app");
         }
     );
 ```
@@ -114,7 +109,7 @@ public class App : Application
 }
 ```
 
-Updates are optional. Without an `UpdateServer` nothing is checked, downloaded or signed, and the app
+Updates are optional. Without an `UpdateProvider` nothing is checked or downloaded, and the app
 simply serves the zip compiled into it — which is a complete setup on its own:
 
 ```csharp
@@ -137,7 +132,7 @@ Calling `UseAppDeviceBridge` again adds to the same server — a desktop head ad
 `builder.UseAppDeviceBridge(bridge => bridge.AddTrayIconBridge())`. See [Security](#security-model).
 
 There is no manifest, no signing key and no network at any point; the install directory is never even
-created. Add `UpdateServer` and `PublicKey` later and the embedded build becomes the floor that
+created. Add an `UpdateProvider` later and the embedded build becomes the floor that
 downloads are compared against, which is when the `version` argument starts to matter.
 
 Each bridge extension also registers the Shiny service behind it, and `UseAppDeviceBridge` calls
@@ -236,9 +231,8 @@ and shows it in `WebAppHostView`. One delegate registers the bridges alone; a se
 | Option | Default | Why |
 | --- | --- | --- |
 | `UseBaseline(...)` | | The zip compiled into the app, served offline on first launch. |
-| `UpdateServer`, `PublicKey` | none | Where releases come from, and the key they're signed with. |
+| `UpdateProvider` | none | Where releases come from: the release server, GitHub releases, or your own. See [Update providers](#update-providers). |
 | `CheckTimeout` | 5 s | After this, the installed version is shown anyway. |
-| `Channel` | stable | Follow a prerelease channel such as `beta`. |
 | `BlockOnRequiredUpdateFailure` | `false` | By default, a required download that fails midway is treated as offline. |
 | `ApplyOptionalUpdatesImmediately` | `false` | Swap to an optional update and reload as soon as it lands. |
 | `DevServer` | none | Take pages from `dotnet watch` in development. See below. |
@@ -371,6 +365,61 @@ builder
 | Windows | decided by the host | decided by the host |
 | Linux (GTK4) | denied: WebKitGTK needs a `permission-request` handler, which the host doesn't install | denied |
 
+## Update providers
+
+Where releases come from is an `IUpdateProvider` on `webApp.UpdateProvider`. Two ship in
+`Shiny.AppDeviceBridge.WebView`:
+
+```csharp
+// The release server below: every release ECDSA-signed, checked against the key compiled into the app.
+webApp.UpdateProvider = new ReleaseServerUpdateProvider(new Uri("https://api.example.com/webapps"), WebAppKeys.Public)
+{
+    Channel = "beta"   // optional: follow a prerelease channel
+};
+
+// A GitHub repository's releases: the tag is the version (v1.2.0), the notes are the what's new, a .zip asset is the build.
+webApp.UpdateProvider = new GitHubReleasesUpdateProvider("https://github.com/acme/field-app")
+{
+    AssetName = "webapp-*.zip",                                        // default: the first .zip asset
+    IncludePrereleases = false,                                       // default
+    TagPrefix = null,                                                 // "webapp-" for webapp-v1.2.0 tags
+    Token = null,                                                     // private repositories, higher rate limit
+    RequiredWhen = r => r.WhatsNew?.Contains("[required]") == true    // default: every update optional
+};
+```
+
+GitHub releases are not signed. The provider checks the asset's SHA-256 when GitHub reports one (`digest`,
+on assets uploaded since mid-2025). Beyond that, trust rests on HTTPS to GitHub and on who can publish to
+the repository. Drafts are never offered. Only the newest 100 releases are read, and GitHub Enterprise
+Server URLs work too. Unauthenticated API calls are limited to 60 an hour per IP address.
+
+Anything else — a manifest file, an endpoint of your own — is two methods:
+
+```csharp
+public interface IUpdateProvider
+{
+    // Null when there is nothing newer. currentAppVersion is null when no build is bundled or installed.
+    Task<UpdateInfo?> GetUpdateInfoAsync(Version currentHostVersion, WebAppVersion? currentAppVersion, CancellationToken ct);
+    Task<Stream> DownloadAsync(UpdateInfo update, CancellationToken ct);
+}
+
+public class UpdateInfo   // derive to carry a download URL
+{
+    public required WebAppVersion Version { get; set; }
+    public bool IsOptional { get; set; }       // false installs before the app shows
+    public string? WhatsNew { get; set; }
+    public DateTimeOffset? ReleaseDate { get; set; }
+    public long? FileSize { get; set; }        // checked when set
+    public string? Sha256 { get; set; }        // checked when set
+}
+```
+
+Whatever the provider, the host keeps the same rules. It gives up on the check after `CheckTimeout`, and
+refuses a release that isn't newer than the one it runs. It checks the size and hash when they're given,
+and opens the archive, entry document included, before installing it. An exception from the provider
+counts as being offline. An `InvalidDataException` rejects the release instead. The host owns the provider
+and disposes it.
+
 ## The server
 
 ```csharp
@@ -413,6 +462,9 @@ openssl ec -in private.pem -pubout > public.pem
 - **Release needs a newer native app:** skipped. Set `minimumHostVersion` when a web build depends
   on bridge endpoints older apps don't have.
 - **Offline or server down:** the newer of the bundled and installed builds is served.
+
+With another provider, the provider decides which release is newest and whether it's required (`IsOptional`).
+Nothing installed still means required, and offline still means the newer of the bundled and installed builds.
 
 ## Security model
 
@@ -592,7 +644,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Notifications | `GET notifications`, `POST notifications/access`, `POST notifications/send`, `GET notifications/pending`, `DELETE notifications[?scope=]`, `DELETE notifications/{id}`, `GET/PUT notifications/badge`, `GET/POST notifications/channels`, `DELETE notifications/channels/{id}` | `notification.entry`, `notification.received` |
 | HTTP transfers | `GET/POST/DELETE transfers`, `GET/DELETE transfers/{id}`, `POST transfers/{id}/pause`, `POST transfers/{id}/resume` | `transfer.progress`, `transfer.completed`, `transfer.failed`, `transfer.cancelled` |
 | Wearables | `GET wearables`, `POST wearables/messages`, `GET/PUT wearables/context`, `GET/POST wearables/transfers`, `DELETE wearables/transfers/{id}`, `POST wearables/files` | `wearables.status`, `wearables.message`, `wearables.context`, `wearables.transfer`, `wearables.file`, `wearables.completed` |
-| Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
+| Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/traffic/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
 | Directions | `GET directions`, `POST directions/route` | |
 | App links | `GET/DELETE links/pending` | `app.link` |
 | Health | `GET health`, `POST health/access`, `GET/POST health/samples/{type}`, `POST/DELETE health/listeners/{type}` | `health.reading`, `health.stopped` |
@@ -928,12 +980,15 @@ downloaded a region. Every platform; on-device directions on Android and iOS wit
 - **Tiles:** `GET maps` gives the tile, glyph and sprite URL templates a renderer uses. A tile comes from an installed
   region, then tiles already seen online, then the online source (a PMTiles archive read by Range, or a tile service) —
   and `204` when none has it. Keys for the online source stay in the app.
+- **Traffic:** `o.Traffic = new TomTomTrafficProvider(key)`, or an `ITrafficProvider` of your own, adds a live layer.
+  `GET maps` describes it under `traffic` (null without a provider), and `GET maps/traffic/{z}/{x}/{y}` serves its tiles,
+  each kept for the provider's refresh interval. `204` when there's no data or no connection; `501` with no provider.
 - **Regions:** from a catalog the release server signs (`MapMapPacks()`). `POST maps/regions/{id}` with
   `{ "directions": true }` downloads the map and, optionally, the road network; `maps.download` reports progress. Every
   part is checked against its signed hash; downloads resume after an interruption.
 - **Directions:** `POST directions/route` with `{ stops, mode, units, language, source, avoid }`. `source: "Auto"` routes
   on the device inside a downloaded road network and online otherwise. `404 no_route`, `503 offline_unavailable`.
-- **The map in Blazor:** `<BridgeMap>` from `Shiny.AppDeviceBridge.Maps.Blazor` — pins, shapes, drawing and routes.
+- **The map in Blazor:** `<BridgeMap>` from `Shiny.AppDeviceBridge.Maps.Blazor` — pins, shapes, drawing, routes and live traffic (`ShowTraffic`).
 
 **Folders:**
 - **Picking:** `POST folders/pick` with `{ "root": "documents" }` shows the platform's folder picker. The folder

@@ -354,10 +354,8 @@ public class RegistrationTests
                     webApp =>
                     {
                         var configured = app.Options();
-                        webApp.UpdateServer = configured.UpdateServer;
-                        webApp.PublicKey = configured.PublicKey;
+                        webApp.UpdateProvider = configured.UpdateProvider;
                         webApp.InstallDirectory = configured.InstallDirectory;
-                        webApp.HttpMessageHandlerFactory = configured.HttpMessageHandlerFactory;
                     });
             },
             autoStart: false

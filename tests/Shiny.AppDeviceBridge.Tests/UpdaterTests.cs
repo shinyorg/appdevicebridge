@@ -16,7 +16,8 @@ public class UpdaterTests
         var check = await host.Updater.CheckAsync(null);
 
         Assert.Equal(WebAppUpdateStatus.Available, check.Status);
-        Assert.Equal(WebAppUpdateKind.Required, check.Kind);
+        Assert.False(check.Update!.IsOptional);
+        Assert.Equal(WebAppVersion.Parse("1.0.0"), check.Update.Version);
 
         var package = await host.Updater.InstallAsync(check);
 

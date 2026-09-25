@@ -32,6 +32,16 @@
     /// <summary>The language labels are drawn in, where the map data has names in it. Read when the map is created.</summary>
     [Parameter] public string Language { get; set; } = "en";
 
+    /// <summary>
+    /// Draws live traffic over the roads, when the app configured a traffic provider (<c>MapsOptions.Traffic</c>): green to
+    /// red by speed against free flow, closures dark red. Can be changed at any time. Without a provider, or offline, nothing
+    /// is drawn. See <see cref="HasTraffic"/>.
+    /// </summary>
+    [Parameter] public bool ShowTraffic { get; set; }
+
+    /// <summary>Whether the app configured a traffic provider, so <see cref="ShowTraffic"/> can draw anything. False until the map is created.</summary>
+    public bool HasTraffic { get; private set; }
+
     /// <summary>Whether to show zoom and compass buttons.</summary>
     [Parameter] public bool Navigation { get; set; } = true;
 
@@ -57,6 +67,22 @@
     /// <summary>Completes once the map has drawn — after <see cref="OnReady"/>.</summary>
     public Task Ready => this.ready.Task;
 
+    bool trafficShown;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Before the map exists the value goes in with the create options instead.
+        if (this.module is not null && this.ShowTraffic != this.trafficShown)
+            await this.SetTrafficAsync(this.ShowTraffic);
+    }
+
+    /// <summary>Shows or hides live traffic. See <see cref="ShowTraffic"/>.</summary>
+    public ValueTask SetTrafficAsync(bool show)
+    {
+        this.trafficShown = show;
+        return this.CallAsync("setTraffic", show);
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender)
@@ -78,8 +104,13 @@
             this.Latitude,
             this.Longitude,
             this.Zoom,
-            this.Navigation
+            this.Navigation,
+            info.Traffic,
+            this.ShowTraffic
         );
+
+        this.HasTraffic = info.Traffic is not null;
+        this.trafficShown = this.ShowTraffic;
 
         await module.InvokeVoidAsync("create", this.element, this.self, JsonSerializer.Serialize(options, Json.MapCreateOptions));
 

@@ -103,10 +103,11 @@ public class InstallStoreTests
             var pending = store.CreatePendingPath();
             await File.WriteAllBytesAsync(pending, zip);
 
-            store.Commit(pending, app.Store.Add($"1.0.{i}", zip));
+            var release = app.Store.Add($"1.0.{i}", zip);
+            store.Commit(pending, WebAppVersion.Parse(release.Version), release.Sha256, release.Size);
         });
 
-        Assert.NotNull(store.ReadInstalled(WebAppVersion.Parse("1.0.0")));
+        Assert.NotNull(store.ReadInstalled());
         Assert.Empty(Directory.GetFiles(app.InstallDirectory, "*.tmp"));
     }
 }

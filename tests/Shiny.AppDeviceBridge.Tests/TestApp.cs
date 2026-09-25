@@ -44,13 +44,15 @@ sealed class TestApp : IAsyncDisposable
 
     readonly List<ServiceProvider> containers = [];
 
-    /// <summary>Options pointing at the TestServer. Each client gets its own handler, since the updater disposes the one it is given.</summary>
+    /// <summary>Options pointing at the TestServer. Each host gets its own provider, since the host disposes the one it is given.</summary>
     public WebAppHostOptions Options(Func<HttpMessageHandler>? handler = null) => new()
     {
-        UpdateServer = new Uri("http://localhost/webapps"),
-        PublicKey = this.PublicKey,
-        InstallDirectory = this.InstallDirectory,
-        HttpMessageHandlerFactory = handler ?? (() => this.server!.GetTestServer().CreateHandler())
+        UpdateProvider = new ReleaseServerUpdateProvider(
+            new Uri("http://localhost/webapps"),
+            this.PublicKey,
+            handler ?? (() => this.server!.GetTestServer().CreateHandler())
+        ),
+        InstallDirectory = this.InstallDirectory
     };
 
     /// <summary>

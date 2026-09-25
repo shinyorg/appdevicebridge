@@ -13,19 +13,11 @@ public sealed record WebAppBaseline(Assembly Assembly, string ResourceName, stri
 public sealed class WebAppHostOptions
 {
     /// <summary>
-    /// The release server's base address — the prefix given to <c>MapWebAppReleases</c>, such as
-    /// <c>https://api.example.com/webapps</c>. Null never checks, and only the baseline is served.
+    /// Where releases come from: <see cref="ReleaseServerUpdateProvider"/>, <see cref="GitHubReleasesUpdateProvider"/>, or
+    /// an <see cref="IUpdateProvider"/> of the app's own. Null never checks, and only the baseline is served. The host owns
+    /// it from here, and disposes it when it is disposable.
     /// </summary>
-    public Uri? UpdateServer { get; set; }
-
-    /// <summary>
-    /// The ECDSA P-256 public key releases are signed with, as PEM or base64. Required with
-    /// <see cref="UpdateServer"/>: nothing downloaded is served without a valid signature.
-    /// </summary>
-    public string? PublicKey { get; set; }
-
-    /// <summary>A prerelease channel to follow, such as <c>beta</c>. Null follows stable releases only.</summary>
-    public string? Channel { get; set; }
+    public IUpdateProvider? UpdateProvider { get; set; }
 
     /// <summary>Where downloads are kept. Defaults to a folder named after the app id under local application data.</summary>
     public string? InstallDirectory { get; set; }
@@ -93,12 +85,9 @@ public sealed class WebAppHostOptions
     /// <summary>How long startup waits for <see cref="DevServer"/> before serving the installed build instead.</summary>
     public TimeSpan DevServerProbeTimeout { get; set; } = TimeSpan.FromSeconds(1.5);
 
-    /// <summary>Supplies the handler for update checks and downloads — for certificate pinning, a proxy, or tests.</summary>
-    public Func<HttpMessageHandler>? HttpMessageHandlerFactory { get; set; }
-
     /// <summary>
     /// The web app to serve, as a zip compiled into <paramref name="assembly"/>. This alone is a complete
-    /// setup — with no <see cref="UpdateServer"/> there is no check, no manifest and no signing key, and the
+    /// setup — with no <see cref="UpdateProvider"/> there is no check, and the
     /// embedded build is simply what the app serves.
     /// <code>
     /// o.AppId = "field-app";
@@ -109,7 +98,7 @@ public sealed class WebAppHostOptions
     /// <param name="resourceName">The resource's manifest name — its <c>LogicalName</c> when one is set.</param>
     /// <param name="version">
     /// What the embedded build is called. Only ordering against downloads needs it, so it defaults to
-    /// <c>1.0.0</c>; set it once you have an <see cref="UpdateServer"/> to compare against.
+    /// <c>1.0.0</c>; set it once you have an <see cref="UpdateProvider"/> to compare against.
     /// </param>
     public WebAppHostOptions UseBaseline(Assembly assembly, string resourceName, string version = "1.0.0")
     {
@@ -207,11 +196,8 @@ public sealed class WebAppHostOptions
     /// <summary>Fails when the host is created, for the mistakes that would otherwise surface as a blank WebView.</summary>
     internal void Validate()
     {
-        if (this.UpdateServer is not null && String.IsNullOrWhiteSpace(this.PublicKey))
-            throw new InvalidOperationException("WebAppHostOptions.PublicKey is required when UpdateServer is set.");
-
-        if (this.UpdateServer is null && this.Baseline is null && this.DevServer is null)
-            throw new InvalidOperationException("Set a Baseline, an UpdateServer or a DevServer — otherwise there is nothing to serve.");
+        if (this.UpdateProvider is null && this.Baseline is null && this.DevServer is null)
+            throw new InvalidOperationException("Set a Baseline, an UpdateProvider or a DevServer — otherwise there is nothing to serve.");
 
         if (this.BackgroundScriptTimeout <= TimeSpan.Zero)
             throw new InvalidOperationException("WebAppHostOptions.BackgroundScriptTimeout must be positive.");

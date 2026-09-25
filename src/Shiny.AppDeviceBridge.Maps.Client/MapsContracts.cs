@@ -13,6 +13,7 @@ namespace Shiny.AppDeviceBridge.Maps.Client;
 /// <param name="Online">Whether the app configured an online tile source. Without one, only downloaded regions draw.</param>
 /// <param name="Catalog">Whether the app configured a region catalog to download from.</param>
 /// <param name="Attribution">The credit the map data's licence requires, as HTML.</param>
+/// <param name="Traffic">The live traffic layer, when the app configured a traffic provider. Null otherwise.</param>
 public sealed record MapsInfo(
     string TilesUrl,
     string GlyphsUrl,
@@ -20,6 +21,45 @@ public sealed record MapsInfo(
     int MaxZoom,
     bool Online,
     bool Catalog,
+    string Attribution,
+    TrafficInfo? Traffic = null
+);
+
+/// <summary>How a traffic provider's tiles are drawn.</summary>
+public enum TrafficTileFormat
+{
+    /// <summary>Vector tiles: lines the renderer colours by <see cref="TrafficInfo.SpeedRatioProperty"/>.</summary>
+    Vector,
+
+    /// <summary>Images already coloured by the provider, laid over the map.</summary>
+    Raster
+}
+
+/// <summary>
+/// A live traffic layer, whatever provider is behind it. Tiles come through the bridge, which holds the provider's key, and
+/// only while online: offline the layer is simply empty.
+/// </summary>
+/// <param name="TilesUrl">The traffic tiles: <c>…/maps/traffic/{z}/{x}/{y}</c>.</param>
+/// <param name="MinZoom">Below this the layer draws nothing, and no tiles are asked for.</param>
+/// <param name="MaxZoom">The highest zoom the provider has. The renderer scales past it.</param>
+/// <param name="RefreshSeconds">How often the provider's data changes, so how often the page should fetch the tiles again.</param>
+/// <param name="SourceLayer">Vector: the layer inside each tile holding the road segments.</param>
+/// <param name="SpeedRatioProperty">
+/// Vector: the property holding current speed over free-flow speed, from 0 (stopped) to 1 (free flow).
+/// </param>
+/// <param name="ClosedProperty">Vector: the property that is true on a closed road. Null when the provider does not mark closures.</param>
+/// <param name="TileSize">Raster: the images' size in pixels.</param>
+/// <param name="Attribution">The credit the provider's terms require, as HTML.</param>
+public sealed record TrafficInfo(
+    string TilesUrl,
+    TrafficTileFormat Format,
+    int MinZoom,
+    int MaxZoom,
+    int RefreshSeconds,
+    string? SourceLayer,
+    string? SpeedRatioProperty,
+    string? ClosedProperty,
+    int TileSize,
     string Attribution
 );
 
@@ -79,6 +119,7 @@ public sealed record MapPackDownload(
 /// <summary>Serialization for every map contract, shared by the page's client and the native bridge.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true, PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(MapsInfo))]
+[JsonSerializable(typeof(TrafficInfo))]
 [JsonSerializable(typeof(MapRegion))]
 [JsonSerializable(typeof(MapCatalog))]
 [JsonSerializable(typeof(MapPackInstallRequest))]

@@ -13,7 +13,26 @@ const empty = () => ({ type: "FeatureCollection", features: [] });
 const toLngLat = p => [p.longitude, p.latitude];
 const fromLngLat = ll => ({ latitude: ll.lat, longitude: ll.lng });
 
-export function create(element, dotnet, optionsJson) {
+// MapLibre's stylesheet, loaded once per page. Without it markers are not positioned absolutely: each one sits in the
+// page's flow under the map instead of at its point, and popups and controls fall out of place the same way.
+let stylesheet;
+function loadStylesheet() {
+    const href = new URL("./maplibre/maplibre-gl.css", import.meta.url).href;
+    stylesheet ??= new Promise(resolve => {
+        if ([...document.styleSheets].some(s => s.href === href))
+            return resolve();
+
+        const link = Object.assign(document.createElement("link"), { rel: "stylesheet", href });
+        link.onload = link.onerror = () => resolve();
+        document.head.appendChild(link);
+    });
+    return stylesheet;
+}
+
+export async function create(element, dotnet, optionsJson) {
+    // Before the map exists, so it measures its container and places its controls with the rules applied.
+    await loadStylesheet();
+
     const options = JSON.parse(optionsJson);
     const origin = document.baseURI;
     const absolute = url => new URL(url, origin).href.replace(/%7B/g, "{").replace(/%7D/g, "}");
@@ -42,11 +61,13 @@ export function create(element, dotnet, optionsJson) {
     if (options.navigation)
         map.addControl(new maplibregl.NavigationControl(), "top-right");
 
-    const state = { map, dotnet, pins: new Map(), shapes: new Map(), draft: [], mode: "None", ready: false, queue: [] };
+    const state = { map, dotnet, pins: new Map(), shapes: new Map(), draft: [], mode: "None", ready: false, queue: [], traffic: options.traffic, trafficTimer: null };
     maps.set(options.id, state);
 
     map.on("load", () => {
         addOverlayLayers(map);
+        if (options.showTraffic)
+            showTraffic(state, true);
         state.ready = true;
         state.queue.splice(0).forEach(run => run());
         dotnet.invokeMethodAsync("JsReady");
@@ -104,6 +125,58 @@ function addOverlayLayers(map) {
         id: "bridge-draft", type: "line", source: "bridge-draft",
         paint: { "line-color": "#ef4444", "line-width": 2, "line-dasharray": [2, 2] }
     });
+}
+
+// Live traffic: its own source, drawn above the roads and below everything the app adds. It is fetched again every
+// refreshSeconds, with a new query string so neither MapLibre nor the WebView answers from what it already has.
+function showTraffic(state, show) {
+    const { map, traffic } = state;
+    clearInterval(state.trafficTimer);
+    state.trafficTimer = null;
+
+    if (map.getLayer("bridge-traffic"))
+        map.removeLayer("bridge-traffic");
+    if (map.getSource("bridge-traffic"))
+        map.removeSource("bridge-traffic");
+
+    if (!show || !traffic)
+        return;
+
+    const url = () => `${new URL(traffic.tilesUrl, document.baseURI).href.replace(/%7B/g, "{").replace(/%7D/g, "}")}?t=${Date.now()}`;
+    const vector = traffic.format === "Vector";
+
+    map.addSource("bridge-traffic", {
+        type: vector ? "vector" : "raster",
+        tiles: [url()],
+        minzoom: traffic.minZoom,
+        maxzoom: traffic.maxZoom,
+        attribution: traffic.attribution,
+        ...(vector ? {} : { tileSize: traffic.tileSize })
+    });
+
+    const ratio = ["to-number", ["get", traffic.speedRatioProperty], 1];
+    const colour = ["step", ratio, "#dc2626", 0.4, "#f97316", 0.75, "#16a34a"];
+
+    map.addLayer(vector
+        ? {
+            id: "bridge-traffic", type: "line", source: "bridge-traffic", "source-layer": traffic.sourceLayer,
+            minzoom: traffic.minZoom,
+            layout: { "line-cap": "round", "line-join": "round" },
+            paint: {
+                "line-color": traffic.closedProperty
+                    ? ["case", ["==", ["to-boolean", ["get", traffic.closedProperty]], true], "#7f1d1d", colour]
+                    : colour,
+                "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1, 12, 2.5, 16, 5]
+            }
+        }
+        : { id: "bridge-traffic", type: "raster", source: "bridge-traffic", minzoom: traffic.minZoom, paint: { "raster-opacity": 0.85 } },
+        "bridge-fill");
+
+    state.trafficTimer = setInterval(() => map.getSource("bridge-traffic")?.setTiles([url()]), traffic.refreshSeconds * 1000);
+}
+
+export function setTraffic(id, show) {
+    whenReady(id, state => showTraffic(state, show));
 }
 
 function refresh(state) {
@@ -279,6 +352,7 @@ export function dispose(id) {
     if (!state)
         return;
 
+    clearInterval(state.trafficTimer);
     state.pins.forEach(m => m.remove());
     state.map.remove();
     maps.delete(id);

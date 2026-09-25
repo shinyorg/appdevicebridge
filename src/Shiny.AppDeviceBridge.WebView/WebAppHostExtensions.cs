@@ -25,8 +25,7 @@ public static class WebAppHostExtensions
     ///         .AddLocationBridges(),
     ///     webApp =>
     ///     {
-    ///         webApp.UpdateServer = new Uri("https://api.example.com/webapps");
-    ///         webApp.PublicKey = WebAppKeys.Public;
+    ///         webApp.UpdateProvider = new GitHubReleasesUpdateProvider("https://github.com/acme/field-app");
     ///         webApp.UseBaseline(typeof(App).Assembly, "webapp.zip", "1.0.0");
     ///     }
     /// );

@@ -17,11 +17,13 @@
     <button @onclick="Circle">Circle 1 km</button>
     <button @onclick="Clear">Clear</button>
     <button @onclick="Snapshot">Snapshot</button>
+    <button class="@(traffic ? "primary" : null)" @onclick="@(() => traffic = !traffic)" disabled="@(map?.HasTraffic != true)"
+            title="@(map?.HasTraffic == true ? "Live traffic" : "The app has no traffic provider — build it with a TomTom key")">Traffic</button>
 </div>
 <p class="muted">Lines and areas: click to add points, double-click to finish. Pins can be dragged.</p>
 
 <BridgeMap @ref="map" Latitude="39.74" Longitude="-104.99" Zoom="10" Style="width: 100%; height: 55vh; border-radius: 8px; overflow: hidden;"
-           OnClick="OnMapClick" OnDrawn="OnDrawn" OnPinMoved="OnPinMoved" OnMoved="@(v => center = v.Center)" />
+           OnClick="OnMapClick" OnDrawn="OnDrawn" OnPinMoved="OnPinMoved" OnMoved="@(v => center = v.Center)" ShowTraffic="traffic" OnReady="StateHasChanged" />
 
 <h2>Directions <span class="muted">(between the first two pins)</span></h2>
 <div class="form">
@@ -120,6 +122,7 @@ else
     TravelMode mode = TravelMode.Car;
     DirectionsSource source = DirectionsSource.Auto;
     bool withDirections = true;
+    bool traffic;
     int drawn;
     readonly List<MapPin> pins = [];
     readonly Dictionary<string, MapPackDownload> downloads = [];

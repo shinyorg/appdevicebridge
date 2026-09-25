@@ -76,6 +76,12 @@ public sealed class MapsOptions
     public Func<HttpMessageHandler>? HttpMessageHandlerFactory { get; set; }
 
     public DirectionsOptions Directions { get; } = new();
+
+    /// <summary>
+    /// Live traffic for the map: <see cref="TomTomTrafficProvider"/>, or an <see cref="ITrafficProvider"/> of the app's own.
+    /// Null for no traffic layer. Its tiles are fetched with the same client as everything else here.
+    /// </summary>
+    public ITrafficProvider? Traffic { get; set; }
 }
 
 public sealed class DirectionsOptions
@@ -108,6 +114,7 @@ public static class MapsBridgeExtensions
     ///     o.Catalog = new Uri("https://releases.example.com/maps/catalog");
     ///     o.CatalogPublicKey = publicKey;
     ///     o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route");
+    ///     o.Traffic = new TomTomTrafficProvider(tomTomKey);
     /// });
     ///
     /// // macOS: HttpClient's own TLS there stops at 1.2; NSURLSession speaks 1.3.

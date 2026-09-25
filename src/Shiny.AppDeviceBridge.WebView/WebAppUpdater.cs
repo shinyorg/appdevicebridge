@@ -1,45 +1,42 @@
 using System.Buffers;
-using System.Net.Http.Json;
 using System.Security.Cryptography;
-using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
 namespace Shiny.AppDeviceBridge.WebView;
 
 public enum WebAppUpdateStatus
 {
-    /// <summary>No update server is configured.</summary>
+    /// <summary>No <see cref="WebAppHostOptions.UpdateProvider"/> is set.</summary>
     Disabled,
 
-    /// <summary>The server could not be reached in time, or answered with an error. Treat as offline.</summary>
+    /// <summary>The provider could not answer in time, or failed. Treat as offline.</summary>
     Unavailable,
 
     UpToDate,
 
-    /// <summary>A verified release is ready to download. See <see cref="WebAppUpdateCheckResult.Kind"/>.</summary>
+    /// <summary>A release is ready to download. See <see cref="WebAppUpdateCheckResult.Update"/>.</summary>
     Available,
 
-    /// <summary>The server offered a release that failed verification. It is ignored.</summary>
+    /// <summary>The provider offered a release that failed verification. It is ignored.</summary>
     Rejected
 }
 
 public sealed record WebAppUpdateCheckResult(
     WebAppUpdateStatus Status,
-    WebAppUpdateKind Kind = WebAppUpdateKind.None,
-    WebAppRelease? Release = null,
-    Uri? DownloadUri = null,
+    UpdateInfo? Update = null,
     string? Error = null
 );
 
 public readonly record struct WebAppDownloadProgress(long BytesReceived, long TotalBytes)
 {
+    /// <summary>Zero when the total is unknown — a provider that does not say how big the release is.</summary>
     public double Fraction => this.TotalBytes <= 0 ? 0 : (double)this.BytesReceived / this.TotalBytes;
 }
 
 /// <summary>
-/// Checks for, downloads and installs releases. Nothing reaches the install store without passing,
-/// in order: the signature, the app id, the version going forward, host compatibility, the size, the
-/// hash, and the archive opening with its entry document in it.
+/// Checks for, downloads and installs releases through <see cref="WebAppHostOptions.UpdateProvider"/>. Whatever the provider,
+/// nothing reaches the install store without passing, in order: the version going forward, the size and the hash when the
+/// provider gave them, and the archive opening with its entry document in it.
 /// </summary>
 public sealed class WebAppUpdater : IDisposable
 {
@@ -47,8 +44,7 @@ public sealed class WebAppUpdater : IDisposable
     readonly AppDeviceBridgeOptions bridge;
     readonly WebAppInstallStore store;
     readonly ILogger logger;
-    readonly HttpClient http;
-    readonly ECDsa? publicKey;
+    readonly IUpdateProvider? provider;
 
     internal WebAppUpdater(WebAppHostOptions options, AppDeviceBridgeOptions bridge, WebAppInstallStore store, ILogger logger)
     {
@@ -56,33 +52,36 @@ public sealed class WebAppUpdater : IDisposable
         this.bridge = bridge;
         this.store = store;
         this.logger = logger;
+        this.provider = options.UpdateProvider;
 
-        this.http = options.HttpMessageHandlerFactory is { } factory
-            ? new HttpClient(factory(), disposeHandler: true)
-            : new HttpClient();
+        if (this.provider is ReleaseServerUpdateProvider releaseServer)
+            releaseServer.Bind(bridge);
+    }
 
-        // Downloads can legitimately take minutes; every call carries its own cancellation instead.
-        this.http.Timeout = Timeout.InfiniteTimeSpan;
+    /// <summary>The native host's version as <see cref="Version"/>: its numbers, without any prerelease label.</summary>
+    internal static Version ToHostVersion(string hostVersion)
+    {
+        var text = hostVersion.Trim();
+        var end = text.IndexOfAny(['-', '+']);
+        if (end >= 0)
+            text = text[..end];
 
-        if (!String.IsNullOrWhiteSpace(options.PublicKey))
-            this.publicKey = WebAppReleaseSignature.ImportPublicKey(options.PublicKey);
+        var parts = text.Split('.').Select(Int32.Parse).ToArray();
+        return parts.Length switch
+        {
+            1 => new Version(parts[0], 0),
+            2 => new Version(parts[0], parts[1]),
+            3 => new Version(parts[0], parts[1], parts[2]),
+            _ => new Version(parts[0], parts[1], parts[2], parts[3])
+        };
     }
 
     public async Task<WebAppUpdateCheckResult> CheckAsync(WebAppVersion? current, CancellationToken cancellationToken = default)
     {
-        if (this.options.UpdateServer is null || this.publicKey is null)
+        if (this.provider is null)
             return new WebAppUpdateCheckResult(WebAppUpdateStatus.Disabled);
 
-        var uri = WebAppProtocol.BuildCheckUri(
-            this.options.UpdateServer,
-            this.bridge.AppId,
-            current?.ToString(),
-            this.bridge.Platform,
-            this.bridge.HostVersion,
-            this.options.Channel
-        );
-
-        WebAppUpdateResponse? response;
+        UpdateInfo? update;
 
         using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {
@@ -90,69 +89,46 @@ public sealed class WebAppUpdater : IDisposable
 
             try
             {
-                using var message = await this.http
-                    .GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, timeout.Token)
-                    .ConfigureAwait(false);
-
-                if (!message.IsSuccessStatusCode)
-                {
-                    this.logger.LogWarning("Update check to {Uri} answered {Status}", uri, (int)message.StatusCode);
-                    return new WebAppUpdateCheckResult(WebAppUpdateStatus.Unavailable, Error: $"HTTP {(int)message.StatusCode}");
-                }
-
-                response = await message.Content
-                    .ReadFromJsonAsync(WebAppJsonContext.Default.WebAppUpdateResponse, timeout.Token)
+                update = await this.provider
+                    .GetUpdateInfoAsync(ToHostVersion(this.bridge.HostVersion), current, timeout.Token)
                     .ConfigureAwait(false);
             }
-            catch (Exception ex) when (ex is HttpRequestException or JsonException
-                                           || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+            catch (InvalidDataException ex)
             {
-                // Offline, captive portal, server down, too slow: all the same answer — run what we have.
-                this.logger.LogInformation(ex, "Update check to {Uri} failed", uri);
+                this.logger.LogWarning(ex, "Rejected release from {Provider}", this.provider.GetType().Name);
+                return new WebAppUpdateCheckResult(WebAppUpdateStatus.Rejected, Error: ex.Message);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                // Offline, captive portal, server down, too slow, a provider bug: all the same answer — run what we have.
+                this.logger.LogInformation(ex, "Update check through {Provider} failed", this.provider.GetType().Name);
                 return new WebAppUpdateCheckResult(WebAppUpdateStatus.Unavailable, Error: ex.Message);
             }
         }
 
-        if (response is null || response.Kind == WebAppUpdateKind.None || response.Release is null)
+        if (update is null)
             return new WebAppUpdateCheckResult(WebAppUpdateStatus.UpToDate);
 
-        if (this.Verify(response, current, uri) is { } rejection)
+        if (Verify(update, current) is { } rejection)
         {
-            this.logger.LogWarning("Rejected release from {Uri}: {Reason}", uri, rejection);
+            this.logger.LogWarning("Rejected release {Version} from {Provider}: {Reason}", update.Version, this.provider.GetType().Name, rejection);
             return new WebAppUpdateCheckResult(WebAppUpdateStatus.Rejected, Error: rejection);
         }
 
-        var download = new Uri(uri, response.DownloadUrl);
-        return new WebAppUpdateCheckResult(WebAppUpdateStatus.Available, response.Kind, response.Release, download);
+        return new WebAppUpdateCheckResult(WebAppUpdateStatus.Available, update);
     }
 
-    string? Verify(WebAppUpdateResponse response, WebAppVersion? current, Uri checkUri)
+    static string? Verify(UpdateInfo update, WebAppVersion? current)
     {
-        var release = response.Release!;
+        // An old release replayed by anything in the path, or a provider that got its ordering wrong, must not roll the app back.
+        if (current is { } installed && update.Version <= installed)
+            return $"release {update.Version} is not newer than {current}";
 
-        if (!WebAppReleaseSignature.Verify(release, response.Signature, this.publicKey!))
-            return "signature does not verify";
-
-        if (!String.Equals(release.AppId, this.bridge.AppId, StringComparison.Ordinal))
-            return $"release is for app '{release.AppId}'";
-
-        // A validly signed old release replayed by anything in the path must not roll the app back.
-        if (!WebAppVersion.TryParse(release.Version, out var version) || (current is { } installed && version <= installed))
-            return $"release {release.Version} is not newer than {current}";
-
-        if (release.MinimumHostVersion is { } minimum
-            && (!WebAppVersion.TryParse(minimum, out var minimumHost) || WebAppVersion.Parse(this.bridge.HostVersion) < minimumHost))
-            return $"release needs host {minimum}";
-
-        if (release.Size <= 0)
+        if (update.FileSize is <= 0)
             return "release has no size";
 
-        if (String.IsNullOrWhiteSpace(response.DownloadUrl) || !Uri.TryCreate(checkUri, response.DownloadUrl, out var download))
-            return "release has no download URL";
-
-        // Plain HTTP is allowed only when the check itself was, which in practice means development.
-        if (download.Scheme != Uri.UriSchemeHttps && checkUri.Scheme == Uri.UriSchemeHttps)
-            return "download URL downgrades to plain HTTP";
+        if (update.Sha256 is { } sha && (sha.Length != 64 || !sha.All(Char.IsAsciiHexDigit)))
+            return "release SHA-256 is not 64 hex characters";
 
         return null;
     }
@@ -169,36 +145,27 @@ public sealed class WebAppUpdater : IDisposable
     {
         ArgumentNullException.ThrowIfNull(check);
 
-        if (check is not { Status: WebAppUpdateStatus.Available, Release: { } release, DownloadUri: { } uri })
+        if (check is not { Status: WebAppUpdateStatus.Available, Update: { } update } || this.provider is null)
             throw new InvalidOperationException("Only an Available check result can be installed.");
 
         var pending = this.store.CreatePendingPath();
 
         try
         {
-            using var message = await this.http
-                .GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
-                .ConfigureAwait(false);
-
-            message.EnsureSuccessStatusCode();
-
-            if (message.Content.Headers.ContentLength is { } length && length != release.Size)
-                throw new InvalidDataException($"Server sent {length} bytes; release {release.Version} is {release.Size}.");
-
             string sha256;
+            long total = 0;
+            var expected = update.FileSize;
 
             await using (var file = new FileStream(pending, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, FileOptions.Asynchronous))
-            await using (var body = await message.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false))
+            await using (var body = await this.provider.DownloadAsync(update, cancellationToken).ConfigureAwait(false))
             {
                 using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
                 var buffer = ArrayPool<byte>.Shared.Rent(81920);
 
                 try
                 {
-                    long total = 0;
                     int read;
-
-                    progress?.Report(new WebAppDownloadProgress(0, release.Size));
+                    progress?.Report(new WebAppDownloadProgress(0, expected ?? 0));
 
                     while ((read = await body.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
                     {
@@ -206,16 +173,16 @@ public sealed class WebAppUpdater : IDisposable
 
                         // Stop the moment it is too long, rather than filling the disk with whatever
                         // a broken or hostile server keeps sending.
-                        if (total > release.Size)
-                            throw new InvalidDataException($"Download of {release.Version} exceeded its declared {release.Size} bytes.");
+                        if (total > expected)
+                            throw new InvalidDataException($"Download of {update.Version} exceeded its declared {expected} bytes.");
 
                         hash.AppendData(buffer, 0, read);
                         await file.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
-                        progress?.Report(new WebAppDownloadProgress(total, release.Size));
+                        progress?.Report(new WebAppDownloadProgress(total, expected ?? 0));
                     }
 
-                    if (total != release.Size)
-                        throw new InvalidDataException($"Download of {release.Version} ended at {total} of {release.Size} bytes.");
+                    if (expected is { } size && total != size)
+                        throw new InvalidDataException($"Download of {update.Version} ended at {total} of {size} bytes.");
                 }
                 finally
                 {
@@ -225,15 +192,15 @@ public sealed class WebAppUpdater : IDisposable
                 sha256 = Convert.ToHexStringLower(hash.GetHashAndReset());
             }
 
-            if (!String.Equals(sha256, release.Sha256, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException($"Download of {release.Version} does not match its signed hash.");
+            if (update.Sha256 is { } declared && !String.Equals(sha256, declared, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException($"Download of {update.Version} does not match its SHA-256.");
 
-            // Opened once before it can become the installed build, so an archive that is signed but
-            // unservable fails here instead of at the next launch.
+            // Opened once before it can become the installed build, so an archive that downloads
+            // but is unservable fails here instead of at the next launch.
             WebAppArchive.Open(pending, this.options);
 
-            var package = this.store.Commit(pending, release);
-            this.logger.LogInformation("Installed web app {Version}", release.Version);
+            var package = this.store.Commit(pending, update.Version, sha256, total);
+            this.logger.LogInformation("Installed web app {Version}", update.Version);
             return package;
         }
         catch
@@ -254,9 +221,6 @@ public sealed class WebAppUpdater : IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        this.http.Dispose();
-        this.publicKey?.Dispose();
-    }
+    /// <summary>Disposes the provider when it is disposable: the host owns it from the moment it is set on the options.</summary>
+    public void Dispose() => (this.provider as IDisposable)?.Dispose();
 }

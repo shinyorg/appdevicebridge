@@ -41,7 +41,7 @@ public sealed class WebAppUnavailableException(string message, Exception? inner 
 /// <para>
 /// <see cref="StartAsync"/> does everything the WebView needs before it can load: picks the newest
 /// build this host can run (bundled or downloaded), starts the loopback server, asks the update
-/// server whether that build is still acceptable, installs a required update before returning, and
+/// provider whether that build is still acceptable, installs a required update before returning, and
 /// starts an optional one in the background. It returns the URL to load.
 /// </para>
 /// </summary>
@@ -226,7 +226,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
                 return this.BuildStartUri();
             }
 
-            if (this.options.UpdateServer is not null)
+            if (this.options.UpdateProvider is not null)
             {
                 this.SetStatus(new WebAppHostStatus(WebAppHostState.CheckingForUpdate, active));
 
@@ -235,7 +235,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
 
                 if (check.Status == WebAppUpdateStatus.Available)
                 {
-                    if (active is null || check.Kind == WebAppUpdateKind.Required)
+                    if (active is null || !check.Update!.IsOptional)
                         active = await this.InstallRequiredAsync(check, active, cancellationToken).ConfigureAwait(false);
                     else
                         _ = this.InstallInBackgroundAsync(check);
@@ -302,7 +302,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
     /// </summary>
     WebAppPackage? ActivateBestAvailable()
     {
-        var installed = this.store.ReadInstalled(WebAppVersion.Parse(this.server.Options.HostVersion));
+        var installed = this.store.ReadInstalled();
 
         WebAppPackage? baseline = this.options.Baseline is { } b
             ? new WebAppPackage(WebAppVersion.Parse(b.Version), WebAppPackageOrigin.Baseline, null, b)
@@ -348,7 +348,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
 
         try
         {
-            this.SetStatus(new WebAppHostStatus(WebAppHostState.Downloading, active, new WebAppDownloadProgress(0, check.Release!.Size)));
+            this.SetStatus(new WebAppHostStatus(WebAppHostState.Downloading, active, new WebAppDownloadProgress(0, check.Update!.FileSize ?? 0)));
 
             var package = await this.Updater.InstallAsync(check, progress, cancellationToken).ConfigureAwait(false);
             this.Activate(package);
@@ -382,7 +382,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
         }
         catch (Exception ex)
         {
-            this.logger.LogWarning(ex, "Background update to {Version} failed; it will be retried next launch", check.Release?.Version);
+            this.logger.LogWarning(ex, "Background update to {Version} failed; it will be retried next launch", check.Update?.Version);
         }
     }
 
