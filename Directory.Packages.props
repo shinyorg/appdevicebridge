@@ -14,8 +14,8 @@
         <PackageVersion Include="XenoAtom.Terminal.UI" Version="3.8.1"/>
         <PackageVersion Include="Shiny.Extensions.MauiHosting" Version="5.2.1"/>
         <PackageVersion Include="Shiny.Extensions.Stores" Version="5.2.1"/>
-        <PackageVersion Include="Shiny.Maui.Controls.Desktop" Version="1.4.0"/>
-        <PackageVersion Include="Shiny.Maui.Controls.Camera" Version="1.4.0"/>
+        <PackageVersion Include="Shiny.Maui.Controls.Desktop" Version="1.5.0-beta-0007"/>
+        <PackageVersion Include="Shiny.Maui.Controls.Camera" Version="1.5.0-beta-0007"/>
         <PackageVersion Include="Shiny.Hosting.Maui" Version="5.8.0-beta-0001"/>
         <PackageVersion Include="Shiny.Jobs" Version="5.8.0-beta-0001"/>
         <PackageVersion Include="Shiny.Push" Version="5.8.0-beta-0001"/>

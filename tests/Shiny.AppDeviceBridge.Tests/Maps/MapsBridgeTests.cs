@@ -236,6 +236,36 @@ public class MapsBridgeTests
         Assert.Equal(HttpStatusCode.NoContent, (await fixture.WebView.GetAsync("/_bridge/maps/tiles/13/1700/3100")).StatusCode);
     }
 
+    /// <summary>
+    /// Installing a region the device already has is done at once. It used to answer Queued and finish a moment later, so the
+    /// Installed event beat the reply and a page holding the reply showed the region queued for good, with nothing to cancel.
+    /// </summary>
+    [Fact]
+    public async Task Installing_what_is_already_installed_answers_installed()
+    {
+        using var packs = PackDirectory.Create();
+        var (publicKey, privateKey) = WebAppReleaseSignature.CreateKeyPair();
+        await using var server = await PackServer.StartAsync(packs.Path, privateKey);
+        await using var fixture = await MapsFixture.StartAsync(o =>
+        {
+            o.Catalog = new Uri("http://packs.example.com/maps/catalog");
+            o.CatalogPublicKey = publicKey;
+        });
+        fixture.Network.Route("packs.example.com", server.CreateHandler());
+        await fixture.WaitForDownloadAsync("boulder", () => fixture.Maps.InstallAsync("boulder", new MapPackInstallRequest(Directions: true)));
+        var files = FileRequests();
+
+        MapPackDownload? again = null;
+        var events = await fixture.WaitForDownloadAsync("boulder", async () => again = await fixture.Maps.InstallAsync("boulder", new MapPackInstallRequest(Directions: true)));
+
+        Assert.Equal(MapPackDownloadState.Installed, again!.State);
+        Assert.Equal(MapPackDownloadState.Installed, Assert.Single(events).State);
+        Assert.Null(Assert.Single((await fixture.Maps.GetRegionsAsync()).Regions).Download);
+        Assert.Equal(files, FileRequests());
+
+        int FileRequests() => fixture.Network.Requests.Count(r => r.RequestUri!.AbsolutePath.Contains("/files/", StringComparison.Ordinal));
+    }
+
     [Fact]
     public async Task A_changed_catalog_version_is_offered_as_an_update()
     {

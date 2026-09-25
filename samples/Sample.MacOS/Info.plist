@@ -20,6 +20,8 @@
 
 	<key>NSLocationUsageDescription</key>
 	<string>The sample web app shows your position.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>The sample web app shows your position.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>The sample web app scans for Bluetooth LE devices.</string>
 

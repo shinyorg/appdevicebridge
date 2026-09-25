@@ -6,6 +6,7 @@ using Shiny.AppDeviceBridge.Client;
 using Shiny.AppDeviceBridge.Desktop.Client;
 using Shiny.Maui.Controls.Desktop.QuickEntry;
 using Shiny.Maui.Controls.QuickEntry;
+using Shiny.Maui.Controls.Themes;
 using Shiny.Net.HttpServer;
 using Shiny.AppDeviceBridge.Maui;
 using Contracts = Shiny.AppDeviceBridge.Desktop.Client;
@@ -437,7 +438,11 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
     /// </summary>
     async Task<PromptView?> WirePromptAsync()
     {
-        await MainAsync(() => this.service!.PreloadAsync()).Unwrap();
+        await MainAsync(() =>
+        {
+            ApplyTheme();
+            return this.service!.PreloadAsync();
+        }).Unwrap();
 
         return await MainAsync(() =>
         {
@@ -470,6 +475,17 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
         });
     }
 
+    /// <summary>
+    /// Merges the Shiny Controls theme into the app before the prompt shows. Shiny.Maui.Controls 1.4 merges it from MAUI's
+    /// own application and page handlers, which the maui-labs AppKit and GTK backends replace — so there the prompt's card
+    /// had no fill and its text floated over whatever was behind the window. A theme already merged is left alone.
+    /// </summary>
+    internal static void ApplyTheme()
+    {
+        if (Application.Current is not null && ShinyThemeManager.CurrentTheme is { } theme)
+            ShinyThemeManager.SetTheme(theme);
+    }
+
     /// <summary>Must run on the UI thread: the platform hotkey services register there.</summary>
     void RegisterHotKey(string? accelerator)
     {
@@ -480,7 +496,11 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
         if (accelerator is null || this.hotKeys is not { IsSupported: true } keys)
             return;
 
-        this.hotKeyRegistration = keys.Register(accelerator, () => this.service!.Toggle());
+        this.hotKeyRegistration = keys.Register(accelerator, () =>
+        {
+            ApplyTheme();
+            this.service!.Toggle();
+        });
 
         if (this.hotKeyRegistration is null)
             this.logger?.LogWarning("The quick entry hotkey '{HotKey}' could not be registered; another application may own it", accelerator);

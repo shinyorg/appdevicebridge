@@ -195,7 +195,7 @@ public static partial class TypeScriptGenerator
         if (module.Bridges.Count > 0)
         {
             var generated = body.ToString();
-            var helpers = new[] { "browserTransport", "call", "callBlob", "callVoid", "dateText", "query", "segment" }
+            var helpers = Helpers
                 .Where(helper => Regex.IsMatch(generated, $@"\b{helper}(<|\()"));
 
             text.AppendLine($"import {{ type BridgeTransport, {String.Join(", ", helpers)} }} from \"./core.js\";");
@@ -207,6 +207,9 @@ public static partial class TypeScriptGenerator
         text.Append(body);
         return text.ToString();
     }
+
+    /// <summary>What a generated client imports from core.ts, when it uses them.</summary>
+    static readonly string[] Helpers = ["browserTransport", "call", "callBlob", "callVoid", "dateText", "query", "segment"];
 
     static void WriteClient(StringBuilder body, Type bridge, XmlDocs docs, Func<Type, string> reference)
     {
@@ -247,8 +250,11 @@ public static partial class TypeScriptGenerator
             foreach (var parameter in parameters)
             {
                 var kind = Classify(parameter, route);
-                var name = parameter.Name!;
                 var optional = parameter.HasDefaultValue && kind != ParameterKind.Cancellation;
+
+                // A positional parameter named like a helper would shadow it — geocode(query) calling query({ … }) — so it
+                // is renamed. Callers pass it by position, so the name is not part of the API; the query key keeps it.
+                var name = !optional && Helpers.Contains(parameter.Name!) ? parameter.Name + "Value" : parameter.Name!;
                 var access = optional ? $"{bag}?.{name}" : name;
 
                 switch (kind)
@@ -258,11 +264,11 @@ public static partial class TypeScriptGenerator
                         continue;
 
                     case ParameterKind.Route:
-                        path = path.Replace("{" + name + "}", "${segment(" + access + ")}");
+                        path = path.Replace("{" + parameter.Name + "}", "${segment(" + access + ")}");
                         break;
 
                     case ParameterKind.Query:
-                        var queryName = parameter.GetCustomAttribute<BridgeQueryAttribute>()?.Name ?? name;
+                        var queryName = parameter.GetCustomAttribute<BridgeQueryAttribute>()?.Name ?? parameter.Name!;
                         queryParts.Add($"{Quote(queryName)}: {(IsDate(parameter.ParameterType) ? $"dateText({access})" : access)}");
                         break;
 

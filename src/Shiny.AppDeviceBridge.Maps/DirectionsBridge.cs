@@ -7,40 +7,48 @@ namespace Shiny.AppDeviceBridge.Maps;
 
 /// <summary>
 /// <c>/_bridge/directions</c>: routes computed on the device when a downloaded road network covers every stop, and by the
-/// app's online router otherwise.
+/// app's online router otherwise; addresses turned into stops by the app's geocoder.
 /// <code>
-/// GET  /_bridge/directions          { online, onDevice, offlineRegions }
+/// GET  /_bridge/directions          { online, onDevice, offlineRegions, geocoding }
 /// POST /_bridge/directions/route    { stops: [{ latitude, longitude }, …], mode, units, language, source, avoid }
 ///                                   → { source, distance, duration, shape: [[lon, lat], …], bounds, legs: [{ maneuvers }] }
+/// GET  /_bridge/directions/geocode?query=&amp;limit=5&amp;language=
+///                                   → { places: [{ name, address, latitude, longitude, bounds }], attribution }
 /// </code>
 /// </summary>
 sealed class DirectionsBridge(MapsService maps, ILoggerFactory? loggerFactory = null) : IWebAppBridge
 {
     const int MaxStops = 20;
+    const int MaxQueryLength = 200;
+    const int MaxPlaces = 20;
 
     readonly ILogger logger = (ILogger?)loggerFactory?.CreateLogger<DirectionsBridge>() ?? NullLogger.Instance;
 
     public string Name => "directions";
 
-    public bool IsSupported => maps.OnlineRouter is not null || maps.OnDeviceDirections;
+    public bool IsSupported => this.CanRoute || maps.Options.Directions.Geocoder is not null;
+
+    bool CanRoute => maps.OnlineRouter is not null || maps.OnDeviceDirections;
 
     public void Map(WebAppBridgeRoutes routes) => routes
         .MapGet("", this.InfoAsync)
-        .MapPost("/route", this.RouteAsync);
+        .MapPost("/route", this.RouteAsync)
+        .MapGet("/geocode", this.GeocodeAsync);
 
     ValueTask InfoAsync(HttpContext context) => WebAppBridgeResults.Json(
         context,
         new DirectionsInfo(
             maps.OnlineRouter is not null,
             maps.OnDeviceDirections,
-            [.. maps.Installed.Where(x => x.DirectionsVersion is not null).Select(x => x.Id)]
+            [.. maps.Installed.Where(x => x.DirectionsVersion is not null).Select(x => x.Id)],
+            maps.Options.Directions.Geocoder is not null
         ),
         DirectionsJsonContext.Default.DirectionsInfo
     );
 
     async ValueTask RouteAsync(HttpContext context)
     {
-        if (!this.IsSupported)
+        if (!this.CanRoute)
         {
             await WebAppBridgeResults.NotSupported(context, "Directions");
             return;
@@ -55,7 +63,7 @@ sealed class DirectionsBridge(MapsService maps, ILoggerFactory? loggerFactory = 
             return;
         }
 
-        if (request.Language is { } language && (language.Length > 16 || !language.All(c => char.IsAsciiLetterOrDigit(c) || c == '-')))
+        if (request.Language is { } language && !IsLanguageTag(language))
         {
             await WebAppBridgeResults.BadRequest(context, "\"language\" must be a language tag such as en-US.");
             return;
@@ -143,6 +151,68 @@ sealed class DirectionsBridge(MapsService maps, ILoggerFactory? loggerFactory = 
             );
         }
     }
+
+    async ValueTask GeocodeAsync(HttpContext context)
+    {
+        // Read per request, so an app that swaps the geocoder while it runs is answered by the new one.
+        if (maps.Options.Directions.Geocoder is not { } geocoder)
+        {
+            await WebAppBridgeResults.NotSupported(context, "Geocoding");
+            return;
+        }
+
+        var query = context.Request.Query;
+        var text = query["query"].ToString().Trim();
+        if (text.Length is 0 or > MaxQueryLength)
+        {
+            await WebAppBridgeResults.BadRequest(context, $"\"query\" must be 1 to {MaxQueryLength} characters.");
+            return;
+        }
+
+        var limit = 5;
+        if (query["limit"].ToString() is { Length: > 0 } requested
+            && (!Int32.TryParse(requested, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out limit) || limit is < 1 or > MaxPlaces))
+        {
+            await WebAppBridgeResults.BadRequest(context, $"\"limit\" must be 1 to {MaxPlaces}.");
+            return;
+        }
+
+        var language = query["language"].ToString() is { Length: > 0 } tag ? tag : null;
+        if (language is not null && !IsLanguageTag(language))
+        {
+            await WebAppBridgeResults.BadRequest(context, "\"language\" must be a language tag such as en-US.");
+            return;
+        }
+
+        IReadOnlyList<GeocodedPlace> places;
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+            timeout.CancelAfter(maps.Options.Directions.Timeout);
+            places = await geocoder.SearchAsync(new GeocodeQuery(text, limit, language), maps.Http, timeout.Token);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !context.RequestAborted.IsCancellationRequested)
+        {
+            this.logger.LogInformation(ex, "Geocoder unavailable");
+            await WebAppBridgeResults.Error(context, StatusCodes.Status503ServiceUnavailable, "geocoder_unavailable", "The geocoder could not be reached.");
+            return;
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or FormatException or InvalidOperationException or KeyNotFoundException)
+        {
+            this.logger.LogWarning(ex, "The geocoder answered with something that is not a list of places");
+            await WebAppBridgeResults.Error(context, StatusCodes.Status502BadGateway, "geocoder_error", "The geocoder answered with something that is not a list of places.");
+            return;
+        }
+
+        await WebAppBridgeResults.Json(
+            context,
+            new GeocodeResult([.. places.Take(limit)], geocoder.Attribution),
+            DirectionsJsonContext.Default.GeocodeResult
+        );
+    }
+
+    static bool IsLanguageTag(string language)
+        => language.Length <= 16 && language.All(c => char.IsAsciiLetterOrDigit(c) || c == '-');
 
     async ValueTask RespondAsync(HttpContext context, string answer, DirectionsSource source)
     {

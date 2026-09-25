@@ -9,6 +9,8 @@ export interface DirectionsInfo {
     onDevice: boolean;
     /** The regions whose road network is on the device. */
     offlineRegions: string[];
+    /** Whether the app configured a geocoder, so `geocode` can turn an address into a stop. */
+    geocoding: boolean;
 }
 
 export interface DirectionsRequest {
@@ -41,6 +43,25 @@ export type DirectionsSource = "Auto" | "Device" | "Online";
 
 /** The units spoken and written instructions use. Distances in the response are always metres. */
 export type DistanceUnits = "Kilometers" | "Miles";
+
+export interface GeocodeResult {
+    /** Best match first. Empty when nothing matched. */
+    places: GeocodedPlace[];
+    /** The credit the geocoder's terms require, as HTML. */
+    attribution: string;
+}
+
+/** A place a geocoder found for an address or a name. */
+export interface GeocodedPlace {
+    /** What the place is called: "Union Station", "1701 Wynkoop Street". */
+    name: string;
+    /** The full address or description, which tells apart places with the same name. */
+    address: string;
+    latitude: number;
+    longitude: number;
+    /** `[west, south, east, north]` around a place with an extent — a city, a park — for fitting the map to it. Null for a point. */
+    bounds: number[] | null;
+}
 
 /** What a maneuver asks the traveller to do. Enough to pick an arrow icon. */
 export type ManeuverKind = "Depart" | "Arrive" | "Continue" | "SlightRight" | "Right" | "SharpRight" | "UTurn" | "SharpLeft" | "Left" | "SlightLeft" | "RampStraight" | "RampRight" | "RampLeft" | "ExitRight" | "ExitLeft" | "KeepStraight" | "KeepRight" | "KeepLeft" | "Merge" | "EnterRoundabout" | "ExitRoundabout" | "Ferry" | "Other";
@@ -210,7 +231,7 @@ export type TrafficTileFormat = "Vector" | "Raster";
 
 export type TravelMode = "Car" | "Bicycle" | "Walking" | "Truck";
 
-/** Turn-by-turn directions. A route is computed on the device when the user downloaded the road network of a region covering every stop and the platform can run the router, and by the app's online router otherwise. The online router's address and key stay in the native app; the page never sees them. */
+/** Turn-by-turn directions. A route is computed on the device when the user downloaded the road network of a region covering every stop and the platform can run the router, and by the app's online router otherwise. Addresses become stops through the app's geocoder. The router's and the geocoder's addresses and keys stay in the native app; the page never sees them. */
 export class DirectionsBridge {
     constructor(private readonly transport: BridgeTransport = browserTransport()) {}
 
@@ -222,6 +243,11 @@ export class DirectionsBridge {
     /** Computes a route through the stops. Fails with 400 for fewer than two stops or a stop off the map, 404 when no route connects them, 503 (`offline_unavailable`) when the device cannot compute it and the online router cannot be reached, 501 when neither is available on this platform and app. */
     route(request: DirectionsRequest, options?: { signal?: AbortSignal }): Promise<DirectionsRoute> {
         return call<DirectionsRoute>(this.transport, "POST", `directions/route`, { json: request, signal: options?.signal });
+    }
+
+    /** Finds places matching an address or a name — "1701 Wynkoop St, Denver", "Red Rocks Amphitheatre" — best first, for turning what the user typed into a `RouteStop`. Always online. Fails with 400 for an empty query or one over 200 characters, 503 (`geocoder_unavailable`) when the geocoder cannot be reached, 501 when the app configured no geocoder. */
+    geocode(queryValue: string, options?: { limit?: number; language?: string | null; signal?: AbortSignal }): Promise<GeocodeResult> {
+        return call<GeocodeResult>(this.transport, "GET", `directions/geocode` + query({ query: queryValue, limit: options?.limit, language: options?.language }), { signal: options?.signal });
     }
 }
 
@@ -239,7 +265,7 @@ export class MapsBridge {
         return call<MapCatalog>(this.transport, "GET", `maps/regions` + query({ refresh: options?.refresh }), { signal: options?.signal });
     }
 
-    /** Starts downloading a region — its map, and its road network when asked — or updates an installed one to the catalog's build. Returns at once; progress arrives as `maps.download`. Fails with 404 for a region the catalog does not list, 409 when one is already downloading, 501 when the app configured no catalog. */
+    /** Starts downloading a region — its map, and its road network when asked — or updates an installed one to the catalog's build. Returns at once: `Installed` when the device already has the catalog's build, `Queued` otherwise, with progress arriving as `maps.download` — possibly before this reply does, so a page that tracks progress keeps the newest event rather than this reply. Fails with 404 for a region the catalog does not list, 409 when one is already downloading, 501 when the app configured no catalog. */
     install(id: string, request: MapPackInstallRequest, options?: { signal?: AbortSignal }): Promise<MapPackDownload> {
         return call<MapPackDownload>(this.transport, "POST", `maps/regions/${segment(id)}`, { json: request, signal: options?.signal });
     }

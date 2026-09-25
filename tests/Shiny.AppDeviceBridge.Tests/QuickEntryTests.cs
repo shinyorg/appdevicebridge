@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Shiny.AppDeviceBridge.Client;
 using Shiny.AppDeviceBridge.Desktop;
 using Shiny.AppDeviceBridge.Desktop.Client;
+using Shiny.Maui.Controls.Themes;
 
 namespace Shiny.AppDeviceBridge.Tests;
 
@@ -101,5 +102,45 @@ public class QuickEntryTests
         // And back, for the presentation the control resolves.
         foreach (var value in Enum.GetValues<Shiny.Maui.Controls.QuickEntry.QuickEntryPresentation>())
             BridgeEnum.Convert<Shiny.Maui.Controls.QuickEntry.QuickEntryPresentation, Desktop.Client.QuickEntryPresentation>(value);
+    }
+}
+
+/// <summary>
+/// Sets <c>Application.Current</c>, which the bridges dispatch through, so it runs alone and puts it back.
+/// </summary>
+[CollectionDefinition(nameof(QuickEntryThemeTests), DisableParallelization = true)]
+[Collection(nameof(QuickEntryThemeTests))]
+public class QuickEntryThemeTests
+{
+    /// <summary>
+    /// The maui-labs AppKit and GTK backends never run the handlers Shiny Controls merges its theme from, so the bridge
+    /// merges it before the prompt shows — without it the card has no fill.
+    /// </summary>
+    [Fact]
+    public void Merges_the_controls_theme_the_backend_never_applied()
+    {
+        var current = typeof(ShinyThemeManager).GetProperty(nameof(ShinyThemeManager.CurrentTheme))!;
+        var previousTheme = current.GetValue(null);
+        var previousApp = Microsoft.Maui.Controls.Application.Current;
+
+        // A fresh pack, so the manager's cached dictionary cannot match it.
+        var theme = new BasicTheme();
+        current.SetValue(null, theme);
+
+        try
+        {
+            var app = new Microsoft.Maui.Controls.Application { UserAppTheme = AppTheme.Light };
+            Microsoft.Maui.Controls.Application.Current = app;
+            Assert.DoesNotContain(theme.Light, app.Resources.MergedDictionaries);
+
+            QuickEntryBridge.ApplyTheme();
+
+            Assert.Contains(theme.Light, app.Resources.MergedDictionaries);
+        }
+        finally
+        {
+            current.SetValue(null, previousTheme);
+            Microsoft.Maui.Controls.Application.Current = previousApp;
+        }
     }
 }

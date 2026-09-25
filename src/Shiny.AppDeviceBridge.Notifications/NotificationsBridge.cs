@@ -110,7 +110,20 @@ public sealed class NotificationsBridge(IServiceProvider services, WebAppFileRoo
             flags |= AccessRequestFlags.LocationAware;
 
         // The permission prompt is UI.
-        var access = await services.GetRequiredService<IWebAppMainThread>().InvokeAsync(() => n.RequestAccess(flags));
+        AccessState access;
+        try
+        {
+            access = await services.GetRequiredService<IWebAppMainThread>().InvokeAsync(() => n.RequestAccess(flags));
+        }
+        catch (Exception)
+        {
+            // macOS fails the request ("Notifications are not allowed for this application") rather than answering
+            // no once the user has turned them off. That is an answer, not a failure.
+            if (await n.GetCurrentAccess(AccessRequestFlags.Notification) != AccessState.Denied)
+                throw;
+
+            access = AccessState.Denied;
+        }
 
         await WebAppBridgeResults.Json(context, new Contracts.NotificationAccessResult(BridgeEnum.Convert<AccessState, ContractAccess>(access)), Contracts.NotificationsJsonContext.Default.NotificationAccessResult);
     }

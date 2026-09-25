@@ -17,7 +17,10 @@ public enum WebAppWebPermissions
     /// <summary><c>getUserMedia({ audio })</c>.</summary>
     Microphone = 2,
 
-    /// <summary><c>navigator.geolocation</c> on Android and Windows. Apple platforms have no hook to decide it; see the readme.</summary>
+    /// <summary>
+    /// <c>navigator.geolocation</c> on Android, Windows and macOS (AppKit), where the host answers it from CoreLocation.
+    /// iOS and Mac Catalyst have no hook to decide it; see the readme.
+    /// </summary>
     Geolocation = 4
 }
 

@@ -37,6 +37,7 @@ static partial class WebAppWebViewPermissions
             return;
 
         var uiDelegate = new WebAppWebViewUIDelegate(policy);
+        WebAppGeolocation.Attach(platformView, policy);
 #endif
         Delegates.AddOrUpdate(platformView, uiDelegate);
         platformView.UIDelegate = uiDelegate;

@@ -23,8 +23,10 @@ public interface IMapsBridge
 
     /// <summary>
     /// Starts downloading a region — its map, and its road network when asked — or updates an installed one to the
-    /// catalog's build. Returns at once; progress arrives as <c>maps.download</c>. Fails with 404 for a region the catalog
-    /// does not list, 409 when one is already downloading, 501 when the app configured no catalog.
+    /// catalog's build. Returns at once: <c>Installed</c> when the device already has the catalog's build, <c>Queued</c>
+    /// otherwise, with progress arriving as <c>maps.download</c> — possibly before this reply does, so a page that tracks
+    /// progress keeps the newest event rather than this reply. Fails with 404 for a region the catalog does not list, 409
+    /// when one is already downloading, 501 when the app configured no catalog.
     /// </summary>
     [BridgePost("regions/{id}")]
     Task<MapPackDownload> InstallAsync(string id, MapPackInstallRequest request, CancellationToken cancellationToken = default);

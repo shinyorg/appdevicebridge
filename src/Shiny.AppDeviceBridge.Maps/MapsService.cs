@@ -89,6 +89,9 @@ sealed class MapsService : IDisposable
 
     public IValhallaRouter? OnlineRouter { get; }
 
+    /// <summary>The client every outgoing request goes through, built from <see cref="MapsOptions.HttpMessageHandlerFactory"/>.</summary>
+    public HttpClient Http => this.http;
+
     public IReadOnlyList<InstalledRegion> Installed
     {
         get
@@ -489,6 +492,16 @@ sealed class MapsService : IDisposable
             parts.Add(assets);
 
         var job = new DownloadJob(region, withDirections && region.Directions is not null, parts);
+
+        // Nothing newer than what is installed: done now. Answered as Queued with the job finishing a moment later, the reply
+        // arrived after the Installed event and the page, holding the reply, showed the region queued for good.
+        if (parts.Count == 0)
+        {
+            this.RecordRegion(region, null);
+            this.Publish(job, MapPackDownloadState.Installed);
+            return (job.Snapshot(), false);
+        }
+
         if (!this.downloads.TryAdd(regionId, job))
             return (this.downloads[regionId].Snapshot(), true);
 

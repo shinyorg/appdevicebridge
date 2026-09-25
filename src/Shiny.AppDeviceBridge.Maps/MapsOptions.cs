@@ -107,8 +107,14 @@ public sealed class DirectionsOptions
     /// <summary>Adds headers to every online route request.</summary>
     public Action<HttpRequestMessage>? ConfigureRequest { get; set; }
 
-    /// <summary>How long an online route may take.</summary>
+    /// <summary>How long an online route, or a geocoder search, may take.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Turns addresses into stops for <c>/_bridge/directions/geocode</c>: <see cref="NominatimGeocoder"/>, or a class of the
+    /// app's own. Null answers 501. It can be replaced while the app runs; the next search uses the new one.
+    /// </summary>
+    public IGeocoder? Geocoder { get; set; }
 }
 
 public static class MapsBridgeExtensions
@@ -123,6 +129,7 @@ public static class MapsBridgeExtensions
     ///     o.Catalog = new Uri("https://releases.example.com/maps/catalog");
     ///     o.CatalogPublicKey = publicKey;
     ///     o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route");
+    ///     o.Directions.Geocoder = new NominatimGeocoder("MyApp/1.0 (support@example.com)");
     ///     o.Traffic = new TomTomTrafficProvider(tomTomKey);
     ///     o.TrafficIncidents = new TomTomIncidentProvider(tomTomKey);
     /// });

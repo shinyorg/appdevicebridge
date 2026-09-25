@@ -1,0 +1,65 @@
+[
+  {
+    "place_id": 428141627,
+    "licence": "Data \u00a9 OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+    "osm_type": "way",
+    "osm_id": 25650822,
+    "lat": "39.7532277",
+    "lon": "-105.0000944",
+    "category": "building",
+    "type": "train_station",
+    "place_rank": 30,
+    "importance": 0.44259121889770825,
+    "addresstype": "building",
+    "name": "Union Station",
+    "display_name": "Union Station, 1701, Wynkoop Street, 16th Street Mall, Highland, Denver, Colorado, 80202, United States",
+    "boundingbox": [
+      "39.7526608",
+      "39.7538007",
+      "-105.0010122",
+      "-104.9995423"
+    ]
+  },
+  {
+    "place_id": 330426106,
+    "licence": "Data \u00a9 OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+    "osm_type": "node",
+    "osm_id": 7327224311,
+    "lat": "39.7536300",
+    "lon": "-105.0007481",
+    "category": "railway",
+    "type": "station",
+    "place_rank": 30,
+    "importance": 0.44259121889770825,
+    "addresstype": "railway",
+    "name": "Union Station",
+    "display_name": "Union Station, 1701, Wynkoop Street, 16th Street Mall, Highland, Denver, Colorado, 80202, United States",
+    "boundingbox": [
+      "39.7486300",
+      "39.7586300",
+      "-105.0057481",
+      "-104.9957481"
+    ]
+  },
+  {
+    "place_id": 331290135,
+    "licence": "Data \u00a9 OpenStreetMap contributors, ODbL 1.0. http://osm.org/copyright",
+    "osm_type": "node",
+    "osm_id": 3041720537,
+    "lat": "39.7548913",
+    "lon": "-105.0013516",
+    "category": "place",
+    "type": "neighbourhood",
+    "place_rank": 24,
+    "importance": 0.27236747457604304,
+    "addresstype": "neighbourhood",
+    "name": "Union Station",
+    "display_name": "Union Station, Denver, Colorado, 80202, United States",
+    "boundingbox": [
+      "39.7448913",
+      "39.7648913",
+      "-105.0113516",
+      "-104.9913516"
+    ]
+  }
+]

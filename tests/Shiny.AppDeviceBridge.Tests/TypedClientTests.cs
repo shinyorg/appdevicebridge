@@ -49,6 +49,16 @@ public class TypedClientTests
         Assert.DoesNotContain("search", transport.Requests[0].Uri);
     }
 
+    /// <summary>The generated method builds its query in a local of its own, which a parameter named <c>query</c> once collided with.</summary>
+    [Fact]
+    public async Task Takes_a_parameter_named_query()
+    {
+        var transport = new RecordingTransport().Returns(HttpStatusCode.OK, """{"name":"a","count":1}""");
+        await new TestBridgeClient(transport).SearchAsync("union station");
+
+        Assert.Equal("test/search?query=union%20station&limit=5", transport.Requests[0].Uri);
+    }
+
     [Fact]
     public async Task Escapes_a_route_value_as_one_segment()
     {
@@ -264,6 +274,9 @@ public interface ITestBridge
 
     [BridgeGet("files/{path}/content")]
     Task<byte[]> DownloadBytesAsync(string path, CancellationToken cancellationToken = default);
+
+    [BridgeGet("search")]
+    Task<TestPayload> SearchAsync(string query, int limit = 5, CancellationToken cancellationToken = default);
 
     [BridgePut("upload")]
     Task UploadAsync([BridgeQuery("path")] string target, [BridgeBody("text/plain")] string text, bool overwrite = true, CancellationToken cancellationToken = default);

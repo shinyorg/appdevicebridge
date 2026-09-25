@@ -229,10 +229,10 @@ public sealed class BridgeClientGenerator : IIncrementalGenerator
         var target = $"$\"{fullPath}\"";
         if (query.Count > 0)
         {
-            members.AppendLine("        var query = new global::Shiny.AppDeviceBridge.Client.BridgeQuery();");
+            members.AppendLine("        var __query = new global::Shiny.AppDeviceBridge.Client.BridgeQuery();");
             foreach (var add in query)
                 members.AppendLine($"        {add};");
-            target = $"$\"{fullPath}\" + query";
+            target = $"$\"{fullPath}\" + __query";
         }
 
         var call = result?.ToDisplayString() switch
@@ -326,20 +326,20 @@ public sealed class BridgeClientGenerator : IIncrementalGenerator
         var literal = "\"" + name + "\"";
 
         if (t.TypeKind == TypeKind.Enum)
-            return $"query.AddEnum<{t.ToDisplayString(TypeFormat)}>({literal}, {parameter})";
+            return $"__query.AddEnum<{t.ToDisplayString(TypeFormat)}>({literal}, {parameter})";
 
         return t.SpecialType switch
         {
-            SpecialType.System_String => $"query.Add({literal}, {parameter})",
-            SpecialType.System_Boolean => $"query.Add({literal}, (bool?){parameter})",
-            SpecialType.System_Byte or SpecialType.System_Int16 or SpecialType.System_Int32 => $"query.Add({literal}, (int?){parameter})",
-            SpecialType.System_Int64 => $"query.Add({literal}, (long?){parameter})",
-            SpecialType.System_Single or SpecialType.System_Double => $"query.Add({literal}, (double?){parameter})",
+            SpecialType.System_String => $"__query.Add({literal}, {parameter})",
+            SpecialType.System_Boolean => $"__query.Add({literal}, (bool?){parameter})",
+            SpecialType.System_Byte or SpecialType.System_Int16 or SpecialType.System_Int32 => $"__query.Add({literal}, (int?){parameter})",
+            SpecialType.System_Int64 => $"__query.Add({literal}, (long?){parameter})",
+            SpecialType.System_Single or SpecialType.System_Double => $"__query.Add({literal}, (double?){parameter})",
             SpecialType.System_Decimal => nullable
-                ? $"query.Add({literal}, {parameter}?.ToString(global::System.Globalization.CultureInfo.InvariantCulture))"
-                : $"query.Add({literal}, {parameter}.ToString(global::System.Globalization.CultureInfo.InvariantCulture))",
-            SpecialType.System_DateTime => $"query.Add({literal}, (global::System.DateTime?){parameter})",
-            _ => $"query.Add({literal}, ({t.ToDisplayString(TypeFormat)}?){parameter})"
+                ? $"__query.Add({literal}, {parameter}?.ToString(global::System.Globalization.CultureInfo.InvariantCulture))"
+                : $"__query.Add({literal}, {parameter}.ToString(global::System.Globalization.CultureInfo.InvariantCulture))",
+            SpecialType.System_DateTime => $"__query.Add({literal}, (global::System.DateTime?){parameter})",
+            _ => $"__query.Add({literal}, ({t.ToDisplayString(TypeFormat)}?){parameter})"
         };
     }
 

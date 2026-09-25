@@ -163,6 +163,10 @@ triggers:
   - MapsOptions
   - IMapsBridge
   - IDirectionsBridge
+  - IGeocoder
+  - NominatimGeocoder
+  - GeocodeAsync
+  - geocoding
   - AddMapsBridgeClient
   - AddDirectionsBridgeClient
   - AddBridgeMaps
@@ -288,6 +292,9 @@ calls device features from that web app, updates it over the air, or writes a br
     `bridge.Maui` (camera control, tray icon, controls, Essentials, lifecycle events). The app calls none of that.
 - `AllowWebPermissions` and `UseTrafficMonitor` stay on `MauiAppBuilder`; `AddTrafficRecorder` stays on
   `ShinyHttpServerBuilder`.
+- For the page's own position, prefer `navigator.geolocation` with `AllowWebPermissions(WebAppWebPermissions.Geolocation)`
+  over the GPS bridge. It works on every head except Linux, including macOS (AppKit), where the host answers it from
+  CoreLocation. Declare `NSLocationWhenInUseUsageDescription` on Apple platforms.
 - Every bridge route requires `AppDeviceBridgePolicies.Bridges`, which the bridges enforce themselves.
 - **There is no private server.** Never generate `o.Server`, `o.ConfigureServer`, `o.AddAuthentication` or
   `o.AddAuthorization` on `AppDeviceBridgeOptions` — they do not exist. Use the builder.
@@ -403,7 +410,7 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.Discovery` | `AddDiscoveryBridge(protocols)` | `IDiscoveryBridge` |
 | `.Push` | `AddPushBridge()` | `IPushBridge` |
 | `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.8; iOS and Android only, `501` elsewhere |
-| `.Maps` | `AddMapsBridge(o => { o.OnlineTiles; o.Catalog; o.CatalogPublicKey; o.Directions.OnlineRouteUrl; o.Directions.ApiKey; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
+| `.Maps` | `AddMapsBridge(o => { o.OnlineTiles; o.Catalog; o.CatalogPublicKey; o.Directions.OnlineRouteUrl; o.Directions.ApiKey; o.Directions.Geocoder; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
 | `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
 | `.AppLinks` | `AddAppLinksBridge(o => …)` | `ILinksBridge` (built in) |
@@ -458,13 +465,21 @@ where the user downloaded a region.
   to the page. Live only; directions don't use traffic.
 - **Regions:** `Catalog` + `CatalogPublicKey` (required together, usually the web app release key).
   `GetRegionsAsync(refresh)`, `InstallAsync(id, new MapPackInstallRequest(Directions: true))` (202; progress on
-  `maps.download`/`OnDownloadAsync`), `RemoveAsync`, `RemoveDirectionsAsync`, `CancelDownloadAsync`. Parts are verified
+  `maps.download`/`OnDownloadAsync`; `Installed` at once when nothing is newer — events can beat the reply, so a page keeps
+  the newest state rather than overwriting it with the reply), `RemoveAsync`, `RemoveDirectionsAsync`, `CancelDownloadAsync`. Parts are verified
   against the signed hash; interrupted downloads resume. Server: `services.AddMapPacks(o => { o.SigningKey; o.PacksDirectory; })`
   + `app.MapMapPacks("/maps")`; build the directory with `shiny-map-packs region|assets|list|remove`.
 - **Directions:** `RouteAsync(new DirectionsRequest([new RouteStop(lat, lon), …], TravelMode.Car, DistanceUnits.Kilometers,
   Language, DirectionsSource.Auto, new RouteAvoid(Tolls: true)))` → `DirectionsRoute` (metres, seconds, `Shape` as
   `[lon, lat]`, `Legs[].Maneuvers[]`). `Auto` = on the device when a downloaded road network covers every stop, else
   online. Errors: `404 no_route`, `503 offline_unavailable`, `501` with no router at all.
+- **Addresses:** `o.Directions.Geocoder = new NominatimGeocoder("MyApp/1.0 (me@example.com)")` (the User-Agent Nominatim's
+  policy requires; `BaseAddress` for your own server, `Countries`, `MinimumInterval` 1 s) or an `IGeocoder` of your own.
+  `GeocodeAsync(query, limit: 5, language)` → `GeocodeResult(Places, Attribution)`, each `GeocodedPlace(Name, Address,
+  Latitude, Longitude, Bounds)` best first; feed one into a `RouteStop`. Always online: `503 geocoder_unavailable`, `501`
+  without a geocoder; `DirectionsInfo.Geocoding` says which. Search when the user asks, not per keystroke — the public
+  server allows one request a second, and the geocoder spaces them. Regions for a trip: the catalog regions whose
+  `Bounds` contain any `route.Shape` point, installed with `Directions: true`.
 - **On-device:** `AddOnDeviceDirections()` from `.Maps.Valhalla` — Android and iOS (valhalla-mobile 0.6.3 / Valhalla
   3.6.3); a no-op elsewhere. Road networks must be built with Valhalla 3.6.3 (`shiny-map-packs --valhalla docker`).
 - **macOS:** `HttpClientHandler` there can't do TLS 1.3; the macOS head adds

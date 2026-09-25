@@ -29,6 +29,79 @@
 <BridgeMap @key="mapVersion" @ref="map" Latitude="@(center?.Latitude ?? 39.74)" Longitude="@(center?.Longitude ?? -104.99)" Zoom="@zoom" Style="width: 100%; height: 55vh; border-radius: 8px; overflow: hidden;"
            OnClick="OnMapClick" OnDrawn="OnDrawn" OnPinMoved="OnPinMoved" OnMoved="@(v => (center, zoom) = (v.Center, v.Zoom))" ShowTraffic="traffic" ShowIncidents="incidents" OnReady="StateHasChanged" />
 
+<h2>Plan a trip</h2>
+<p class="muted">
+    Type where you start and where you are going. The route is computed, and the regions it passes through can be
+    downloaded — map and road network — so the trip draws and routes with no connection.
+</p>
+@if (geocoding == false)
+{
+    <p class="muted">The app configured no geocoder, so addresses cannot be looked up. Drop two pins and route below instead.</p>
+}
+else
+{
+    <div class="form">
+        <input placeholder="Start: an address or a place" @bind="startText" @bind:event="oninput" @onkeydown="@(e => e.Key == "Enter" ? FindTrip() : Task.CompletedTask)" />
+        <input placeholder="Destination" @bind="endText" @bind:event="oninput" @onkeydown="@(e => e.Key == "Enter" ? FindTrip() : Task.CompletedTask)" />
+        <button @onclick="FindTrip" disabled="@(Busy || String.IsNullOrWhiteSpace(startText) || String.IsNullOrWhiteSpace(endText))">Find</button>
+    </div>
+    @if (startPlaces is not null && endPlaces is not null)
+    {
+        @if (startPlaces.Count == 0 || endPlaces.Count == 0)
+        {
+            <p class="muted">Nothing found for @(startPlaces.Count == 0 ? $"\"{startText}\"" : $"\"{endText}\""). Try a fuller address.</p>
+        }
+        else
+        {
+            <div class="form">
+                <select value="@startIndex" @onchange="@(e => Choose(true, e))" title="Start">
+                    @for (var i = 0; i < startPlaces.Count; i++)
+                    {
+                        <option value="@i">From: @startPlaces[i].Address</option>
+                    }
+                </select>
+                <select value="@endIndex" @onchange="@(e => Choose(false, e))" title="Destination">
+                    @for (var i = 0; i < endPlaces.Count; i++)
+                    {
+                        <option value="@i">To: @endPlaces[i].Address</option>
+                    }
+                </select>
+                <button @onclick="RouteTrip" disabled="@Busy">Route</button>
+            </div>
+        }
+        <p class="muted">Places: @((MarkupString)(attribution ?? ""))</p>
+    }
+    @if (tripRegions is not null && route is not null)
+    {
+        <p><strong>@((route.Distance / 1000).ToString("0.0")) km, @TimeSpan.FromSeconds(route.Duration).ToString(@"h\:mm")</strong> — computed @(route.Source == DirectionsSource.Device ? "on the device" : "online")</p>
+        @if (tripRegions.Count == 0)
+        {
+            <p class="muted">No downloadable region covers this route, so it can only be drawn and routed online.</p>
+        }
+        else
+        {
+            var missing = tripRegions.Where(r => NeedsDownload(r, true)).ToList();
+            <p>
+                Passes through @String.Join(", ", tripRegions.Select(r => r.Name)).
+                @if (missing.Count == 0)
+                {
+                    <span class="muted">All of it is on the device, with directions.</span>
+                }
+                else
+                {
+                    <span class="muted">@Megabytes(missing.Sum(r => DownloadSize(r, true))) to download.</span>
+                }
+            </p>
+            @if (missing.Count > 0)
+            {
+                <div class="actions">
+                    <button class="primary" @onclick="@(() => DownloadTrip(missing))" disabled="@(missing.Any(Downloading))">Download maps and directions for this trip</button>
+                </div>
+            }
+        }
+    }
+}
+
 <h2>Directions <span class="muted">(between the first two pins)</span></h2>
 <div class="form">
     <select @bind="mode">
@@ -47,7 +120,8 @@
 <div class="actions">
     <button @onclick="Route" disabled="@(pins.Count < 2)">Route</button>
 </div>
-@if (route is not null)
+@* A trip's route is summed up with the trip above. *@
+@if (route is not null && tripRegions is null)
 {
     <p><strong>@((route.Distance / 1000).ToString("0.0")) km, @TimeSpan.FromSeconds(route.Duration).ToString(@"h\:mm")</strong> — computed @(route.Source == DirectionsSource.Device ? "on the device" : "online")</p>
     <ol class="list">
@@ -69,9 +143,22 @@ else
         @(regions.CatalogReachable ? "From the app's signed catalog." : "The catalog is unreachable; showing what is installed and last seen.")
         On the device: @Megabytes(regions.InstalledBytes).
     </p>
-    <label><input type="checkbox" @bind="withDirections" /> Include the road network for offline directions</label>
+    <div class="form">
+        <input type="search" placeholder="Search @regions.Regions.Count regions" @bind="regionFilter" @bind:event="oninput" />
+        <label><input type="checkbox" @bind="withDirections" /> Include the road network for offline directions</label>
+    </div>
+    var shown = regions.Regions
+        .Where(r => String.IsNullOrWhiteSpace(regionFilter)
+                    || r.Name.Contains(regionFilter.Trim(), StringComparison.OrdinalIgnoreCase)
+                    || r.Id.Contains(regionFilter.Trim(), StringComparison.OrdinalIgnoreCase))
+        .OrderBy(r => r.Name)
+        .ToList();
+    @if (shown.Count == 0)
+    {
+        <p class="muted">No region matches "@regionFilter".</p>
+    }
     <ul class="list">
-        @foreach (var region in regions.Regions)
+        @foreach (var region in shown)
         {
             var download = downloads.GetValueOrDefault(region.Id) ?? region.Download;
             <li>
@@ -80,15 +167,18 @@ else
                     map @Megabytes(region.MapSize)@(region.DirectionsSize is { } d ? $", directions {Megabytes(d)}" : "")
                     @(region.MapInstalled ? " · installed" : "")@(region.DirectionsInstalled ? " with directions" : "")@(region.UpdateAvailable ? " · update available" : "")
                 </span>
-                @if (download is { State: MapPackDownloadState.Queued or MapPackDownloadState.Downloading or MapPackDownloadState.Verifying })
+                @if (Downloading(region))
                 {
-                    <progress max="@download.TotalBytes" value="@download.BytesDownloaded"></progress>
+                    <progress max="@download!.TotalBytes" value="@download.BytesDownloaded"></progress>
                     <span class="muted">@download.State</span>
-                    <button @onclick="@(() => Run(() => MapsBridge.CancelDownloadAsync(region.Id), "Cancelled."))">Cancel</button>
+                    <button @onclick="@(() => Cancel(region))">Cancel</button>
                 }
                 else
                 {
-                    <button @onclick="@(() => Install(region))">@(region.MapInstalled ? (region.UpdateAvailable ? "Update" : "Add directions") : "Download")</button>
+                    @if (NeedsDownload(region, withDirections))
+                    {
+                        <button @onclick="@(() => Run(() => Install(region, withDirections), $"Downloading {region.Name}…"))">@InstallLabel(region)</button>
+                    }
                     <button @onclick="@(() => map!.FitBoundsAsync(region.Bounds, 12))">Show</button>
                     @if (region.DirectionsInstalled)
                     {
@@ -134,6 +224,18 @@ else
     readonly List<MapPin> pins = [];
     readonly Dictionary<string, MapPackDownload> downloads = [];
 
+    // The trip: what was typed, what the geocoder found for each, which of those is picked, and the regions the route crosses.
+    bool? geocoding;
+    string? startText;
+    string? endText;
+    IReadOnlyList<GeocodedPlace>? startPlaces;
+    IReadOnlyList<GeocodedPlace>? endPlaces;
+    int startIndex;
+    int endIndex;
+    string? attribution;
+    List<MapRegion>? tripRegions;
+    string? regionFilter;
+
     protected override async Task OnInitializedAsync()
     {
         await Listen<MapPackDownload>(MapsBridge.OnDownloadAsync, e =>
@@ -143,6 +245,15 @@ else
                 _ = this.InvokeAsync(this.Refresh);
         });
         await this.Refresh();
+
+        try
+        {
+            geocoding = (await DirectionsBridge.GetInfoAsync()).Geocoding;
+        }
+        catch (BridgeException ex) when (ex.IsNotSupported)
+        {
+            geocoding = false;
+        }
     }
 
     async Task Refresh()
@@ -150,6 +261,8 @@ else
         try
         {
             regions = await MapsBridge.GetRegionsAsync();
+            if (route is not null && tripRegions is not null)
+                tripRegions = RegionsAlong(route);
         }
         catch (Exception ex)
         {
@@ -215,6 +328,7 @@ else
 
     Task Route() => Run(async () =>
     {
+        tripRegions = null;
         route = await DirectionsBridge.RouteAsync(new DirectionsRequest(
             [.. pins.Take(2).Select(p => new RouteStop(p.Position.Latitude, p.Position.Longitude))],
             mode,
@@ -223,10 +337,115 @@ else
         await map!.ShowRouteAsync(route);
     }, "Routed.");
 
-    Task Install(MapRegion region) => Run(async () =>
+    async Task Install(MapRegion region, bool directions)
     {
-        downloads[region.Id] = await MapsBridge.InstallAsync(region.Id, new MapPackInstallRequest(withDirections));
-    }, $"Downloading {region.Name}…");
+        downloads.Remove(region.Id);
+        var reply = await MapsBridge.InstallAsync(region.Id, new MapPackInstallRequest(directions));
+
+        // maps.download can arrive before this reply: an event already recorded is newer than the reply, so it stays.
+        downloads.TryAdd(region.Id, reply);
+        if (reply.State == MapPackDownloadState.Installed)
+            await this.Refresh();
+    }
+
+    Task Cancel(MapRegion region) => Run(async () =>
+    {
+        try
+        {
+            await MapsBridge.CancelDownloadAsync(region.Id);
+        }
+        catch (BridgeException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // It finished or failed before the cancel arrived; the region list says which.
+        }
+
+        downloads.Remove(region.Id);
+        await this.Refresh();
+    }, "Cancelled.");
+
+    Task DownloadTrip(IReadOnlyList<MapRegion> missing) => Run(async () =>
+    {
+        foreach (var region in missing)
+            await Install(region, true);
+    }, $"Downloading {String.Join(", ", missing.Select(r => r.Name))}…");
+
+    Task FindTrip() => Run(async () =>
+    {
+        if (String.IsNullOrWhiteSpace(startText) || String.IsNullOrWhiteSpace(endText))
+            return;
+
+        // One after the other: the public geocoder takes one request a second, and the bridge spaces them.
+        var start = await DirectionsBridge.GeocodeAsync(startText);
+        var end = await DirectionsBridge.GeocodeAsync(endText);
+        (startPlaces, endPlaces, attribution) = (start.Places, end.Places, start.Attribution);
+        (startIndex, endIndex, tripRegions) = (0, 0, null);
+
+        await ShowTripPlaces();
+    }, "Found.");
+
+    async Task Choose(bool start, ChangeEventArgs e)
+    {
+        var index = Int32.Parse((string)e.Value!);
+        if (start)
+            startIndex = index;
+        else
+            endIndex = index;
+
+        tripRegions = null;
+        await ShowTripPlaces();
+    }
+
+    async Task ShowTripPlaces()
+    {
+        if (startPlaces is not { Count: > 0 } || endPlaces is not { Count: > 0 })
+            return;
+
+        var from = startPlaces[startIndex];
+        var to = endPlaces[endIndex];
+        await map!.AddPinAsync(new MapPin("trip-start", new GeoPoint(from.Latitude, from.Longitude), from.Name, "#16a34a"));
+        await map.AddPinAsync(new MapPin("trip-end", new GeoPoint(to.Latitude, to.Longitude), to.Name, "#dc2626"));
+        await map.FitBoundsAsync([
+            Math.Min(from.Longitude, to.Longitude), Math.Min(from.Latitude, to.Latitude),
+            Math.Max(from.Longitude, to.Longitude), Math.Max(from.Latitude, to.Latitude)
+        ]);
+    }
+
+    Task RouteTrip() => Run(async () =>
+    {
+        var from = startPlaces![startIndex];
+        var to = endPlaces![endIndex];
+        route = await DirectionsBridge.RouteAsync(new DirectionsRequest(
+            [new RouteStop(from.Latitude, from.Longitude, from.Name), new RouteStop(to.Latitude, to.Longitude, to.Name)],
+            mode,
+            Source: source
+        ));
+
+        // The route draws its own start and destination pins.
+        await map!.RemovePinAsync("trip-start");
+        await map.RemovePinAsync("trip-end");
+        await map.ShowRouteAsync(route);
+
+        regions ??= await MapsBridge.GetRegionsAsync();
+        tripRegions = RegionsAlong(route);
+    }, "Routed.");
+
+    /// <summary>The catalog's regions any point of the route falls inside. Bounds are rectangles, so one the route only clips counts.</summary>
+    List<MapRegion> RegionsAlong(DirectionsRoute trip) => [..
+        (regions?.Regions ?? []).Where(r => trip.Shape.Any(p => p[0] >= r.Bounds[0] && p[0] <= r.Bounds[2] && p[1] >= r.Bounds[1] && p[1] <= r.Bounds[3]))
+    ];
+
+    static bool NeedsDownload(MapRegion region, bool directions)
+        => !region.MapInstalled || region.UpdateAvailable || (directions && region.DirectionsSize is not null && !region.DirectionsInstalled);
+
+    static long DownloadSize(MapRegion region, bool directions)
+        => (!region.MapInstalled || region.UpdateAvailable ? region.MapSize : 0)
+           + (directions && !region.DirectionsInstalled ? region.DirectionsSize ?? 0 : 0);
+
+    bool Downloading(MapRegion region)
+        => (downloads.GetValueOrDefault(region.Id) ?? region.Download) is { State: MapPackDownloadState.Queued or MapPackDownloadState.Downloading or MapPackDownloadState.Verifying };
+
+    string InstallLabel(MapRegion region)
+        => !region.MapInstalled ? "Download" : region.UpdateAvailable ? "Update" : "Add directions";
 
     Task Change(Func<Task> call) => Run(async () =>
     {

@@ -110,11 +110,23 @@ public sealed record DirectionsRoute(
 /// <param name="Online">Whether the app configured an online router.</param>
 /// <param name="OnDevice">Whether this platform can compute routes on the device. It still needs a downloaded road network to do so.</param>
 /// <param name="OfflineRegions">The regions whose road network is on the device.</param>
-public sealed record DirectionsInfo(bool Online, bool OnDevice, IReadOnlyList<string> OfflineRegions);
+/// <param name="Geocoding">Whether the app configured a geocoder, so <c>geocode</c> can turn an address into a stop.</param>
+public sealed record DirectionsInfo(bool Online, bool OnDevice, IReadOnlyList<string> OfflineRegions, bool Geocoding);
+
+/// <summary>A place a geocoder found for an address or a name.</summary>
+/// <param name="Name">What the place is called: "Union Station", "1701 Wynkoop Street".</param>
+/// <param name="Address">The full address or description, which tells apart places with the same name.</param>
+/// <param name="Bounds"><c>[west, south, east, north]</c> around a place with an extent — a city, a park — for fitting the map to it. Null for a point.</param>
+public sealed record GeocodedPlace(string Name, string Address, double Latitude, double Longitude, double[]? Bounds = null);
+
+/// <param name="Places">Best match first. Empty when nothing matched.</param>
+/// <param name="Attribution">The credit the geocoder's terms require, as HTML.</param>
+public sealed record GeocodeResult(IReadOnlyList<GeocodedPlace> Places, string Attribution);
 
 /// <summary>Serialization for every directions contract, shared by the page's client and the native bridge.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true, PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(DirectionsRequest))]
 [JsonSerializable(typeof(DirectionsRoute))]
 [JsonSerializable(typeof(DirectionsInfo))]
+[JsonSerializable(typeof(GeocodeResult))]
 public partial class DirectionsJsonContext : JsonSerializerContext;
