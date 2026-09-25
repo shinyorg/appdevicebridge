@@ -253,7 +253,9 @@ public class DirectionsBridgeTests
     [Fact]
     public void The_on_device_config_points_valhalla_at_the_regions_extract()
     {
-        var directory = Path.Combine(Path.GetTempPath(), "appdevicebridge-maps", Guid.NewGuid().ToString("n"), "quote\"d");
+        // A path the config's JSON has to escape: a quote where the file system allows one, and on Windows, which does not, its
+        // own backslashes.
+        var directory = Path.Combine(Path.GetTempPath(), "appdevicebridge-maps", Guid.NewGuid().ToString("n"), OperatingSystem.IsWindows() ? "escaped" : "quote\"d");
         Directory.CreateDirectory(directory);
         var extract = Path.Combine(directory, "directions.tar");
 
