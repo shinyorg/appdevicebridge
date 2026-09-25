@@ -14,6 +14,7 @@ namespace Shiny.AppDeviceBridge.Maps.Client;
 /// <param name="Catalog">Whether the app configured a region catalog to download from.</param>
 /// <param name="Attribution">The credit the map data's licence requires, as HTML.</param>
 /// <param name="Traffic">The live traffic layer, when the app configured a traffic provider. Null otherwise.</param>
+/// <param name="Incidents">Live traffic incidents — accidents, roadworks, closures — when the app configured an incident provider. Null otherwise.</param>
 public sealed record MapsInfo(
     string TilesUrl,
     string GlyphsUrl,
@@ -22,7 +23,8 @@ public sealed record MapsInfo(
     bool Online,
     bool Catalog,
     string Attribution,
-    TrafficInfo? Traffic = null
+    TrafficInfo? Traffic = null,
+    TrafficIncidentInfo? Incidents = null
 );
 
 /// <summary>How a traffic provider's tiles are drawn.</summary>
@@ -116,10 +118,57 @@ public sealed record MapPackDownload(
     string? Error = null
 );
 
+/// <summary>What a traffic incident is, whatever each provider calls it. The map colours incidents by it.</summary>
+public enum TrafficIncidentKind
+{
+    Other,
+    Accident,
+    Congestion,
+    RoadWorks,
+    RoadClosed,
+    LaneClosed,
+    Weather,
+    Hazard,
+    BrokenDownVehicle
+}
+
+/// <summary>
+/// A live layer of traffic incidents, whatever provider is behind it: vector tiles holding the stretch of road an incident
+/// affects as lines, where it is as points, or both. Tiles come through the bridge, which holds the provider's key, and only
+/// while online.
+/// </summary>
+/// <param name="TilesUrl">The incident tiles: <c>…/maps/incidents/{z}/{x}/{y}</c>.</param>
+/// <param name="MinZoom">Below this the layer draws nothing, and no tiles are asked for.</param>
+/// <param name="MaxZoom">The highest zoom the provider has. The renderer scales past it.</param>
+/// <param name="RefreshSeconds">How often the page should fetch the tiles again.</param>
+/// <param name="LineSourceLayer">The layer inside each tile holding the affected stretches of road. Null when the provider has none.</param>
+/// <param name="PointSourceLayer">The layer inside each tile holding incident locations. Null when the provider has none.</param>
+/// <param name="KindProperty">The property holding the provider's incident type.</param>
+/// <param name="Kinds">The provider's values of <paramref name="KindProperty"/>, as text, and what each is. Anything not listed is <see cref="TrafficIncidentKind.Other"/>.</param>
+/// <param name="DescriptionProperty">The property holding a description to show for an incident. Null when there is none.</param>
+/// <param name="DelayProperty">The property holding the delay the incident causes, in seconds. Null when there is none.</param>
+/// <param name="ClusterSizeProperty">The property holding how many incidents a point stands for, where the provider groups them. Null when it does not.</param>
+/// <param name="Attribution">The credit the provider's terms require, as HTML.</param>
+public sealed record TrafficIncidentInfo(
+    string TilesUrl,
+    int MinZoom,
+    int MaxZoom,
+    int RefreshSeconds,
+    string? LineSourceLayer,
+    string? PointSourceLayer,
+    string KindProperty,
+    IReadOnlyDictionary<string, TrafficIncidentKind> Kinds,
+    string? DescriptionProperty,
+    string? DelayProperty,
+    string? ClusterSizeProperty,
+    string Attribution
+);
+
 /// <summary>Serialization for every map contract, shared by the page's client and the native bridge.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true, PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(MapsInfo))]
 [JsonSerializable(typeof(TrafficInfo))]
+[JsonSerializable(typeof(TrafficIncidentInfo))]
 [JsonSerializable(typeof(MapRegion))]
 [JsonSerializable(typeof(MapCatalog))]
 [JsonSerializable(typeof(MapPackInstallRequest))]

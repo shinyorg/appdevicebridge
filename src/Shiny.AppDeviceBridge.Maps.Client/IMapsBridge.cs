@@ -56,6 +56,13 @@ public interface IMapsBridge
     [BridgeGet("traffic/{z}/{x}/{y}")]
     Task<Stream> GetTrafficTileAsync(int z, int x, int y, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// One live traffic incident tile, as the renderer asks for it through <see cref="TrafficIncidentInfo.TilesUrl"/>. 204 when
+    /// the provider has nothing there or cannot be reached; 501 when the app configured no incident provider.
+    /// </summary>
+    [BridgeGet("incidents/{z}/{x}/{y}")]
+    Task<Stream> GetIncidentTileAsync(int z, int x, int y, CancellationToken cancellationToken = default);
+
     /// <summary>A range of label glyphs, as MapLibre asks for it through <see cref="MapsInfo.GlyphsUrl"/>: <c>0-255.pbf</c>.</summary>
     [BridgeGet("glyphs/{fontstack}/{range}")]
     Task<Stream> GetGlyphsAsync(string fontstack, string range, CancellationToken cancellationToken = default);

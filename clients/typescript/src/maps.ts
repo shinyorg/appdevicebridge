@@ -111,6 +111,8 @@ export interface MapsInfo {
     attribution: string;
     /** The live traffic layer, when the app configured a traffic provider. Null otherwise. */
     traffic: TrafficInfo | null;
+    /** Live traffic incidents — accidents, roadworks, closures — when the app configured an incident provider. Null otherwise. */
+    incidents: TrafficIncidentInfo | null;
 }
 
 export interface RouteAvoid {
@@ -148,6 +150,37 @@ export interface RouteStop {
     longitude: number;
     name?: string | null;
 }
+
+/** A live layer of traffic incidents, whatever provider is behind it: vector tiles holding the stretch of road an incident affects as lines, where it is as points, or both. Tiles come through the bridge, which holds the provider's key, and only while online. */
+export interface TrafficIncidentInfo {
+    /** The incident tiles: `…/maps/incidents/{z}/{x}/{y}`. */
+    tilesUrl: string;
+    /** Below this the layer draws nothing, and no tiles are asked for. */
+    minZoom: number;
+    /** The highest zoom the provider has. The renderer scales past it. */
+    maxZoom: number;
+    /** How often the page should fetch the tiles again. */
+    refreshSeconds: number;
+    /** The layer inside each tile holding the affected stretches of road. Null when the provider has none. */
+    lineSourceLayer: string | null;
+    /** The layer inside each tile holding incident locations. Null when the provider has none. */
+    pointSourceLayer: string | null;
+    /** The property holding the provider's incident type. */
+    kindProperty: string;
+    /** The provider's values of `kindProperty`, as text, and what each is. Anything not listed is `Other`. */
+    kinds: Record<string, TrafficIncidentKind>;
+    /** The property holding a description to show for an incident. Null when there is none. */
+    descriptionProperty: string | null;
+    /** The property holding the delay the incident causes, in seconds. Null when there is none. */
+    delayProperty: string | null;
+    /** The property holding how many incidents a point stands for, where the provider groups them. Null when it does not. */
+    clusterSizeProperty: string | null;
+    /** The credit the provider's terms require, as HTML. */
+    attribution: string;
+}
+
+/** What a traffic incident is, whatever each provider calls it. The map colours incidents by it. */
+export type TrafficIncidentKind = "Other" | "Accident" | "Congestion" | "RoadWorks" | "RoadClosed" | "LaneClosed" | "Weather" | "Hazard" | "BrokenDownVehicle";
 
 /** A live traffic layer, whatever provider is behind it. Tiles come through the bridge, which holds the provider's key, and only while online: offline the layer is simply empty. */
 export interface TrafficInfo {
@@ -234,6 +267,11 @@ export class MapsBridge {
     /** One live traffic tile, as the renderer asks for it through `tilesUrl`: a vector tile or an image, as `format` says. 204 when the provider has nothing there or cannot be reached; 501 when the app configured no traffic provider. */
     getTrafficTile(z: number, x: number, y: number, options?: { signal?: AbortSignal }): Promise<Blob> {
         return callBlob(this.transport, "GET", `maps/traffic/${segment(z)}/${segment(x)}/${segment(y)}`, { signal: options?.signal });
+    }
+
+    /** One live traffic incident tile, as the renderer asks for it through `tilesUrl`. 204 when the provider has nothing there or cannot be reached; 501 when the app configured no incident provider. */
+    getIncidentTile(z: number, x: number, y: number, options?: { signal?: AbortSignal }): Promise<Blob> {
+        return callBlob(this.transport, "GET", `maps/incidents/${segment(z)}/${segment(x)}/${segment(y)}`, { signal: options?.signal });
     }
 
     /** A range of label glyphs, as MapLibre asks for it through `glyphsUrl`: `0-255.pbf`. */

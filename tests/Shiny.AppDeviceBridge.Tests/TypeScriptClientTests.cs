@@ -36,6 +36,16 @@ public class TypeScriptClientTests
         Assert.Contains("    calendarId?: string | null;", calendar);
     }
 
+    /// <summary>A type reached only as a dictionary's value is declared too, or the Record&lt;string, T&gt; naming it does not compile.</summary>
+    [Fact]
+    public void Declares_types_used_only_as_dictionary_values()
+    {
+        var maps = TypeScriptGenerator.Generate()["maps.ts"];
+
+        Assert.Contains("    kinds: Record<string, TrafficIncidentKind>;", maps);
+        Assert.Contains("export type TrafficIncidentKind = \"Other\" | \"Accident\"", maps);
+    }
+
     static string RepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

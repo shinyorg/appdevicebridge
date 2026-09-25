@@ -52,15 +52,6 @@
     <AssemblyMetadata Include="WebAppDevServer" Value="$(WebAppDevServer)" />
   </ItemGroup>
 
-  <!-- Live traffic on the Map page. Pass -p:TomTomApiKey=… or set TOMTOM_API_KEY in the environment you build from; the
-       key never goes in the repository. Without one the Traffic button is disabled. -->
-  <PropertyGroup>
-    <TomTomApiKey Condition="'$(TomTomApiKey)' == ''">$(TOMTOM_API_KEY)</TomTomApiKey>
-  </PropertyGroup>
-  <ItemGroup Condition="'$(TomTomApiKey)' != ''">
-    <AssemblyMetadata Include="TomTomApiKey" Value="$(TomTomApiKey)" />
-  </ItemGroup>
-
   <!--
     Sample.Blazor is published, zipped and embedded as the baseline, so the app runs offline on first launch.
     It is deliberately not a ProjectReference: referencing a Blazor WebAssembly app from a library drags its

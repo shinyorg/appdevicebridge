@@ -76,7 +76,9 @@ sealed record MapCreateOptions(
     double Zoom,
     bool Navigation,
     TrafficInfo? Traffic,
-    bool ShowTraffic
+    bool ShowTraffic,
+    TrafficIncidentInfo? Incidents,
+    bool ShowIncidents
 );
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true, PropertyNameCaseInsensitive = true)]

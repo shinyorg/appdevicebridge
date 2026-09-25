@@ -78,10 +78,19 @@ public sealed class MapsOptions
     public DirectionsOptions Directions { get; } = new();
 
     /// <summary>
-    /// Live traffic for the map: <see cref="TomTomTrafficProvider"/>, or an <see cref="ITrafficProvider"/> of the app's own.
-    /// Null for no traffic layer. Its tiles are fetched with the same client as everything else here.
+    /// Live traffic flow for the map: <see cref="TomTomTrafficProvider"/>, <see cref="HereTrafficProvider"/>,
+    /// <see cref="AzureMapsTrafficProvider"/>, or an <see cref="ITrafficProvider"/> of the app's own. Null for no traffic layer.
+    /// Its tiles are fetched with the same client as everything else here. Can be changed while the app runs — to let the user
+    /// pick a provider, say — and takes effect from the next request; the page reads <c>GET /_bridge/maps</c> again to see it.
     /// </summary>
     public ITrafficProvider? Traffic { get; set; }
+
+    /// <summary>
+    /// Live traffic incidents — accidents, roadworks, closures — for the map: <see cref="TomTomIncidentProvider"/>, or an
+    /// <see cref="ITrafficIncidentProvider"/> of the app's own. Independent of <see cref="Traffic"/>, and like it can be changed
+    /// while the app runs. Null for none.
+    /// </summary>
+    public ITrafficIncidentProvider? TrafficIncidents { get; set; }
 }
 
 public sealed class DirectionsOptions
@@ -115,6 +124,7 @@ public static class MapsBridgeExtensions
     ///     o.CatalogPublicKey = publicKey;
     ///     o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route");
     ///     o.Traffic = new TomTomTrafficProvider(tomTomKey);
+    ///     o.TrafficIncidents = new TomTomIncidentProvider(tomTomKey);
     /// });
     ///
     /// // macOS: HttpClient's own TLS there stops at 1.2; NSURLSession speaks 1.3.

@@ -18,12 +18,16 @@
     <button @onclick="Clear">Clear</button>
     <button @onclick="Snapshot">Snapshot</button>
     <button class="@(traffic ? "primary" : null)" @onclick="@(() => traffic = !traffic)" disabled="@(map?.HasTraffic != true)"
-            title="@(map?.HasTraffic == true ? "Live traffic" : "The app has no traffic provider — build it with a TomTom key")">Traffic</button>
+            title="@(map?.HasTraffic == true ? "Live traffic" : "The app has no traffic provider")">Traffic</button>
+    <button class="@(incidents ? "primary" : null)" @onclick="@(() => incidents = !incidents)" disabled="@(map?.HasIncidents != true)"
+            title="@(map?.HasIncidents == true ? "Accidents, roadworks and closures — tap one for details" : "The app has no incident provider")">Incidents</button>
 </div>
 <p class="muted">Lines and areas: click to add points, double-click to finish. Pins can be dragged.</p>
+<TrafficProviders OnChanged="ProvidersChanged" />
 
-<BridgeMap @ref="map" Latitude="39.74" Longitude="-104.99" Zoom="10" Style="width: 100%; height: 55vh; border-radius: 8px; overflow: hidden;"
-           OnClick="OnMapClick" OnDrawn="OnDrawn" OnPinMoved="OnPinMoved" OnMoved="@(v => center = v.Center)" ShowTraffic="traffic" OnReady="StateHasChanged" />
+@* Keyed so a change of traffic provider creates the map again: it reads which layers exist when it is created. *@
+<BridgeMap @key="mapVersion" @ref="map" Latitude="@(center?.Latitude ?? 39.74)" Longitude="@(center?.Longitude ?? -104.99)" Zoom="@zoom" Style="width: 100%; height: 55vh; border-radius: 8px; overflow: hidden;"
+           OnClick="OnMapClick" OnDrawn="OnDrawn" OnPinMoved="OnPinMoved" OnMoved="@(v => (center, zoom) = (v.Center, v.Zoom))" ShowTraffic="traffic" ShowIncidents="incidents" OnReady="StateHasChanged" />
 
 <h2>Directions <span class="muted">(between the first two pins)</span></h2>
 <div class="form">
@@ -123,6 +127,9 @@ else
     DirectionsSource source = DirectionsSource.Auto;
     bool withDirections = true;
     bool traffic;
+    bool incidents;
+    int mapVersion;
+    double zoom = 10;
     int drawn;
     readonly List<MapPin> pins = [];
     readonly Dictionary<string, MapPackDownload> downloads = [];
@@ -150,6 +157,15 @@ else
         }
 
         StateHasChanged();
+    }
+
+    void ProvidersChanged()
+    {
+        // A new map keeps the view and turns the layers on that were on, but not the pins and shapes drawn on the old one.
+        mapVersion++;
+        pins.Clear();
+        route = null;
+        drawMode = MapDrawMode.None;
     }
 
     string? Selected(MapDrawMode m) => drawMode == m ? "primary" : null;

@@ -616,3 +616,13 @@ img.preview { max-width: 100%; max-height: 42vh; border-radius: 12px; box-shadow
 }
 
 #blazor-error-ui .dismiss { float: right; cursor: pointer; }
+
+/* The Map page's traffic provider panel. */
+.traffic-providers { display: block; }
+.traffic-providers summary { cursor: pointer; }
+.traffic-providers[open] summary { margin-bottom: 10px; }
+.provider-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.provider-row label { display: flex; align-items: center; gap: 8px; }
+.provider-row .provider-name { font-weight: 600; min-width: 90px; }
+.provider-row .key-saved { color: var(--ok); }
+.traffic-providers .error { color: var(--error); }

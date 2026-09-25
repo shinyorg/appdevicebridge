@@ -37,9 +37,11 @@ sealed class MapsService : IDisposable
 
     (MapPackCatalog Catalog, DateTimeOffset FetchedAt)? catalog;
 
-    // Traffic tiles by position, each kept for the layer's refresh interval. A map on screen asks for a few dozen.
-    const int TrafficCacheLimit = 512;
-    readonly ConcurrentDictionary<(int Z, int X, int Y), (TrafficTile? Tile, DateTimeOffset Expires)> trafficTiles = new();
+    // Traffic and incident tiles by provider and position, each kept for its layer's refresh interval. A map on screen asks for
+    // a few dozen of each. The provider is part of the key because the app may swap MapsOptions.Traffic or TrafficIncidents
+    // while it runs, and the new one must not be answered with the old one's tiles.
+    const int TrafficCacheLimit = 1024;
+    readonly ConcurrentDictionary<(object Provider, int Z, int X, int Y), (TrafficTile? Tile, DateTimeOffset Expires)> trafficTiles = new();
     readonly SemaphoreSlim catalogGate = new(1, 1);
 
     long tileCacheBytes = -1;
@@ -848,27 +850,45 @@ sealed class MapsService : IDisposable
     /// A live traffic tile from <see cref="MapsOptions.Traffic"/>, or null: outside the layer's zooms, where the provider has
     /// nothing, or when it cannot be reached. Failures are not kept, so the next request tries again.
     /// </summary>
-    public async Task<TrafficTile?> GetTrafficTileAsync(int z, int x, int y, CancellationToken cancellationToken)
+    public Task<TrafficTile?> GetTrafficTileAsync(int z, int x, int y, CancellationToken cancellationToken)
+        => this.options.Traffic is { } provider
+            ? this.GetLiveTileAsync(provider, provider.Layer.MinZoom, provider.Layer.MaxZoom, provider.Layer.Refresh, z, x, y, provider.GetTileAsync, cancellationToken)
+            : Task.FromResult<TrafficTile?>(null);
+
+    /// <summary>A live incident tile from <see cref="MapsOptions.TrafficIncidents"/>, under the same rules as <see cref="GetTrafficTileAsync"/>.</summary>
+    public Task<TrafficTile?> GetIncidentTileAsync(int z, int x, int y, CancellationToken cancellationToken)
+        => this.options.TrafficIncidents is { } provider
+            ? this.GetLiveTileAsync(provider, provider.Layer.MinZoom, provider.Layer.MaxZoom, provider.Layer.Refresh, z, x, y, provider.GetTileAsync, cancellationToken)
+            : Task.FromResult<TrafficTile?>(null);
+
+    async Task<TrafficTile?> GetLiveTileAsync(
+        object provider,
+        int minZoom,
+        int maxZoom,
+        TimeSpan refresh,
+        int z,
+        int x,
+        int y,
+        Func<int, int, int, HttpClient, CancellationToken, Task<TrafficTile?>> fetch,
+        CancellationToken cancellationToken
+    )
     {
-        if (this.options.Traffic is not { } provider)
+        if (z < minZoom || z > maxZoom)
             return null;
 
-        var layer = provider.Layer;
-        if (z < layer.MinZoom || z > layer.MaxZoom)
-            return null;
-
+        var position = (provider, z, x, y);
         var now = DateTimeOffset.UtcNow;
-        if (this.trafficTiles.TryGetValue((z, x, y), out var cached) && cached.Expires > now)
+        if (this.trafficTiles.TryGetValue(position, out var cached) && cached.Expires > now)
             return cached.Tile;
 
         TrafficTile? tile;
         try
         {
-            tile = await provider.GetTileAsync(z, x, y, this.http, cancellationToken).ConfigureAwait(false);
+            tile = await fetch(z, x, y, this.http, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
-            this.logger.LogDebug(ex, "Traffic tile {Z}/{X}/{Y} unavailable", z, x, y);
+            this.logger.LogDebug(ex, "{Provider} tile {Z}/{X}/{Y} unavailable", provider.GetType().Name, z, x, y);
             return null;
         }
 
@@ -885,7 +905,7 @@ sealed class MapsService : IDisposable
                 this.trafficTiles.Clear();
         }
 
-        this.trafficTiles[(z, x, y)] = (tile, now + layer.Refresh);
+        this.trafficTiles[position] = (tile, now + refresh);
         return tile;
     }
 

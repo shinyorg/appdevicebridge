@@ -1,0 +1,109 @@
+@using Shiny.AppDeviceBridge.Client
+@inject IBridgeTransport Transport
+
+@* The native sample's sample-traffic bridge: pick the traffic providers and give them keys while the app runs. Keys go to the
+   device's secure store and are never sent back — the page only learns which are set. *@
+<details class="form traffic-providers" open="@startOpen">
+    <summary>
+        <strong>Traffic providers</strong>
+        <span class="muted">— flow: @Describe(settings?.Flow)@(settings is { Flow: not "none", FlowActive: false } ? " (no key)" : ""), incidents: @(settings?.IncidentsActive == true ? "TomTom" : "off")</span>
+    </summary>
+
+    <div class="provider-row">
+        <label>Flow
+            <select @bind="flow">
+                <option value="none">None</option>
+                @foreach (var (id, name) in providers)
+                {
+                    <option value="@id">@name</option>
+                }
+            </select>
+        </label>
+        <label class="check"><input type="checkbox" @bind="incidents" /> TomTom incidents</label>
+        <button class="primary" @onclick="Apply" disabled="@busy">Apply</button>
+    </div>
+
+    @foreach (var (id, name) in providers)
+    {
+        var saved = settings?.Keys.Contains(id) == true;
+        <div class="provider-row">
+            <span class="provider-name">@name</span>
+            <span class="@(saved ? "key-saved" : "muted")">@(saved ? "key saved" : "no key")</span>
+            <input type="password" autocomplete="off" spellcheck="false" placeholder="@(saved ? "Replace the saved key" : $"{name} API key")"
+                   @bind="keys[id]" @bind:event="oninput" />
+            <button @onclick="() => Save(id)" disabled="@(busy || String.IsNullOrWhiteSpace(keys[id]))">Save</button>
+            <button @onclick="() => Remove(id)" disabled="@(busy || !saved)">Remove</button>
+        </div>
+    }
+
+    <p class="muted">
+        Keys are kept in this device's secure store and never shown again or sent back to the page. TomTom's key serves flow
+        and incidents; HERE and Azure Maps serve flow. Changes redraw the map.
+    </p>
+    @if (error is not null)
+    {
+        <p class="error">@error</p>
+    }
+</details>
+
+@code {
+    static readonly (string Id, string Name)[] providers = [("tomtom", "TomTom"), ("here", "HERE"), ("azure-maps", "Azure Maps")];
+
+    readonly Dictionary<string, string> keys = providers.ToDictionary(x => x.Id, _ => String.Empty);
+    TrafficProviderSettings? settings;
+    string flow = "none";
+    bool incidents;
+    bool busy;
+    bool startOpen;
+    string? error;
+
+    /// <summary>The providers changed: the map should be created again to read them.</summary>
+    [Parameter] public EventCallback OnChanged { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await this.Call(HttpMethod.Get, "sample-traffic", null, notify: false);
+        this.startOpen = this.settings is { FlowActive: false, IncidentsActive: false };
+    }
+
+    static string Describe(string? id) => providers.FirstOrDefault(x => x.Id == id).Name ?? "none";
+
+    Task Apply() => this.Call(
+        HttpMethod.Put,
+        "sample-traffic/selection",
+        BridgeCalls.Json(new TrafficProviderSelection(this.flow, this.incidents), SampleJson.Default.TrafficProviderSelection)
+    );
+
+    async Task Save(string id)
+    {
+        var key = this.keys[id].Trim();
+        this.keys[id] = String.Empty;   // off the page as soon as it is sent
+        await this.Call(HttpMethod.Put, $"sample-traffic/keys/{id}", BridgeCalls.Json(new TrafficProviderKey(key), SampleJson.Default.TrafficProviderKey));
+    }
+
+    Task Remove(string id) => this.Call(HttpMethod.Delete, $"sample-traffic/keys/{id}", null);
+
+    async Task Call(HttpMethod method, string path, HttpContent? content, bool notify = true)
+    {
+        this.busy = true;
+        this.error = null;
+
+        try
+        {
+            this.settings = await BridgeCalls.SendAsync(this.Transport, method, path, content, SampleJson.Default.TrafficProviderSettings, CancellationToken.None);
+            this.flow = this.settings.Flow;
+            this.incidents = this.settings.Incidents;
+
+            if (notify)
+                await this.OnChanged.InvokeAsync();
+        }
+        catch (Exception ex)
+        {
+            this.error = ex.Message;
+        }
+        finally
+        {
+            this.busy = false;
+        }
+    }
+}

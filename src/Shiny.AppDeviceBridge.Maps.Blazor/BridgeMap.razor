@@ -42,6 +42,16 @@
     /// <summary>Whether the app configured a traffic provider, so <see cref="ShowTraffic"/> can draw anything. False until the map is created.</summary>
     public bool HasTraffic { get; private set; }
 
+    /// <summary>
+    /// Draws live traffic incidents, when the app configured an incident provider (<c>MapsOptions.TrafficIncidents</c>): the
+    /// stretch of road each affects, and a marker coloured by kind — accident, roadworks, closure, … — that shows its
+    /// description when tapped. Can be changed at any time. See <see cref="HasIncidents"/>.
+    /// </summary>
+    [Parameter] public bool ShowIncidents { get; set; }
+
+    /// <summary>Whether the app configured an incident provider, so <see cref="ShowIncidents"/> can draw anything. False until the map is created.</summary>
+    public bool HasIncidents { get; private set; }
+
     /// <summary>Whether to show zoom and compass buttons.</summary>
     [Parameter] public bool Navigation { get; set; } = true;
 
@@ -68,12 +78,26 @@
     public Task Ready => this.ready.Task;
 
     bool trafficShown;
+    bool incidentsShown;
 
     protected override async Task OnParametersSetAsync()
     {
-        // Before the map exists the value goes in with the create options instead.
-        if (this.module is not null && this.ShowTraffic != this.trafficShown)
+        // Before the map exists the values go in with the create options instead.
+        if (this.module is null)
+            return;
+
+        if (this.ShowTraffic != this.trafficShown)
             await this.SetTrafficAsync(this.ShowTraffic);
+
+        if (this.ShowIncidents != this.incidentsShown)
+            await this.SetIncidentsAsync(this.ShowIncidents);
+    }
+
+    /// <summary>Shows or hides live traffic incidents. See <see cref="ShowIncidents"/>.</summary>
+    public ValueTask SetIncidentsAsync(bool show)
+    {
+        this.incidentsShown = show;
+        return this.CallAsync("setIncidents", show);
     }
 
     /// <summary>Shows or hides live traffic. See <see cref="ShowTraffic"/>.</summary>
@@ -106,11 +130,15 @@
             this.Zoom,
             this.Navigation,
             info.Traffic,
-            this.ShowTraffic
+            this.ShowTraffic,
+            info.Incidents,
+            this.ShowIncidents
         );
 
         this.HasTraffic = info.Traffic is not null;
         this.trafficShown = this.ShowTraffic;
+        this.HasIncidents = info.Incidents is not null;
+        this.incidentsShown = this.ShowIncidents;
 
         await module.InvokeVoidAsync("create", this.element, this.self, JsonSerializer.Serialize(options, Json.MapCreateOptions));
 

@@ -56,7 +56,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Jobs` | the app | `AddWebAppJob(name, configure)`: background jobs handled by the page or `background.js` |
 | `Shiny.AppDeviceBridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
 | `Shiny.AppDeviceBridge.Wearables` | the app | `AddWearablesBridge()`: the companion Apple Watch or Wear OS app, through Shiny.Wearables — status, live messages the page or `background.js` answers, shared context, queued transfers and files through the file roots (iOS and Android; `501` elsewhere) |
-| `Shiny.AppDeviceBridge.Maps` | the app | `AddMapsBridge()`: vector map tiles online or from regions the user downloads (verified against a signed catalog), live traffic from a pluggable provider (TomTom built in), and turn-by-turn directions from an online Valhalla router (all platforms) |
+| `Shiny.AppDeviceBridge.Maps` | the app | `AddMapsBridge()`: vector map tiles online or from regions the user downloads (verified against a signed catalog), live traffic flow and incidents from pluggable providers (TomTom, HERE and Azure Maps built in), and turn-by-turn directions from an online Valhalla router (all platforms) |
 | `Shiny.AppDeviceBridge.Maps.Valhalla` | the app | `AddOnDeviceDirections()`: directions computed on the phone over a downloaded region's road network (Android and iOS; online elsewhere) |
 | `Shiny.AppDeviceBridge.Maps.Blazor` | the web app | `<BridgeMap>`: MapLibre GL JS bundled for offline use, with pins, lines, areas, circles, click-to-draw, routes and live traffic |
 | `Shiny.AppDeviceBridge.MapPacks` | a tool | `shiny-map-packs`: builds downloadable regions — the map cut from a PMTiles planet, the road network built with Valhalla |
@@ -644,7 +644,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Notifications | `GET notifications`, `POST notifications/access`, `POST notifications/send`, `GET notifications/pending`, `DELETE notifications[?scope=]`, `DELETE notifications/{id}`, `GET/PUT notifications/badge`, `GET/POST notifications/channels`, `DELETE notifications/channels/{id}` | `notification.entry`, `notification.received` |
 | HTTP transfers | `GET/POST/DELETE transfers`, `GET/DELETE transfers/{id}`, `POST transfers/{id}/pause`, `POST transfers/{id}/resume` | `transfer.progress`, `transfer.completed`, `transfer.failed`, `transfer.cancelled` |
 | Wearables | `GET wearables`, `POST wearables/messages`, `GET/PUT wearables/context`, `GET/POST wearables/transfers`, `DELETE wearables/transfers/{id}`, `POST wearables/files` | `wearables.status`, `wearables.message`, `wearables.context`, `wearables.transfer`, `wearables.file`, `wearables.completed` |
-| Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/traffic/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
+| Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/traffic/{z}/{x}/{y}`, `GET maps/incidents/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
 | Directions | `GET directions`, `POST directions/route` | |
 | App links | `GET/DELETE links/pending` | `app.link` |
 | Health | `GET health`, `POST health/access`, `GET/POST health/samples/{type}`, `POST/DELETE health/listeners/{type}` | `health.reading`, `health.stopped` |
@@ -980,15 +980,18 @@ downloaded a region. Every platform; on-device directions on Android and iOS wit
 - **Tiles:** `GET maps` gives the tile, glyph and sprite URL templates a renderer uses. A tile comes from an installed
   region, then tiles already seen online, then the online source (a PMTiles archive read by Range, or a tile service) —
   and `204` when none has it. Keys for the online source stay in the app.
-- **Traffic:** `o.Traffic = new TomTomTrafficProvider(key)`, or an `ITrafficProvider` of your own, adds a live layer.
-  `GET maps` describes it under `traffic` (null without a provider), and `GET maps/traffic/{z}/{x}/{y}` serves its tiles,
-  each kept for the provider's refresh interval. `204` when there's no data or no connection; `501` with no provider.
+- **Traffic:** `o.Traffic` takes a flow provider (`TomTomTrafficProvider`, `HereTrafficProvider`,
+  `AzureMapsTrafficProvider`, or an `ITrafficProvider` of your own), and `o.TrafficIncidents` an incident provider
+  (`TomTomIncidentProvider`, or an `ITrafficIncidentProvider`). `GET maps` describes them under `traffic` and
+  `incidents` (null without a provider), and `GET maps/traffic/{z}/{x}/{y}` and `GET maps/incidents/{z}/{x}/{y}` serve
+  their tiles, each kept for its layer's refresh interval. `204` when there's no data or no connection; `501` with no
+  provider.
 - **Regions:** from a catalog the release server signs (`MapMapPacks()`). `POST maps/regions/{id}` with
   `{ "directions": true }` downloads the map and, optionally, the road network; `maps.download` reports progress. Every
   part is checked against its signed hash; downloads resume after an interruption.
 - **Directions:** `POST directions/route` with `{ stops, mode, units, language, source, avoid }`. `source: "Auto"` routes
   on the device inside a downloaded road network and online otherwise. `404 no_route`, `503 offline_unavailable`.
-- **The map in Blazor:** `<BridgeMap>` from `Shiny.AppDeviceBridge.Maps.Blazor` — pins, shapes, drawing, routes and live traffic (`ShowTraffic`).
+- **The map in Blazor:** `<BridgeMap>` from `Shiny.AppDeviceBridge.Maps.Blazor` — pins, shapes, drawing, routes and live traffic (`ShowTraffic`, `ShowIncidents`).
 
 **Folders:**
 - **Picking:** `POST folders/pick` with `{ "root": "documents" }` shows the platform's folder picker. The folder

@@ -106,6 +106,13 @@ public static partial class TypeScriptGenerator
             return;
         }
 
+        // A Record<string, T> needs T declared as much as a T[] does.
+        if (DictionaryValue(type) is { } value)
+        {
+            Collect(value, usage, moduleFor);
+            return;
+        }
+
         if (!IsDeclared(type))
             return;
 

@@ -15,6 +15,7 @@ namespace Shiny.AppDeviceBridge.Maps;
 /// DELETE /_bridge/maps/regions/{id}/download
 /// GET    /_bridge/maps/tiles/{z}/{x}/{y}          a vector tile, or 204
 /// GET    /_bridge/maps/traffic/{z}/{x}/{y}        a live traffic tile, or 204; 501 with no traffic provider
+/// GET    /_bridge/maps/incidents/{z}/{x}/{y}      a live incident tile, or 204; 501 with no incident provider
 /// GET    /_bridge/maps/glyphs/{fontstack}/{range}.pbf
 /// GET    /_bridge/maps/sprites/{flavor}[@2x].json|png
 ///
@@ -42,6 +43,7 @@ sealed partial class MapsBridge(MapsService maps) : IWebAppBridge
             .MapDelete("/regions/{id}/download", ctx => this.WithRegion(ctx, this.CancelAsync))
             .MapGet("/tiles/{z}/{x}/{y}", this.TileAsync)
             .MapGet("/traffic/{z}/{x}/{y}", this.TrafficAsync)
+            .MapGet("/incidents/{z}/{x}/{y}", this.IncidentsAsync)
             .MapGet("/glyphs/{fontstack}/{range}", this.GlyphsAsync)
             .MapGet("/sprites/{name}", this.SpriteAsync);
     }
@@ -71,6 +73,22 @@ sealed partial class MapsBridge(MapsService maps) : IWebAppBridge
                         traffic.ClosedProperty,
                         traffic.TileSize,
                         traffic.Attribution
+                    )
+                    : null,
+                options.TrafficIncidents?.Layer is { } incidents
+                    ? new TrafficIncidentInfo(
+                        $"{this.prefix}/incidents/{{z}}/{{x}}/{{y}}",
+                        incidents.MinZoom,
+                        incidents.MaxZoom,
+                        (int)Math.Max(1, incidents.Refresh.TotalSeconds),
+                        incidents.LineSourceLayer,
+                        incidents.PointSourceLayer,
+                        incidents.KindProperty,
+                        incidents.Kinds,
+                        incidents.DescriptionProperty,
+                        incidents.DelayProperty,
+                        incidents.ClusterSizeProperty,
+                        incidents.Attribution
                     )
                     : null
             ),
@@ -223,14 +241,16 @@ sealed partial class MapsBridge(MapsService maps) : IWebAppBridge
         await WriteAsync(context, tile.Data);
     }
 
-    async ValueTask TrafficAsync(HttpContext context)
-    {
-        if (maps.Options.Traffic is not { } provider)
-        {
-            await WebAppBridgeResults.NotSupported(context, "Traffic");
-            return;
-        }
+    ValueTask TrafficAsync(HttpContext context) => maps.Options.Traffic is { } provider
+        ? this.LiveTileAsync(context, provider.Layer.Refresh, maps.GetTrafficTileAsync)
+        : WebAppBridgeResults.NotSupported(context, "Traffic");
 
+    ValueTask IncidentsAsync(HttpContext context) => maps.Options.TrafficIncidents is { } provider
+        ? this.LiveTileAsync(context, provider.Layer.Refresh, maps.GetIncidentTileAsync)
+        : WebAppBridgeResults.NotSupported(context, "Traffic incidents");
+
+    async ValueTask LiveTileAsync(HttpContext context, TimeSpan refresh, Func<int, int, int, CancellationToken, Task<TrafficTile?>> get)
+    {
         var values = context.Request.RouteValues;
         if (!int.TryParse(values["z"], out var z) || !int.TryParse(values["x"], out var x)
             || !int.TryParse(Strip(values["y"], ".mvt", ".pbf", ".png", ".jpg"), out var y) || !PmTilesArchive.IsValidTile(z, x, y))
@@ -239,7 +259,7 @@ sealed partial class MapsBridge(MapsService maps) : IWebAppBridge
             return;
         }
 
-        var tile = await maps.GetTrafficTileAsync(z, x, y, context.RequestAborted);
+        var tile = await get(z, x, y, context.RequestAborted);
         if (tile is null)
         {
             await WebAppBridgeResults.NoContent(context);
@@ -251,7 +271,7 @@ sealed partial class MapsBridge(MapsService maps) : IWebAppBridge
             context.Response.Headers["Content-Encoding"] = encoding;
 
         // The page asks again after the refresh interval with a new query string; until then the WebView may keep it.
-        context.Response.Headers["Cache-Control"] = $"max-age={(int)Math.Max(1, provider.Layer.Refresh.TotalSeconds)}";
+        context.Response.Headers["Cache-Control"] = $"max-age={(int)Math.Max(1, refresh.TotalSeconds)}";
         await WriteAsync(context, tile.Data);
     }
 

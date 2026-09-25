@@ -167,6 +167,13 @@ triggers:
   - AddDirectionsBridgeClient
   - AddBridgeMaps
   - ITrafficProvider
+  - ITrafficIncidentProvider
+  - TomTomIncidentProvider
+  - HereTrafficProvider
+  - AzureMapsTrafficProvider
+  - AzureMapsTrafficStyle
+  - TrafficIncidentKind
+  - ShowIncidents
   - TomTomTrafficProvider
   - TrafficLayer
   - TrafficTile
@@ -396,7 +403,7 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.Discovery` | `AddDiscoveryBridge(protocols)` | `IDiscoveryBridge` |
 | `.Push` | `AddPushBridge()` | `IPushBridge` |
 | `.Wearables` | `AddWearablesBridge(o => o.Folder = "watch")` — `WearablesBridgeOptions`: `Root` (`data`), `Folder` (`wearables`), `RegisterWearableService` (on) | `IWearablesBridge` — the companion Apple Watch / Wear OS app via Shiny.Wearables 5.8; iOS and Android only, `501` elsewhere |
-| `.Maps` | `AddMapsBridge(o => { o.OnlineTiles; o.Catalog; o.CatalogPublicKey; o.Directions.OnlineRouteUrl; o.Directions.ApiKey; o.Traffic; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
+| `.Maps` | `AddMapsBridge(o => { o.OnlineTiles; o.Catalog; o.CatalogPublicKey; o.Directions.OnlineRouteUrl; o.Directions.ApiKey; o.Traffic; o.TrafficIncidents; })` — callable repeatedly, one options instance; `.Maps.Valhalla`: `AddOnDeviceDirections()` | `IMapsBridge`, `IDirectionsBridge` (`Shiny.AppDeviceBridge.Maps.Client`, `AddMapsBridgeClient()`/`AddDirectionsBridgeClient()`, or `AddBridgeMaps()` from `.Maps.Blazor`) — see Maps below |
 | `.Notifications` | `AddNotificationsBridge()`; a custom delegate: `AddNotificationsBridge(o => o.UseDelegate<MyNotificationDelegate>())` (subclass `WebAppNotificationDelegate`) | `INotificationsBridge` |
 | `.HttpTransfers` | `AddHttpTransfersBridge()` | `ITransfersBridge` |
 | `.AppLinks` | `AddAppLinksBridge(o => …)` | `ILinksBridge` (built in) |
@@ -434,13 +441,21 @@ where the user downloaded a region.
   `FitBoundsAsync`, `FitAllAsync`, `FlyToAsync`, `ClearAsync`, `SnapshotAsync()`. MapLibre is bundled — don't add a CDN
   script. In `Pin` mode `OnClick` gets `IsPinMode = true` and the page adds the pin; `OnDrawn` hands back a finished
   line/area for the page to add.
-- **Traffic:** `o.Traffic = new TomTomTrafficProvider(key) { MinZoom = 6, Refresh = TimeSpan.FromMinutes(2) }` (the key
-  stays native), then `<BridgeMap ShowTraffic="traffic" />` or `SetTrafficAsync(bool)`; `map.HasTraffic` is false
-  without a provider. For another source implement `ITrafficProvider`: `Layer` (a `TrafficLayer` —
-  `TrafficTileFormat.Vector` with `SourceLayer`, `SpeedRatioProperty` (current/free-flow 0–1) and optional
-  `ClosedProperty`, or `Raster` with `TileSize`) and `GetTileAsync(z, x, y, http, ct)` → `TrafficTile(bytes,
-  contentType, contentEncoding)` or null. Tiles are served at `maps/traffic/{z}/{x}/{y}`: `204` when there's no data
-  or no connection, `501` without a provider. Live only; directions don't use traffic.
+- **Traffic:** flow via `o.Traffic` — `new TomTomTrafficProvider(key)` (vector), `new HereTrafficProvider(key)
+  { MinTrafficCongestion = "heavy" }` (raster), `new AzureMapsTrafficProvider(key)` or `(clientId, ct => token)` with
+  `Style = AzureMapsTrafficStyle.Relative|RelativeDark|Delay|ReducedSensitivity|Absolute` (raster, Render v2 tilesets —
+  never the Traffic v1 API, retiring 2028). Incidents via `o.TrafficIncidents = new TomTomIncidentProvider(key)`,
+  independent of flow. Keys stay native. Page: `<BridgeMap ShowTraffic="traffic" ShowIncidents="incidents" />` or
+  `SetTrafficAsync`/`SetIncidentsAsync`; `HasTraffic`/`HasIncidents` are false without a provider. Custom flow:
+  `ITrafficProvider` — `Layer` (`TrafficLayer`: `TrafficTileFormat.Vector` with `SourceLayer`, `SpeedRatioProperty`
+  (current/free-flow 0–1), optional `ClosedProperty`; or `Raster` with `TileSize`) and `GetTileAsync(z, x, y, http, ct)`
+  → `TrafficTile(bytes, contentType, contentEncoding)` or null. Custom incidents: `ITrafficIncidentProvider` —
+  `TrafficIncidentLayer(minZoom, maxZoom, refresh, attribution, kindProperty, kinds)` mapping the provider's values to
+  `TrafficIncidentKind`, plus `LineSourceLayer`, `PointSourceLayer`, `DescriptionProperty`, `DelayProperty`,
+  `ClusterSizeProperty`. Routes `maps/traffic/{z}/{x}/{y}` and `maps/incidents/{z}/{x}/{y}`: `204` with no data or no
+  connection, `501` without a provider. `o.Traffic`/`o.TrafficIncidents` may be reassigned at runtime (e.g. from a
+  settings screen); the page re-reads `GET maps` (re-create `<BridgeMap>`) to see the change. Never send provider keys
+  to the page. Live only; directions don't use traffic.
 - **Regions:** `Catalog` + `CatalogPublicKey` (required together, usually the web app release key).
   `GetRegionsAsync(refresh)`, `InstallAsync(id, new MapPackInstallRequest(Directions: true))` (202; progress on
   `maps.download`/`OnDownloadAsync`), `RemoveAsync`, `RemoveDirectionsAsync`, `CancelDownloadAsync`. Parts are verified

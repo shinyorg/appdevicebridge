@@ -104,11 +104,10 @@ public static class SampleConfiguration
                             o.Catalog = new Uri($"http://{HostMachine}:5199/maps/catalog");
                             o.CatalogPublicKey = ReadResource("Sample.dev-public.pem");
                             o.Directions.OnlineRouteUrl = new Uri("https://valhalla1.openstreetmap.de/route");
-
-                            // Live traffic, when the build was given a TomTom key (see Sample.App.csproj).
-                            if (Metadata("TomTomApiKey") is { Length: > 0 } tomTom)
-                                o.Traffic = new TomTomTrafficProvider(tomTom);
                         })
+
+                        // Traffic providers and their keys, picked on the Map page while the app runs; see the bridge.
+                        .AddBridge<TrafficProvidersBridge>()
 
                         // Routes on the phone inside a region whose road network was downloaded. Android and iOS; elsewhere
                         // this registers nothing and directions stay online.
@@ -152,14 +151,12 @@ public static class SampleConfiguration
             .AllowWebPermissions(WebAppWebPermissions.Camera | WebAppWebPermissions.Microphone | WebAppWebPermissions.Geolocation);
     }
 
-    static string? Metadata(string key) => typeof(App).Assembly
-        .GetCustomAttributes<AssemblyMetadataAttribute>()
-        .FirstOrDefault(x => x.Key == key)?.Value;
-
 #if DEBUG
     static Uri? DevServer()
     {
-        var configured = Metadata("WebAppDevServer");
+        var configured = typeof(App).Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .FirstOrDefault(x => x.Key == "WebAppDevServer")?.Value;
 
         if (String.Equals(configured, "off", StringComparison.OrdinalIgnoreCase))
             return null;

@@ -61,19 +61,24 @@ export async function create(element, dotnet, optionsJson) {
     if (options.navigation)
         map.addControl(new maplibregl.NavigationControl(), "top-right");
 
-    const state = { map, dotnet, pins: new Map(), shapes: new Map(), draft: [], mode: "None", ready: false, queue: [], traffic: options.traffic, trafficTimer: null };
+    const state = { map, dotnet, pins: new Map(), shapes: new Map(), draft: [], mode: "None", ready: false, queue: [], traffic: options.traffic, trafficTimer: null, incidents: options.incidents, incidentsTimer: null };
     maps.set(options.id, state);
 
     map.on("load", () => {
         addOverlayLayers(map);
         if (options.showTraffic)
             showTraffic(state, true);
+        if (options.showIncidents)
+            showIncidents(state, true);
         state.ready = true;
         state.queue.splice(0).forEach(run => run());
         dotnet.invokeMethodAsync("JsReady");
     });
 
     map.on("click", e => onClick(state, e));
+    map.on("click", "bridge-incident-points", e => onIncidentClick(state, e));
+    map.on("mouseenter", "bridge-incident-points", () => map.getCanvas().style.cursor = "pointer");
+    map.on("mouseleave", "bridge-incident-points", () => map.getCanvas().style.cursor = "");
     map.on("dblclick", e => onDoubleClick(state, e));
     map.on("moveend", () => dotnet.invokeMethodAsync("JsMoved", JSON.stringify({ center: fromLngLat(map.getCenter()), zoom: map.getZoom() })));
 }
@@ -142,7 +147,7 @@ function showTraffic(state, show) {
     if (!show || !traffic)
         return;
 
-    const url = () => `${new URL(traffic.tilesUrl, document.baseURI).href.replace(/%7B/g, "{").replace(/%7D/g, "}")}?t=${Date.now()}`;
+    const url = () => liveUrl(traffic.tilesUrl);
     const vector = traffic.format === "Vector";
 
     map.addSource("bridge-traffic", {
@@ -170,9 +175,106 @@ function showTraffic(state, show) {
             }
         }
         : { id: "bridge-traffic", type: "raster", source: "bridge-traffic", minzoom: traffic.minZoom, paint: { "raster-opacity": 0.85 } },
-        "bridge-fill");
+        map.getLayer("bridge-incident-lines") ? "bridge-incident-lines" : "bridge-fill");
 
     state.trafficTimer = setInterval(() => map.getSource("bridge-traffic")?.setTiles([url()]), traffic.refreshSeconds * 1000);
+}
+
+// Incident colours by kind, the same whatever the provider calls them.
+const incidentColours = {
+    Accident: "#dc2626", Congestion: "#ea580c", RoadWorks: "#d97706", RoadClosed: "#7f1d1d", LaneClosed: "#b45309",
+    Weather: "#2563eb", Hazard: "#9333ea", BrokenDownVehicle: "#db2777", Other: "#6b7280"
+};
+const incidentLayers = ["bridge-incident-lines", "bridge-incident-points", "bridge-incident-labels"];
+
+// A tile URL that neither MapLibre nor the WebView answers from what it already has.
+const liveUrl = template => `${new URL(template, document.baseURI).href.replace(/%7B/g, "{").replace(/%7D/g, "}")}?t=${Date.now()}`;
+
+// Incidents: the affected stretch of road as a dashed line, and a marker with "!" — or, for a cluster, how many — that shows
+// the description when tapped. Above traffic flow and below everything the app adds.
+function showIncidents(state, show) {
+    const { map, incidents } = state;
+    clearInterval(state.incidentsTimer);
+    state.incidentsTimer = null;
+
+    for (const id of incidentLayers)
+        if (map.getLayer(id))
+            map.removeLayer(id);
+    if (map.getSource("bridge-incidents"))
+        map.removeSource("bridge-incidents");
+
+    if (!show || !incidents)
+        return;
+
+    map.addSource("bridge-incidents", {
+        type: "vector", tiles: [liveUrl(incidents.tilesUrl)], minzoom: incidents.minZoom, maxzoom: incidents.maxZoom, attribution: incidents.attribution
+    });
+
+    // The provider's value, as text, to a kind; then the kind to a colour.
+    const kinds = Object.entries(incidents.kinds ?? {});
+    const kind = kinds.length ? ["match", ["to-string", ["get", incidents.kindProperty]], ...kinds.flat(), "Other"] : "Other";
+    const colour = ["match", kind, ...Object.entries(incidentColours).filter(([k]) => k !== "Other").flat(), incidentColours.Other];
+
+    if (incidents.lineSourceLayer)
+        map.addLayer({
+            id: "bridge-incident-lines", type: "line", source: "bridge-incidents", "source-layer": incidents.lineSourceLayer,
+            minzoom: incidents.minZoom,
+            layout: { "line-cap": "round" },
+            paint: { "line-color": colour, "line-width": ["interpolate", ["linear"], ["zoom"], 8, 2, 16, 6], "line-dasharray": [1, 1.5] }
+        }, "bridge-fill");
+
+    if (incidents.pointSourceLayer) {
+        const cluster = incidents.clusterSizeProperty;
+        const isCluster = cluster ? ["has", cluster] : false;
+
+        map.addLayer({
+            id: "bridge-incident-points", type: "circle", source: "bridge-incidents", "source-layer": incidents.pointSourceLayer,
+            minzoom: incidents.minZoom,
+            paint: {
+                "circle-color": colour, "circle-radius": ["case", isCluster, 11, 8],
+                "circle-stroke-color": "#ffffff", "circle-stroke-width": 2
+            }
+        });
+        map.addLayer({
+            id: "bridge-incident-labels", type: "symbol", source: "bridge-incidents", "source-layer": incidents.pointSourceLayer,
+            minzoom: incidents.minZoom,
+            layout: {
+                "text-field": cluster ? ["case", isCluster, ["to-string", ["get", cluster]], "!"] : "!",
+                "text-font": ["Noto Sans Medium"], "text-size": 11, "text-allow-overlap": true, "text-ignore-placement": true
+            },
+            paint: { "text-color": "#ffffff" }
+        });
+    }
+
+    state.incidentsTimer = setInterval(() => map.getSource("bridge-incidents")?.setTiles([liveUrl(incidents.tilesUrl)]), incidents.refreshSeconds * 1000);
+}
+
+function onIncidentClick(state, e) {
+    const { incidents } = state;
+    const feature = e.features?.[0];
+    if (!feature || state.mode !== "None")
+        return;
+
+    const properties = feature.properties ?? {};
+    const lines = [];
+    if (incidents.descriptionProperty && properties[incidents.descriptionProperty])
+        lines.push(properties[incidents.descriptionProperty]);
+    if (incidents.clusterSizeProperty && properties[incidents.clusterSizeProperty])
+        lines.push(`${properties[incidents.clusterSizeProperty]} incidents — zoom in`);
+    if (incidents.delayProperty && Number(properties[incidents.delayProperty]) > 0)
+        lines.push(`Delay: ${Math.round(Number(properties[incidents.delayProperty]) / 60)} min`);
+    if (!lines.length)
+        return;
+
+    const content = document.createElement("div");
+    for (const text of lines)
+        content.appendChild(Object.assign(document.createElement("div"), { textContent: text }));
+
+    new maplibregl.Popup({ closeButton: false, maxWidth: "260px" }).setLngLat(e.lngLat).setDOMContent(content).addTo(state.map);
+}
+
+export function setIncidents(id, show) {
+    whenReady(id, state => showIncidents(state, show));
 }
 
 export function setTraffic(id, show) {
@@ -353,6 +455,7 @@ export function dispose(id) {
         return;
 
     clearInterval(state.trafficTimer);
+    clearInterval(state.incidentsTimer);
     state.pins.forEach(m => m.remove());
     state.map.remove();
     maps.delete(id);
