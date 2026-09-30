@@ -36,7 +36,7 @@ public class WearablesBridgeTests
     {
         var manager = new FakeWearableManager
         {
-            Status = new Native.WearableStatus(true, true, true, false, [new Native.WearableNode("n1", "Pixel Watch", true, true)])
+            Status = new Native.WearableStatus(true, true, true, false, [new Native.WearableNode("n1", "Pixel Watch", true, true, true)])
         };
         await using var fixture = await WearablesFixture.StartAsync(manager);
 
