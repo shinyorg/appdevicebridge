@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text.Json.Serialization;
 using Shiny.AppDeviceBridge.Client;
 using AppSupportClient = Shiny.AppDeviceBridge.AppSupport.Client;
+using BeaconsClient = Shiny.AppDeviceBridge.Beacons.Client;
 using BleClient = Shiny.AppDeviceBridge.BluetoothLE.Client;
 using CalendarClient = Shiny.AppDeviceBridge.Calendar.Client;
 using CameraClient = Shiny.AppDeviceBridge.Camera.Client;
@@ -10,8 +11,9 @@ using ContactsClient = Shiny.AppDeviceBridge.Contacts.Client;
 using DesktopClient = Shiny.AppDeviceBridge.Desktop.Client;
 using DiscoveryClient = Shiny.AppDeviceBridge.Discovery.Client;
 using FoldersClient = Shiny.AppDeviceBridge.Folders.Client;
+using GeofencingClient = Shiny.AppDeviceBridge.Geofencing.Client;
+using GpsClient = Shiny.AppDeviceBridge.Gps.Client;
 using HealthClient = Shiny.AppDeviceBridge.Health.Client;
-using LocationsClient = Shiny.AppDeviceBridge.Locations.Client;
 using MapsClient = Shiny.AppDeviceBridge.Maps.Client;
 using NotificationsClient = Shiny.AppDeviceBridge.Notifications.Client;
 using ObdClient = Shiny.AppDeviceBridge.Obd.Client;
@@ -99,6 +101,7 @@ public static class BridgeCatalog
             Describe(typeof(ILinksBridge), AppDeviceBridgeJsonContext.Default),
             Describe(typeof(AppSupportClient.IAppBridge), AppSupportClient.AppJsonContext.Default),
             Describe(typeof(AppSupportClient.ISensorsBridge), AppSupportClient.SensorsJsonContext.Default),
+            Describe(typeof(BeaconsClient.IBeaconsBridge), BeaconsClient.BeaconsJsonContext.Default),
             Describe(typeof(BleClient.IBluetoothLEBridge), BleClient.BleJsonContext.Default),
             Describe(typeof(CalendarClient.ICalendarBridge), CalendarClient.CalendarJsonContext.Default),
             Describe(typeof(CameraClient.ICameraBridge), CameraClient.CameraJsonContext.Default),
@@ -109,9 +112,9 @@ public static class BridgeCatalog
             Describe(typeof(FoldersClient.IFoldersBridge), FoldersClient.FoldersJsonContext.Default),
             Describe(typeof(HealthClient.IHealthBridge), HealthClient.HealthJsonContext.Default),
             Describe(typeof(TransfersClient.ITransfersBridge), TransfersClient.TransfersJsonContext.Default),
-            Describe(typeof(LocationsClient.IGpsBridge), LocationsClient.LocationsJsonContext.Default),
-            Describe(typeof(LocationsClient.IGeofencesBridge), LocationsClient.LocationsJsonContext.Default),
-            Describe(typeof(LocationsClient.IMotionBridge), LocationsClient.LocationsJsonContext.Default),
+            Describe(typeof(GpsClient.IGpsBridge), GpsClient.GpsJsonContext.Default),
+            Describe(typeof(GeofencingClient.IGeofencesBridge), GeofencingClient.GeofencingJsonContext.Default),
+            Describe(typeof(GpsClient.IMotionBridge), GpsClient.GpsJsonContext.Default),
             Describe(typeof(MapsClient.IMapsBridge), MapsClient.MapsJsonContext.Default),
             Describe(typeof(MapsClient.IDirectionsBridge), MapsClient.DirectionsJsonContext.Default),
             Describe(typeof(NotificationsClient.INotificationsBridge), NotificationsClient.NotificationsJsonContext.Default),

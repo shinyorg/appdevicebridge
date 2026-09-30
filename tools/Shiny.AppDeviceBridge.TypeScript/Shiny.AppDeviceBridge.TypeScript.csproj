@@ -28,11 +28,13 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AppSupport.Client/Shiny.AppDeviceBridge.AppSupport.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Discovery.Client/Shiny.AppDeviceBridge.Discovery.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.HttpTransfers.Client/Shiny.AppDeviceBridge.HttpTransfers.Client.csproj" />
-    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Locations.Client/Shiny.AppDeviceBridge.Locations.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Geofencing.Client/Shiny.AppDeviceBridge.Geofencing.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Gps.Client/Shiny.AppDeviceBridge.Gps.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.ScreenRecorder.Client/Shiny.AppDeviceBridge.ScreenRecorder.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Speech.Client/Shiny.AppDeviceBridge.Speech.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Health.Client/Shiny.AppDeviceBridge.Health.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.BluetoothLE.Client/Shiny.AppDeviceBridge.BluetoothLE.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Beacons.Client/Shiny.AppDeviceBridge.Beacons.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Contacts.Client/Shiny.AppDeviceBridge.Contacts.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wifi.Client/Shiny.AppDeviceBridge.Wifi.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Push.Client/Shiny.AppDeviceBridge.Push.Client.csproj" />

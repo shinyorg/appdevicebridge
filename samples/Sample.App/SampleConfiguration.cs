@@ -2,16 +2,18 @@ using System.Reflection;
 using Shiny.Jobs;
 using Shiny.AppDeviceBridge.AppLinks;
 using Shiny.AppDeviceBridge.AppSupport;
+using Shiny.AppDeviceBridge.Beacons;
 using Shiny.AppDeviceBridge.BluetoothLE;
 using Shiny.AppDeviceBridge.Calendar;
 using Shiny.AppDeviceBridge.Camera;
 using Shiny.AppDeviceBridge.Contacts;
 using Shiny.AppDeviceBridge.Discovery;
 using Shiny.AppDeviceBridge.Folders;
+using Shiny.AppDeviceBridge.Geofencing;
+using Shiny.AppDeviceBridge.Gps;
 using Shiny.AppDeviceBridge.Health;
 using Shiny.AppDeviceBridge.HttpTransfers;
 using Shiny.AppDeviceBridge.Jobs;
-using Shiny.AppDeviceBridge.Locations;
 using Shiny.AppDeviceBridge.Maps;
 using Shiny.AppDeviceBridge.Maps.Valhalla;
 using Shiny.AppDeviceBridge.Notifications;
@@ -62,9 +64,11 @@ public static class SampleConfiguration
                         // Launch at login rides along with the app bridge: same package behind it, and desktop-only in the
                         // sense that mobile answers { "supported": false } rather than the endpoints going missing.
                         .AddAppSupportBridge(startup: o => o.Arguments.Add("--autostart"))
-                        .AddLocationBridges()
+                        .AddGpsBridge()
+                        .AddGeofenceBridge()
                         .AddMotionActivityBridge()
                         .AddBluetoothLEBridge()
+                        .AddBeaconsBridge()
                         .AddObdBridge()
                         .AddWifiBridge()
                         .AddDiscoveryBridge()

@@ -5,14 +5,14 @@
          TargetFrameworks when both are set. -->
     <TargetFramework></TargetFramework>
 
-    <!-- Multi-targeted because Shiny.Locations' registration methods only exist in its platform builds,
-         with a different signature on each — so AddGpsBridge has to be compiled per platform to call
+    <!-- Multi-targeted because Shiny.Gps' registration methods only exist in its platform builds,
+         with a different signature on each — so AddGpsBridge and AddMotionActivityBridge have to be compiled per platform to call
          the right one. The plain net10.0 target serves the desktop heads, where the endpoints answer 501. -->
     <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
-    <RootNamespace>Shiny.AppDeviceBridge.Locations</RootNamespace>
-    <Description>GPS and geofencing endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Locations — permissions, current and last position, a listener streamed to the page as events, geofence regions, and motion activity. One call each: bridge.AddGpsBridge(), bridge.AddGeofenceBridge(), bridge.AddMotionActivityBridge().</Description>
+    <RootNamespace>Shiny.AppDeviceBridge.Gps</RootNamespace>
+    <Description>GPS and motion activity endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Gps — permissions, current and last position, a listener streamed to the page as events, and walking/running/driving recognition. One call each: bridge.AddGpsBridge(), bridge.AddMotionActivityBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -21,12 +21,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Shiny.Locations" />
+    <PackageReference Include="Shiny.Gps" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
-    <ProjectReference Include="../Shiny.AppDeviceBridge.Locations.Client/Shiny.AppDeviceBridge.Locations.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Gps.Client/Shiny.AppDeviceBridge.Gps.Client.csproj" />
   </ItemGroup>
 
 </Project>

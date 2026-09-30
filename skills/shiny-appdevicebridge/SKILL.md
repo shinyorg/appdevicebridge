@@ -95,10 +95,17 @@ triggers:
   - magnetometer
   - compass
   - barometer
+  - Shiny.AppDeviceBridge.Gps
+  - Shiny.AppDeviceBridge.Geofencing
   - IGpsBridge
   - IGeofencesBridge
   - IMotionBridge
   - IBluetoothLEBridge
+  - Shiny.AppDeviceBridge.Beacons
+  - AddBeaconsBridge
+  - IBeaconsBridge
+  - iBeacon
+  - Eddystone
   - IObdBridge
   - IWifiBridge
   - IDiscoveryBridge
@@ -282,8 +289,8 @@ calls device features from that web app, updates it over the air, or writes a br
   app that already calls it is fine) and the app's dispatcher registered as `IWebAppMainThread`. **Never generate
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
-  - **No MAUI** — BluetoothLE, Obd, Discovery, Wifi, HttpTransfers, Jobs (plain `net10.0`), Locations
-    (GPS/geofences/motion), Notifications, Push, Wearables, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
+  - **No MAUI** — BluetoothLE, Beacons, Obd, Discovery, Wifi, HttpTransfers, Jobs (plain `net10.0`), Gps
+    (GPS/motion), Geofencing, Notifications, Push, Wearables, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless (on macOS they register Shiny's core services themselves).
@@ -341,7 +348,8 @@ builder
         bridge => bridge
             .Configure(o => o.AppId = "field-app")   // AppId, BasePath, AllowedHosts, AuthorizeBridges
             .AddAppSupportBridge()
-            .AddLocationBridges()
+            .AddGpsBridge()
+            .AddGeofenceBridge()
             .AddCalendarBridge()
             .AddPhotosBridge()
             .AddFoldersBridge(),
@@ -389,8 +397,8 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 - `UseAppDeviceBridge` listens on loopback port 5780 unless the app sets a port of its own.
 - Without MAUI: `services.AddShinyHttpServer(http => http.AddAppDeviceBridge(bridge => bridge.Configure(o => …).AddRpiCameraBridge().AddTunnel().AddBridge<ClipboardBridge>()))`.
   A non-MAUI web host is the same overload on the server's builder: `http.AddAppDeviceBridge(bridge => …, webApp => …)`.
-- Bridge extensions register the Shiny service behind them. Do **not** also call `AddGps()`, `AddBluetoothLE()`
-  and so on.
+- Bridge extensions register the Shiny service behind them. Do **not** also call `AddGps()`, `AddBluetoothLE()`,
+  `AddBeaconRanging()` and so on.
 - A platform without an implementation answers `501`; `IHostBridge.GetInfoAsync()` lists every bridge with
   `IsSupported`.
 - Platform setup is the underlying library's: usage descriptions, manifest permissions, entitlements. Loopback
@@ -403,8 +411,10 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | built in | (always) | `Shiny.AppDeviceBridge.Client`: `IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge` |
 | `.AppSupport` | `AddAppSupportBridge()` | `IAppBridge` — info, orientation, browser, maps, store, launch at login, share, haptics, connectivity, battery, screen, clipboard; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), each stopped once nothing listens to its event |
 | `.AppSupport.Linux` | `AddAppSupportLinux()` on the GTK4 head, after `AddAppSupportBridge()` | battery and energy saver from UPower and power-profiles-daemon, with change events. The maui-labs GTK4 battery never raises them, so a Linux head without this gets no `app.battery` events |
-| `.Locations` | `AddGpsBridge()`, `AddGeofenceBridge()`, `AddMotionActivityBridge()` | `IGpsBridge`, `IGeofencesBridge`, `IMotionBridge` |
+| `.Gps` | `AddGpsBridge()`, `AddMotionActivityBridge()` | `IGpsBridge`, `IMotionBridge` (`GpsJsonContext`) |
+| `.Geofencing` | `AddGeofenceBridge()` | `IGeofencesBridge` (`GeofencingJsonContext`) |
 | `.BluetoothLE` | `AddBluetoothLEBridge()` | `IBluetoothLEBridge` |
+| `.Beacons` | `AddBeaconsBridge(BeaconFeatures.All, options)`: pass flags to register only some features; a feature left out, or one the platform reports `NotSupported` (iBeacon ranging and monitoring on macOS), answers 501 | `IBeaconsBridge` (`BeaconsJsonContext`): ranging and Eddystone scans need their event listened to first (`OnBeaconAsync`, `OnEddystoneAsync`), otherwise 409 `not_listening`, and stop with the last listener. Monitoring transitions go to `OnRegionAsync` and the `beacon` native call |
 | `.Obd` | `AddObdBridge()` | `IObdBridge` |
 | `.Wifi` | `AddWifiBridge(hotspot)` | `IWifiBridge` |
 | `.Discovery` | `AddDiscoveryBridge(protocols)` | `IDiscoveryBridge` |
@@ -688,7 +698,7 @@ Rules:
 4. **Files move by `BridgeFile { Root, Path }`.** Bridges that produce files (photos, exports) return one; read it
    through `IFilesBridge`. Bridges that take a file (share, notification image, tray icon) take one.
 5. **Native calls** — background work handed to the page — are typed:
-   `nativeCalls.HandleAsync("gps", LocationsJsonContext.Default.GpsReading, reading => …)`. The same names run in
+   `nativeCalls.HandleAsync("gps", GpsJsonContext.Default.GpsReading, reading => …)`. The same names run in
    `background.js` when no page is open; that script is JavaScript (Jint), with `fetch` to `/_bridge`.
 
 ## A JavaScript / TypeScript page

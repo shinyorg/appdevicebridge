@@ -14,7 +14,7 @@ namespace Shiny.AppDeviceBridge;
 ///     bridge => bridge
 ///         .Configure(o => o.AppId = "field-app")
 ///         .AddAppSupportBridge()
-///         .AddLocationBridges(),
+///         .AddGpsBridge(),
 ///     webApp => webApp.UseBaseline(typeof(App).Assembly, "webapp.zip")
 /// );
 ///

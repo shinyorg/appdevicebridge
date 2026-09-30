@@ -212,7 +212,7 @@ public sealed class WebAppEvents(IJSRuntime js) : IAsyncDisposable
 /// is open. When it is not, the host runs the same names in background.js instead. Payloads are each bridge's contracts,
 /// read through their source-generated metadata:
 /// <code>
-/// await nativeCalls.HandleAsync("gps", LocationsJsonContext.Default.GpsReading, reading => SaveAsync(reading));
+/// await nativeCalls.HandleAsync("gps", GpsJsonContext.Default.GpsReading, reading => SaveAsync(reading));
 ///
 /// await nativeCalls.HandleAsync("job:sync", AppDeviceBridgeJsonContext.Default.JobRun, MyJson.Default.SyncResult, async job =>
 /// {

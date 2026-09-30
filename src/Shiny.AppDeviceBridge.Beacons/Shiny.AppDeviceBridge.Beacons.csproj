@@ -4,14 +4,14 @@
     <!-- Cleared: src/Directory.Build.props sets the single target. -->
     <TargetFramework></TargetFramework>
 
-    <!-- Multi-targeted for the same reason as the Gps bridge: AddBluetoothLE only exists in
-         Shiny.BluetoothLE's platform builds. macOS is here because Shiny supports AppKit BLE, which the
-         maui-labs macOS head can use; the plain net10.0 target serves Linux with 501s. -->
+    <!-- Multi-targeted because Shiny.Beacons' registration methods differ per platform: CoreLocation ranging and
+         monitoring on Apple, Bluetooth LE scanning elsewhere — so AddBeaconsBridge has to be compiled per platform.
+         The plain net10.0 target serves Linux, where the endpoints answer 501. -->
     <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
-    <RootNamespace>Shiny.AppDeviceBridge.BluetoothLE</RootNamespace>
-    <Description>Bluetooth LE endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.BluetoothLE — scanning, connections, services, characteristic reads and writes, and notifications streamed to the page as events. One call: bridge.AddBluetoothLEBridge().</Description>
+    <RootNamespace>Shiny.AppDeviceBridge.Beacons</RootNamespace>
+    <Description>Beacon endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Beacons — iBeacon ranging with distances, background region monitoring delivered to the page and background.js, Eddystone scanning, and advertising the device as an iBeacon or Eddystone beacon. One call: bridge.AddBeaconsBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -21,7 +21,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Shiny.BluetoothLE" />
+    <PackageReference Include="Shiny.Beacons" />
   </ItemGroup>
 
   <!-- On macOS no Shiny host is started for the app, so the bridge registers Shiny's core services itself. -->
@@ -31,7 +31,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
-    <ProjectReference Include="../Shiny.AppDeviceBridge.BluetoothLE.Client/Shiny.AppDeviceBridge.BluetoothLE.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Beacons.Client/Shiny.AppDeviceBridge.Beacons.Client.csproj" />
   </ItemGroup>
 
 </Project>

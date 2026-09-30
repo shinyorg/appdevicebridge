@@ -19,6 +19,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AppLinks/Shiny.AppDeviceBridge.AppLinks.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AppSupport/Shiny.AppDeviceBridge.AppSupport.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.BluetoothLE/Shiny.AppDeviceBridge.BluetoothLE.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Beacons/Shiny.AppDeviceBridge.Beacons.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Calendar/Shiny.AppDeviceBridge.Calendar.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Contacts/Shiny.AppDeviceBridge.Contacts.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Discovery/Shiny.AppDeviceBridge.Discovery.csproj" />
@@ -26,7 +27,8 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Health/Shiny.AppDeviceBridge.Health.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.HttpTransfers/Shiny.AppDeviceBridge.HttpTransfers.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Jobs/Shiny.AppDeviceBridge.Jobs.csproj" />
-    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Locations/Shiny.AppDeviceBridge.Locations.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Geofencing/Shiny.AppDeviceBridge.Geofencing.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Gps/Shiny.AppDeviceBridge.Gps.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Notifications/Shiny.AppDeviceBridge.Notifications.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Obd/Shiny.AppDeviceBridge.Obd.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Photos/Shiny.AppDeviceBridge.Photos.csproj" />

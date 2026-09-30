@@ -16,7 +16,7 @@
 <h2>Geofences</h2>
 <div class="actions">
     <button @onclick="WatchHere">Watch 200 m around me</button>
-    <button @onclick="@(() => Run(() => GeofencesBridge.GetRegionsAsync(), Json.IReadOnlyListGeofenceRegion))">Regions</button>
+    <button @onclick="@(() => Run(() => GeofencesBridge.GetRegionsAsync(), GeofenceJson.IReadOnlyListGeofenceRegion))">Regions</button>
     <button @onclick="@(() => Run(() => GeofencesBridge.StopAllMonitoringAsync(), "Cleared."))">Clear</button>
 </div>
 
@@ -31,7 +31,8 @@
 <Output Value="@Output" Error="@Error" />
 
 @code {
-    static LocationsJsonContext Json => LocationsJsonContext.Default;
+    static GpsJsonContext Json => GpsJsonContext.Default;
+    static GeofencingJsonContext GeofenceJson => GeofencingJsonContext.Default;
 
     // Standard background mode: readings keep arriving with the app in the background, where they go to the gps
     // handler — this page's if it is open, background.js's if not.
@@ -78,5 +79,5 @@
         await GeofencesBridge.StartMonitoringAsync(new GeofenceRegion("sample-here", here.Latitude, here.Longitude, 200));
 
         return await GeofencesBridge.GetRegionsAsync();
-    }, Json.IReadOnlyListGeofenceRegion);
+    }, GeofenceJson.IReadOnlyListGeofenceRegion);
 }

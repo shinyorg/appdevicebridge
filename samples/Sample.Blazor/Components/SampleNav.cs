@@ -30,6 +30,7 @@ public static class SampleNav
         new("Connectivity",
             new NavItem("wifi", "Wi-Fi", "wifi", "wifi"),
             new NavItem("bluetooth", "Bluetooth", "bluetooth", "ble"),
+            new NavItem("beacons", "Beacons", "radar", "beacons"),
             new NavItem("obd", "OBD", "car", "obd"),
             new NavItem("discovery", "Discovery", "radar", "discovery"),
             new NavItem("transfers", "Transfers", "transfer", "transfers")),

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Beacons.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge beacons bridge — iBeacon ranging, background region monitoring, Eddystone scanning and broadcasting as a beacon — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddBeaconsBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

@@ -40,7 +40,9 @@
     <Project Path="src/Shiny.AppDeviceBridge.Discovery/Shiny.AppDeviceBridge.Discovery.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Push/Shiny.AppDeviceBridge.Push.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Wearables/Shiny.AppDeviceBridge.Wearables.csproj" />
-    <Project Path="src/Shiny.AppDeviceBridge.Locations/Shiny.AppDeviceBridge.Locations.csproj" />
+    <Project Path="src/Shiny.AppDeviceBridge.Geofencing/Shiny.AppDeviceBridge.Geofencing.csproj" />
+    <Project Path="src/Shiny.AppDeviceBridge.Beacons/Shiny.AppDeviceBridge.Beacons.csproj" />
+    <Project Path="src/Shiny.AppDeviceBridge.Gps/Shiny.AppDeviceBridge.Gps.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.AppLinks/Shiny.AppDeviceBridge.AppLinks.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Calendar/Shiny.AppDeviceBridge.Calendar.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Folders/Shiny.AppDeviceBridge.Folders.csproj" />
@@ -71,7 +73,9 @@
     <Project Path="src/Shiny.AppDeviceBridge.AppSupport.Client/Shiny.AppDeviceBridge.AppSupport.Client.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Discovery.Client/Shiny.AppDeviceBridge.Discovery.Client.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.HttpTransfers.Client/Shiny.AppDeviceBridge.HttpTransfers.Client.csproj" />
-    <Project Path="src/Shiny.AppDeviceBridge.Locations.Client/Shiny.AppDeviceBridge.Locations.Client.csproj" />
+    <Project Path="src/Shiny.AppDeviceBridge.Geofencing.Client/Shiny.AppDeviceBridge.Geofencing.Client.csproj" />
+    <Project Path="src/Shiny.AppDeviceBridge.Beacons.Client/Shiny.AppDeviceBridge.Beacons.Client.csproj" />
+    <Project Path="src/Shiny.AppDeviceBridge.Gps.Client/Shiny.AppDeviceBridge.Gps.Client.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Speech.Client/Shiny.AppDeviceBridge.Speech.Client.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.ScreenRecorder.Client/Shiny.AppDeviceBridge.ScreenRecorder.Client.csproj" />
     <Project Path="src/Shiny.AppDeviceBridge.Health.Client/Shiny.AppDeviceBridge.Health.Client.csproj" />

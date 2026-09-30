@@ -9,7 +9,7 @@ namespace Shiny.AppDeviceBridge;
 /// however it ends: the page went away, the stream failed, or the listener stopped.
 /// <code>
 /// // registered once, by the bridge
-/// var readings = routes.Events.Source("gps.reading", LocationsJsonContext.Default.GpsReading);
+/// var readings = routes.Events.Source("gps.reading", GpsJsonContext.Default.GpsReading);
 ///
 /// // from the delegate
 /// readings.Publish(reading);

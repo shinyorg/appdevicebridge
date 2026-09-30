@@ -21,7 +21,7 @@ public static class AppDeviceBridgeMauiExtensions
     /// <code>
     /// builder.UseAppDeviceBridge(bridge => bridge
     ///     .Configure(o => o.AppId = "kiosk")
-    ///     .AddLocationBridges());
+    ///     .AddGpsBridge());
     ///
     /// // The server itself, and anything else on it, on the same builder — before or after:
     /// builder.Services.AddShinyHttpServer(http =>

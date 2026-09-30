@@ -32,6 +32,7 @@
     <ItemGroup>
         <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.AppSupport.Client/Shiny.AppDeviceBridge.AppSupport.Client.csproj"/>
+        <ProjectReference Include="../Shiny.AppDeviceBridge.Beacons.Client/Shiny.AppDeviceBridge.Beacons.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.BluetoothLE.Client/Shiny.AppDeviceBridge.BluetoothLE.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Calendar.Client/Shiny.AppDeviceBridge.Calendar.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Camera.Client/Shiny.AppDeviceBridge.Camera.Client.csproj"/>
@@ -41,7 +42,8 @@
         <ProjectReference Include="../Shiny.AppDeviceBridge.Folders.Client/Shiny.AppDeviceBridge.Folders.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Health.Client/Shiny.AppDeviceBridge.Health.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.HttpTransfers.Client/Shiny.AppDeviceBridge.HttpTransfers.Client.csproj"/>
-        <ProjectReference Include="../Shiny.AppDeviceBridge.Locations.Client/Shiny.AppDeviceBridge.Locations.Client.csproj"/>
+        <ProjectReference Include="../Shiny.AppDeviceBridge.Geofencing.Client/Shiny.AppDeviceBridge.Geofencing.Client.csproj"/>
+        <ProjectReference Include="../Shiny.AppDeviceBridge.Gps.Client/Shiny.AppDeviceBridge.Gps.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Notifications.Client/Shiny.AppDeviceBridge.Notifications.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Obd.Client/Shiny.AppDeviceBridge.Obd.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Photos.Client/Shiny.AppDeviceBridge.Photos.Client.csproj"/>

@@ -88,7 +88,7 @@ dev server.
 - **`dotnet watch` needs `NBGV_CacheMode=None`.** Without it, it failed with `An item with the same key has already
   been added. Key: ProjectInstanceId { ProjectPath = …/nerdbank.gitversioning/…/PrivateP2PCaching.proj }`. The setting
   is committed in `Directory.Build.props`.
-- **gps and geofences are struck through on AppKit.** Shiny.Locations has no macOS build, so this is expected.
+- **gps and geofences are struck through on AppKit.** Shiny.Gps and Shiny.Geofencing have no macOS build, so this is expected.
 - **Use the AppKit head.** The Mac Catalyst head (`samples/Sample.Maui -f net10.0-maccatalyst`) builds, but exits at
   launch with code 133 and leaves no crash report. Unresolved.
 - **No `sleep`.** Agent shells here block it, so the driver waits with `perl -e 'select(...)'`.

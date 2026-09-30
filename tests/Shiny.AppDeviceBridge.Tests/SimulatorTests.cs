@@ -5,7 +5,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.Time.Testing;
 using Shiny.AppDeviceBridge.Client;
-using Shiny.AppDeviceBridge.Locations.Client;
+using Shiny.AppDeviceBridge.Geofencing.Client;
+using Shiny.AppDeviceBridge.Gps.Client;
 using Shiny.AppDeviceBridge.Simulator.Catalog;
 using Shiny.AppDeviceBridge.Simulator.Hosting;
 using Shiny.AppDeviceBridge.Simulator.Scenarios;
@@ -341,7 +342,7 @@ public class SimulatorServerTests : IAsyncLifetime
               "altitude": 76, "speed": 1.4, "speedAccuracy": 1, "floor": 0, "isStationary": false }
             """);
 
-        var reading = JsonSerializer.Deserialize(await stream.NextAsync("gps.reading", ct), LocationsJsonContext.Default.GpsReading)!;
+        var reading = JsonSerializer.Deserialize(await stream.NextAsync("gps.reading", ct), GpsJsonContext.Default.GpsReading)!;
 
         Assert.Equal(1, reached);
         Assert.Equal(43.65, reading.Latitude);
@@ -627,7 +628,7 @@ public class SimulatorTrailTests
         Assert.Equal(9, trail.Steps.Count);
         Assert.Contains(trail.Steps, x => x is { Bridge: "gps", Route: "GET current" });
 
-        var second = JsonSerializer.Deserialize(readings[1].Payload!.ToJsonString().Replace("\"$now\"", "\"2026-09-18T12:00:10Z\""), LocationsJsonContext.Default.GpsReading)!;
+        var second = JsonSerializer.Deserialize(readings[1].Payload!.ToJsonString().Replace("\"$now\"", "\"2026-09-18T12:00:10Z\""), GpsJsonContext.Default.GpsReading)!;
         Assert.True(second.Heading is < 0.5 or > 359.5);        // due north
         Assert.InRange(second.Speed, 9.5, 10.5);                // ~100 m in 10 s
         Assert.Equal(81, second.Altitude);

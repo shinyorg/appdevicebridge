@@ -14,7 +14,7 @@ namespace Shiny.AppDeviceBridge.Maui;
 /// builder.UseAppDeviceBridge(
 ///     bridge => bridge
 ///         .Configure(o => o.AppId = "field-app")
-///         .AddLocationBridges()      // no MAUI
+///         .AddGpsBridge()            // no MAUI
 ///         .AddCameraBridge(),        // MAUI: registers the camera control itself
 ///     webApp => webApp.UseBaseline(typeof(App).Assembly, "webapp.zip")
 /// );

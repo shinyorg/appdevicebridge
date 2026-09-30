@@ -48,8 +48,10 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
 | `Shiny.AppDeviceBridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, launch at login, share, haptics and vibration, connectivity, battery, screen and clipboard; and `/_bridge/sensors` — accelerometer, gyroscope, magnetometer, compass, barometer and orientation |
 | `Shiny.AppDeviceBridge.AppSupport.Linux` | the Linux (GTK4) head | `AddAppSupportLinux()`: battery and energy saver for `AddAppSupportBridge()` from UPower and power-profiles-daemon over D-Bus, with change events |
-| `Shiny.AppDeviceBridge.Locations` | the app | `AddGpsBridge()`, `AddGeofenceBridge()`, `AddLocationBridges()`, `AddMotionActivityBridge()` |
+| `Shiny.AppDeviceBridge.Gps` | the app | `AddGpsBridge()`, `AddMotionActivityBridge()`: GPS and motion activity, backed by Shiny.Gps |
+| `Shiny.AppDeviceBridge.Geofencing` | the app | `AddGeofenceBridge()`: geofence regions and transitions, backed by Shiny.Geofencing |
 | `Shiny.AppDeviceBridge.BluetoothLE` | the app | `AddBluetoothLEBridge()` |
+| `Shiny.AppDeviceBridge.Beacons` | the app | `AddBeaconsBridge(BeaconFeatures.All)`: iBeacon ranging and background region monitoring, Eddystone scanning, and broadcasting as a beacon, backed by Shiny.Beacons |
 | `Shiny.AppDeviceBridge.Obd` | the app | `AddObdBridge()`: OBD-II over Bluetooth LE or Wi-Fi adapters — decoded PIDs, VIN, trouble codes, live readings |
 | `Shiny.AppDeviceBridge.Wifi` | the app | `AddWifiBridge(hotspot: false)`: current network and changes, scan, connect, known networks, radio, hotspot |
 | `Shiny.AppDeviceBridge.Discovery` | the app | `AddDiscoveryBridge(DiscoveryProtocols.All)`: mDNS/Bonjour, SSDP/UPnP, WS-Discovery search, browse, resolve and publish |
@@ -75,8 +77,8 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.RpiCamera` | the app, or a headless Pi | `bridge.AddRpiCameraBridge()`, on a MAUI or headless bridge builder: Raspberry Pi cameras through libcamera — snapshots, captures into a file root, sensor controls and a shared live MJPEG stream; `camera.StreamToAsync(stream)` streams framed JPEGs into any `Stream`, such as a Bluetooth LE L2CAP channel, for `ReadFramesAsync` to read |
 
 AppSupport, AppSupport.Linux, AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
-`Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Obd, Discovery, Wifi,
-HttpTransfers, Jobs, Locations, Notifications, Push, Wearables, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
+`Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Discovery, Wifi,
+HttpTransfers, Jobs, Gps, Geofencing, Notifications, Push, Wearables, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
 ## The app
@@ -88,7 +90,8 @@ builder
         bridge => bridge
             .Configure(o => o.AppId = "field-app")
             .AddAppSupportBridge()
-            .AddLocationBridges()
+            .AddGpsBridge()
+            .AddGeofenceBridge()
             .AddBluetoothLEBridge(),
         webApp =>
         {
@@ -639,6 +642,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | GPS | `GET gps/status`, `POST gps/access`, `GET gps/last`, `GET gps/current`, `GET/POST/DELETE gps/listener` | `gps.reading` |
 | Geofences | `GET geofences/status`, `POST geofences/access`, `GET/POST/DELETE geofences/regions`, `DELETE geofences/regions/{id}`, `GET geofences/regions/{id}/state` | `geofence.status` |
 | Motion activity | `GET motion/status`, `POST motion/access`, `GET motion/current`, `GET/POST/DELETE motion/listener` | `motion.activity` |
+| Beacons | `GET beacons/status`, `POST beacons/access`, `GET/POST/DELETE beacons/ranging`, `DELETE beacons/ranging/{id}`, `GET/POST/DELETE beacons/regions`, `DELETE beacons/regions/{id}`, `GET beacons/regions/{id}/state`, `POST/DELETE beacons/eddystone`, `GET/DELETE beacons/broadcast`, `POST beacons/broadcast/{ibeacon,eddystone-uid,eddystone-url}` | `beacons.ranged`, `beacons.region`, `beacons.eddystone` |
 | Bluetooth LE | `GET ble/status`, `POST ble/access`, `POST/DELETE ble/scan`, `GET ble/peripherals[/{uuid}]`, `POST/DELETE …/connection`, `GET …/rssi`, `GET …/services`, `GET …/characteristics`, `GET/PUT …/characteristics/{c}`, `POST/DELETE …/notifications` | `ble.scan`, `ble.status`, `ble.notification`, `ble.error` |
 | OBD-II | `GET obd/status`, `GET obd/commands`, `POST obd/scan`, `GET obd/adapters`, `POST/DELETE obd/connection`, `POST obd/command`, `POST obd/raw`, `GET obd/vin`, `GET/DELETE obd/dtc`, `POST/DELETE obd/monitor` | `obd.reading`, `obd.disconnected` |
 | Wi-Fi | `GET wifi`, `POST wifi/access`, `GET wifi/networks`, `GET wifi/current`, `POST/DELETE wifi/connection`, `GET wifi/known`, `DELETE wifi/known?id=`, `GET/PUT wifi/radio`, `GET/POST/DELETE wifi/hotspot`, `GET wifi/hotspot/clients` | `wifi.changed`, `wifi.hotspot` |
@@ -752,9 +756,32 @@ vibration needs `VIBRATE`, and battery needs `BATTERY_STATS` in the manifest (wi
 returns `403`). `vibrate` is capped at 5 seconds.
 
 **Motion activity:** walking, running, cycling, driving or stationary, from the OS's activity recognition.
-There's no history, only the latest reading and live ones. `AddLocationBridges()` doesn't include it,
+There's no history, only the latest reading and live ones. It ships in `Shiny.AppDeviceBridge.Gps`, but `AddGpsBridge()` doesn't include it,
 because it needs its own setup: `NSMotionUsageDescription` on iOS (the permission request crashes without it),
 and `ACTIVITY_RECOGNITION` with Google Play Services on Android. Other platforms return `501`.
+
+**Beacons:** `AddBeaconsBridge()` registers all four features. To leave some out, pass `BeaconFeatures` flags: for
+example `AddBeaconsBridge(BeaconFeatures.Ranging | BeaconFeatures.Eddystone)` skips monitoring's background location and
+broadcasting's advertise permission. A feature left out answers `501`. So does one the platform reports as `NotSupported`,
+such as iBeacon ranging and monitoring on macOS, where CoreLocation has neither. `GET beacons/status` shows each
+feature's access.
+- **Ranging:** `POST beacons/ranging` takes a region: `identifier`, `uuid`, and optionally `major`, then `minor`. Each
+  beacon seen arrives as `beacons.ranged`, tagged with the region, with RSSI, an estimated distance and a proximity
+  bucket. Listen first: without a listener it answers `409`. Several regions can range at once, and all of them stop
+  once nothing listens. Ranging is a foreground activity.
+- **Monitoring:** `POST beacons/regions` watches a region for enter and exit, in the background and across restarts.
+  Transitions arrive as `beacons.region` while a page is open, and at the `beacon` handler otherwise. Without
+  permission it answers `409`.
+- **Eddystone:** `POST beacons/eddystone` sends UID, URL, TLM and EID frames as `beacons.eddystone`, one flat shape
+  with `frameType` saying which fields are set. It needs a listener too.
+- **Broadcasting:** `POST beacons/broadcast/ibeacon`, `…/eddystone-uid` or `…/eddystone-url` starts advertising and
+  replaces any advertisement already running. A URL too long for an Eddystone-URL frame answers `400`. Apple platforms
+  stop the advertisement in the background.
+- **Platform setup:** Shiny.Beacons'. On iOS and Mac Catalyst: `NSLocationWhenInUseUsageDescription` for ranging,
+  `NSLocationAlwaysAndWhenInUseUsageDescription` for monitoring, and `NSBluetoothAlwaysUsageDescription` for Eddystone
+  and broadcasting. On Android: `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` (location before Android 12),
+  `BLUETOOTH_ADVERTISE` to broadcast, and `FOREGROUND_SERVICE_CONNECTED_DEVICE` with `POST_NOTIFICATIONS` to monitor.
+  Linux answers `501`.
 
 **OBD-II:**
 - **Adapters:** ELM327 and OBDLink, one at a time. `scan` finds Bluetooth LE adapters, or with
@@ -1446,8 +1473,9 @@ then the handler. It gets `BackgroundScriptTimeout` (25 s) and 64 MB.
 | Background job | `job:{name}` with `{ name }` | `bridge.AddWebAppJob("sync", job => job.WithInternet(InternetAccess.Any))` (Bridge.Jobs) |
 | GPS reading delivered in the background | `gps` with a reading | `AddGpsBridge()` |
 | Geofence transition | `geofence` with `{ identifier, state }` | `AddGeofenceBridge()` |
+| Beacon region transition | `beacon` with `{ identifier, state }` | `AddBeaconsBridge()` (Bridge.Beacons) |
 | Push | `push.received`, `push.entry` with `{ data, title, message }` | `AddPushBridge(o => o.DispatchToWebApp = true)` (Bridge.Push) |
-| Motion activity delivered in the background | `motion` with `{ activity, confidence, timestamp }` | `AddMotionActivityBridge()` (Bridge.Locations) |
+| Motion activity delivered in the background | `motion` with `{ activity, confidence, timestamp }` | `AddMotionActivityBridge()` (Bridge.Gps) |
 | Notification tapped | `notification.entry` with `{ id, title, message, channel, thread, data, action, text }` | `AddNotificationsBridge()` (Bridge.Notifications) |
 | Notification presented while the app is open (Apple platforms) | `notification.received` with the same shape | `AddNotificationsBridge()` |
 | HTTP transfer finished | `transfer.completed` / `transfer.failed` with the transfer | `AddHttpTransfersBridge()` (Bridge.HttpTransfers) |

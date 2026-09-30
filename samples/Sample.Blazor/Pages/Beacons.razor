@@ -1,0 +1,86 @@
+@page "/beacons"
+@inherits BridgePage
+@inject IBeaconsBridge BeaconsBridge
+
+<h1>Beacons</h1>
+
+<p class="muted">Region UUID <code>@SampleUuid</code> — the one this device broadcasts, so a second device running the sample finds it.</p>
+
+<h2>iBeacons</h2>
+<div class="actions">
+    <button @onclick="Range">Range</button>
+    <button @onclick="@(() => Run(() => BeaconsBridge.StopAllRangingAsync(), "Stopped."))">Stop ranging</button>
+    <button @onclick="Monitor">Monitor (background)</button>
+    <button @onclick="@(() => Run(() => BeaconsBridge.StopAllMonitoringAsync(), "Cleared."))">Stop monitoring</button>
+</div>
+
+<h2>Eddystone</h2>
+<div class="actions">
+    <button @onclick="ScanEddystone">Scan</button>
+    <button @onclick="@(() => Run(() => BeaconsBridge.StopEddystoneScanAsync(), "Stopped."))">Stop</button>
+</div>
+
+<h2>Broadcast</h2>
+<div class="actions">
+    <button @onclick="Broadcast">As an iBeacon</button>
+    <button @onclick="@(() => Run(() => BeaconsBridge.StopBroadcastAsync(), "Stopped."))">Stop</button>
+    <button @onclick="@(() => Run(() => BeaconsBridge.GetStatusAsync(), Json.BeaconsStatus))">Status</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+
+<ul class="list">
+    @foreach (var b in beacons.Values.OrderBy(x => x.Distance).Take(40))
+    {
+        <li><strong>@b.Major.@b.Minor</strong> <span class="muted">@b.Proximity · @b.Distance.ToString("0.0") m · @b.Rssi dBm</span></li>
+    }
+    @foreach (var f in frames.Values.Take(40))
+    {
+        <li><strong>@(f.Url ?? f.Namespace ?? f.FrameType.ToString())</strong> <span class="muted">Eddystone @f.FrameType · @f.Rssi dBm · @f.PeripheralId</span></li>
+    }
+</ul>
+
+@code {
+    static readonly Guid SampleUuid = Guid.Parse("f7826da6-4fa2-4e98-8024-bc5b71e0893e");
+    static BeaconsJsonContext Json => BeaconsJsonContext.Default;
+
+    readonly Dictionary<string, BeaconReading> beacons = [];
+    readonly Dictionary<string, EddystoneFrame> frames = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen<BeaconReading>(BeaconsBridge.OnBeaconAsync, e => beacons[$"{e.Major}.{e.Minor}"] = e);
+        await Listen<EddystoneFrame>(BeaconsBridge.OnEddystoneAsync, e => frames[$"{e.PeripheralId}/{e.FrameType}"] = e);
+        await Listen<BeaconRegionStatus>(BeaconsBridge.OnRegionAsync, e => Output = Compact(e, Json.BeaconRegionStatus));
+    }
+
+    Task Range() => Run(async () =>
+    {
+        await BeaconsBridge.RequestAccessAsync(new BeaconAccessRequest(BeaconFeature.Ranging));
+        beacons.Clear();
+        await BeaconsBridge.StartRangingAsync(new BeaconRegion("sample", SampleUuid));
+        return await BeaconsBridge.GetRangedRegionsAsync();
+    }, Json.IReadOnlyListBeaconRegion);
+
+    // Transitions arrive as beacons.region while this page is open, and at the beacon handler otherwise.
+    Task Monitor() => Run(async () =>
+    {
+        await BeaconsBridge.RequestAccessAsync(new BeaconAccessRequest(BeaconFeature.Monitoring));
+        await BeaconsBridge.StartMonitoringAsync(new BeaconRegion("sample", SampleUuid));
+        return await BeaconsBridge.GetMonitoredRegionsAsync();
+    }, Json.IReadOnlyListBeaconRegion);
+
+    Task ScanEddystone() => Run(async () =>
+    {
+        await BeaconsBridge.RequestAccessAsync(new BeaconAccessRequest(BeaconFeature.Eddystone));
+        frames.Clear();
+        await BeaconsBridge.StartEddystoneScanAsync();
+    }, "Scanning.");
+
+    Task Broadcast() => Run(async () =>
+    {
+        await BeaconsBridge.RequestAccessAsync(new BeaconAccessRequest(BeaconFeature.Broadcasting));
+        await BeaconsBridge.BroadcastIBeaconAsync(new BeaconBroadcast(SampleUuid, 1, (ushort)Random.Shared.Next(1, 1000)));
+        return await BeaconsBridge.GetBroadcastAsync();
+    }, Json.BeaconBroadcastStatus);
+}

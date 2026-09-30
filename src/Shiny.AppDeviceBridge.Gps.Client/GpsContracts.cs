@@ -1,7 +1,7 @@
 using System.Text.Json.Serialization;
 using Shiny.AppDeviceBridge.Client;
 
-namespace Shiny.AppDeviceBridge.Locations.Client;
+namespace Shiny.AppDeviceBridge.Gps.Client;
 
 /// <summary>Which kind of GPS use a permission check is for.</summary>
 public enum GpsAccessMode { Foreground, Background, Realtime }
@@ -19,13 +19,11 @@ public enum GpsBackgroundMode
     Realtime
 }
 
-public enum GeofenceState { Unknown, Entered, Exited }
-
 public enum MotionActivityType { Unknown, Stationary, Walking, Running, Cycling, Automotive }
 
 public enum MotionActivityConfidence { Low, Medium, High }
 
-public sealed record LocationAccessResult(AccessState Access);
+public sealed record GpsAccessResult(AccessState Access);
 
 /// <param name="RequestPreciseAccuracy">Ask for precise rather than approximate location where the platform distinguishes.</param>
 /// <param name="AutoRestart">Restart the listener after the app is relaunched.</param>
@@ -54,34 +52,18 @@ public sealed record GpsReading(
     bool IsStationary
 );
 
-/// <summary>A circular region.</summary>
-/// <param name="Identifier">Names the region; monitoring one with an identifier already in use replaces it.</param>
-/// <param name="RadiusMeters">Must be positive.</param>
-/// <param name="SingleUse">Stop monitoring after the first transition.</param>
-public sealed record GeofenceRegion(
-    string Identifier,
-    double Latitude,
-    double Longitude,
-    double RadiusMeters,
-    bool SingleUse = false,
-    bool NotifyOnEntry = true,
-    bool NotifyOnExit = true
-);
-
-public sealed record GeofenceStatus(string Identifier, GeofenceState State);
+public sealed record MotionAccessResult(AccessState Access);
 
 public sealed record MotionActivity(MotionActivityType Activity, MotionActivityConfidence Confidence, DateTimeOffset Timestamp);
 
 public sealed record MotionListener(bool IsListening);
 
-/// <summary>Serialization for every location contract, shared by the page's clients and the native bridges.</summary>
+/// <summary>Serialization for every GPS and motion activity contract, shared by the page's clients and the native bridges.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true, PropertyNameCaseInsensitive = true)]
-[JsonSerializable(typeof(LocationAccessResult))]
+[JsonSerializable(typeof(GpsAccessResult))]
 [JsonSerializable(typeof(GpsListenerSettings))]
 [JsonSerializable(typeof(GpsReading))]
-[JsonSerializable(typeof(GeofenceRegion))]
-[JsonSerializable(typeof(IReadOnlyList<GeofenceRegion>))]
-[JsonSerializable(typeof(GeofenceStatus))]
+[JsonSerializable(typeof(MotionAccessResult))]
 [JsonSerializable(typeof(MotionActivity))]
 [JsonSerializable(typeof(MotionListener))]
-public partial class LocationsJsonContext : JsonSerializerContext;
+public partial class GpsJsonContext : JsonSerializerContext;

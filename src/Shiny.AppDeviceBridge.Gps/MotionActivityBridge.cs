@@ -1,14 +1,14 @@
 using Microsoft.Extensions.DependencyInjection;
 using Shiny.Locations;
 using Shiny.Net.HttpServer;
-using Contracts = Shiny.AppDeviceBridge.Locations.Client;
-using static Shiny.AppDeviceBridge.Locations.LocationContractMapping;
+using Contracts = Shiny.AppDeviceBridge.Gps.Client;
+using static Shiny.AppDeviceBridge.Gps.GpsContractMapping;
 
-namespace Shiny.AppDeviceBridge.Locations;
+namespace Shiny.AppDeviceBridge.Gps;
 
 /// <summary>
 /// <c>/_bridge/motion</c> over <see cref="IMotionActivityManager"/> — walking, running, cycling, driving or
-/// stationary, as the OS's activity recognition reports it. Shiny.Locations has no history query, so only the
+/// stationary, as the OS's activity recognition reports it. Shiny.Gps has no history query, so only the
 /// latest reading and live ones are available.
 /// <code>
 /// GET    /_bridge/motion/status
@@ -39,7 +39,7 @@ public sealed class MotionActivityBridge(IServiceProvider services) : IWebAppBri
         .MapGet("/listener", this.ListenerAsync)
         .MapPost("/listener", this.StartListenerAsync)
         .MapDelete("/listener", this.StopListenerAsync)
-        .MapEvent("motion.activity", this.Readings, Contracts.LocationsJsonContext.Default.MotionActivity);
+        .MapEvent("motion.activity", this.Readings, Contracts.GpsJsonContext.Default.MotionActivity);
 
     async ValueTask StatusAsync(HttpContext context)
     {
@@ -49,7 +49,7 @@ public sealed class MotionActivityBridge(IServiceProvider services) : IWebAppBri
             return;
         }
 
-        await WebAppBridgeResults.Json(context, ToContract(m.GetCurrentStatus()), Contracts.LocationsJsonContext.Default.LocationAccessResult);
+        await WebAppBridgeResults.Json(context, ToMotionAccess(m.GetCurrentStatus()), Contracts.GpsJsonContext.Default.MotionAccessResult);
     }
 
     async ValueTask RequestAccessAsync(HttpContext context)
@@ -63,7 +63,7 @@ public sealed class MotionActivityBridge(IServiceProvider services) : IWebAppBri
         // The permission prompt is UI.
         var access = await services.GetRequiredService<IWebAppMainThread>().InvokeAsync(m.RequestAccess);
 
-        await WebAppBridgeResults.Json(context, ToContract(access), Contracts.LocationsJsonContext.Default.LocationAccessResult);
+        await WebAppBridgeResults.Json(context, ToMotionAccess(access), Contracts.GpsJsonContext.Default.MotionAccessResult);
     }
 
     async ValueTask CurrentAsync(HttpContext context)
@@ -75,13 +75,13 @@ public sealed class MotionActivityBridge(IServiceProvider services) : IWebAppBri
         }
 
         await (await m.GetLastReading() is { } reading
-            ? WebAppBridgeResults.Json(context, ToContract(reading), Contracts.LocationsJsonContext.Default.MotionActivity)
+            ? WebAppBridgeResults.Json(context, ToContract(reading), Contracts.GpsJsonContext.Default.MotionActivity)
             : WebAppBridgeResults.NoContent(context));
     }
 
     ValueTask ListenerAsync(HttpContext context)
         => this.motion is { } m
-            ? WebAppBridgeResults.Json(context, new Contracts.MotionListener(m.IsListening), Contracts.LocationsJsonContext.Default.MotionListener)
+            ? WebAppBridgeResults.Json(context, new Contracts.MotionListener(m.IsListening), Contracts.GpsJsonContext.Default.MotionListener)
             : WebAppBridgeResults.NotSupported(context, "Motion activity");
 
     async ValueTask StartListenerAsync(HttpContext context)
@@ -140,14 +140,14 @@ public sealed class MotionActivityBridge(IServiceProvider services) : IWebAppBri
 public class WebAppMotionActivityDelegate(WebAppInvoker invoker) : IMotionActivityDelegate
 {
     public virtual Task OnReading(MotionActivityReading reading)
-        => invoker.InvokeAsync("motion", ToContract(reading), Contracts.LocationsJsonContext.Default.MotionActivity);
+        => invoker.InvokeAsync("motion", ToContract(reading), Contracts.GpsJsonContext.Default.MotionActivity);
 }
 
 public static class MotionActivityBridgeExtensions
 {
     /// <summary>
     /// Adds <c>/_bridge/motion</c> and registers Shiny's motion activity recognition with
-    /// <see cref="WebAppMotionActivityDelegate"/>. Not part of <see cref="LocationBridgeExtensions.AddLocationBridges"/>:
+    /// <see cref="WebAppMotionActivityDelegate"/>. Not part of <see cref="GpsBridgeExtensions.AddGpsBridge"/>:
     /// it needs its own platform setup — <c>NSMotionUsageDescription</c> on iOS, without which the permission
     /// request terminates the app, and <c>ACTIVITY_RECOGNITION</c> with Google Play Services on Android.
     /// Other platforms answer 501.

@@ -13,11 +13,13 @@ using Shiny.AppDeviceBridge.Desktop.Client;
 using Shiny.AppDeviceBridge.AppSupport.Client;
 using Shiny.AppDeviceBridge.Discovery.Client;
 using Shiny.AppDeviceBridge.HttpTransfers.Client;
-using Shiny.AppDeviceBridge.Locations.Client;
+using Shiny.AppDeviceBridge.Geofencing.Client;
+using Shiny.AppDeviceBridge.Gps.Client;
 using Shiny.AppDeviceBridge.ScreenRecorder.Client;
 using Shiny.AppDeviceBridge.Speech.Client;
 using Shiny.AppDeviceBridge.Health.Client;
 using Shiny.AppDeviceBridge.BluetoothLE.Client;
+using Shiny.AppDeviceBridge.Beacons.Client;
 using Shiny.AppDeviceBridge.Contacts.Client;
 using Shiny.AppDeviceBridge.Wifi.Client;
 using Shiny.AppDeviceBridge.Push.Client;
@@ -50,6 +52,7 @@ builder.Services
     .AddScreenRecorderBridgeClient()
     .AddHealthBridgeClient()
     .AddBluetoothLEBridgeClient()
+    .AddBeaconsBridgeClient()
     .AddContactsBridgeClient()
     .AddWifiBridgeClient()
     .AddPushBridgeClient()

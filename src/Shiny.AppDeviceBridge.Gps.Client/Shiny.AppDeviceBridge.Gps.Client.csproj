@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Gps.Client</RootNamespace>
+    <Description>Typed clients and contracts for the Shiny.AppDeviceBridge GPS and motion activity bridges — GPS readings and listeners, and walking/running/driving recognition — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddGpsBridgeClient() and AddMotionBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

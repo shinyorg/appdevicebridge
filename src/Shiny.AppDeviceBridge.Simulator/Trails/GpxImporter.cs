@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
-using Shiny.AppDeviceBridge.Locations.Client;
+using Shiny.AppDeviceBridge.Gps.Client;
 
 namespace Shiny.AppDeviceBridge.Simulator.Trails;
 
@@ -84,7 +84,7 @@ public static class GpxImporter
                 IsStationary: speed < 0.2
             );
 
-            var payload = JsonSerializer.SerializeToNode(reading, LocationsJsonContext.Default.GpsReading)!.AsObject();
+            var payload = JsonSerializer.SerializeToNode(reading, GpsJsonContext.Default.GpsReading)!.AsObject();
             payload["timestamp"] = "$now";
 
             trail.Steps.Add(new TrailStep

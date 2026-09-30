@@ -22,7 +22,7 @@ public static class WebAppHostExtensions
     ///     bridge => bridge
     ///         .Configure(o => o.AppId = "field-app")
     ///         .AddAppSupportBridge()
-    ///         .AddLocationBridges(),
+    ///         .AddGpsBridge(),
     ///     webApp =>
     ///     {
     ///         webApp.UpdateProvider = new GitHubReleasesUpdateProvider("https://github.com/acme/field-app");
