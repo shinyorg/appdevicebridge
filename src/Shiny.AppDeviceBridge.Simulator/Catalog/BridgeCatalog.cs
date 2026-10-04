@@ -119,6 +119,7 @@ public static class BridgeCatalog
             Describe(typeof(GpsClient.IGpsBridge), GpsClient.GpsJsonContext.Default),
             Describe(typeof(GeofencingClient.IGeofencesBridge), GeofencingClient.GeofencingJsonContext.Default),
             Describe(typeof(GpsClient.IMotionBridge), GpsClient.GpsJsonContext.Default),
+            Describe(typeof(GpsClient.IGeocodingBridge), GpsClient.GpsJsonContext.Default),
             Describe(typeof(MapsClient.IMapsBridge), MapsClient.MapsJsonContext.Default),
             Describe(typeof(MapsClient.IDirectionsBridge), MapsClient.DirectionsJsonContext.Default),
             Describe(typeof(NotificationsClient.INotificationsBridge), NotificationsClient.NotificationsJsonContext.Default),

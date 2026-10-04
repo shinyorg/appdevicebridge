@@ -3,12 +3,14 @@
 @inject IGpsBridge GpsBridge
 @inject IGeofencesBridge GeofencesBridge
 @inject IMotionBridge MotionBridge
+@inject IGeocodingBridge GeocodingBridge
 
 <h1>Location</h1>
 
 <h2>GPS</h2>
 <div class="actions">
     <button @onclick="Current">Current position</button>
+    <button @onclick="WhereAmI">Address here</button>
     <button @onclick="StartListening">Listen (background)</button>
     <button @onclick="@(() => Run(() => GpsBridge.StopListenerAsync(), "Stopped."))">Stop</button>
 </div>
@@ -62,6 +64,15 @@
         await GpsBridge.RequestAccessAsync(new GpsListenerSettings());
         return await GpsBridge.GetCurrentPositionAsync();
     }, Json.GpsReading);
+
+    // Reverse geocoding needs no permission of its own; the position does.
+    Task WhereAmI() => Run(async () =>
+    {
+        await GpsBridge.RequestAccessAsync(new GpsListenerSettings());
+
+        var here = await GpsBridge.GetCurrentPositionAsync() ?? throw new InvalidOperationException("No position yet.");
+        return await GeocodingBridge.ReverseGeocodeAsync(here.Latitude, here.Longitude);
+    }, Json.IReadOnlyListPlacemark);
 
     Task StartListening() => Run(async () =>
     {

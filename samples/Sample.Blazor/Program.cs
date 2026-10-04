@@ -53,6 +53,7 @@ builder.Services
     .AddGpsBridgeClient()
     .AddGeofencesBridgeClient()
     .AddMotionBridgeClient()
+    .AddGeocodingBridgeClient()
     .AddSpeechBridgeClient()
     .AddScreenRecorderBridgeClient()
     .AddHealthBridgeClient()

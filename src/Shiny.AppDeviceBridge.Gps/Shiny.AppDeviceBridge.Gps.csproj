@@ -12,7 +12,7 @@
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
     <RootNamespace>Shiny.AppDeviceBridge.Gps</RootNamespace>
-    <Description>GPS and motion activity endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Gps — permissions, current and last position, a listener streamed to the page as events, and walking/running/driving recognition. One call each: bridge.AddGpsBridge(), bridge.AddMotionActivityBridge().</Description>
+    <Description>GPS, motion activity and geocoding endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Gps — permissions, current and last position, a listener streamed to the page as events, walking/running/driving recognition, and reverse geocoding. One call each: bridge.AddGpsBridge(), bridge.AddMotionActivityBridge(), bridge.AddGeocodingBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>

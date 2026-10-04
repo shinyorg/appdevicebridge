@@ -222,6 +222,22 @@ static class GpsContractMapping
         reading.Timestamp
     );
 
+    public static Contracts.Placemark ToContract(Placemark p) => new(
+        p.Position.Latitude,
+        p.Position.Longitude,
+        p.Name,
+        p.SubThoroughfare,
+        p.Thoroughfare,
+        p.SubLocality,
+        p.Locality,
+        p.SubAdministrativeArea,
+        p.AdministrativeArea,
+        p.PostalCode,
+        p.CountryCode,
+        p.CountryName,
+        p.FormattedAddress
+    );
+
     public static Contracts.MotionAccessResult ToMotionAccess(AccessState access)
         => new(BridgeEnum.Convert<AccessState, Shiny.AppDeviceBridge.Client.AccessState>(access));
 }

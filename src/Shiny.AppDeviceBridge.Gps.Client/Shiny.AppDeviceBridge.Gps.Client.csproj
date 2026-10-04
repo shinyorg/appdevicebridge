@@ -4,7 +4,7 @@
 
   <PropertyGroup>
     <RootNamespace>Shiny.AppDeviceBridge.Gps.Client</RootNamespace>
-    <Description>Typed clients and contracts for the Shiny.AppDeviceBridge GPS and motion activity bridges — GPS readings and listeners, and walking/running/driving recognition — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddGpsBridgeClient() and AddMotionBridgeClient().</Description>
+    <Description>Typed clients and contracts for the Shiny.AppDeviceBridge GPS, motion activity and geocoding bridges — GPS readings and listeners, walking/running/driving recognition, and reverse geocoding — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddGpsBridgeClient(), AddMotionBridgeClient() and AddGeocodingBridgeClient().</Description>
   </PropertyGroup>
 
 </Project>

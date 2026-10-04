@@ -48,7 +48,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
 | `Shiny.AppDeviceBridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, launch at login, share, haptics and vibration, connectivity, battery, screen and clipboard; and `/_bridge/sensors` — accelerometer, gyroscope, magnetometer, compass, barometer and orientation |
 | `Shiny.AppDeviceBridge.AppSupport.Linux` | the Linux (GTK4) head | `AddAppSupportLinux()`: battery and energy saver for `AddAppSupportBridge()` from UPower and power-profiles-daemon over D-Bus, with change events |
-| `Shiny.AppDeviceBridge.Gps` | the app | `AddGpsBridge()`, `AddMotionActivityBridge()`: GPS and motion activity, backed by Shiny.Gps |
+| `Shiny.AppDeviceBridge.Gps` | the app | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()`: GPS, motion activity and reverse geocoding, backed by Shiny.Gps |
 | `Shiny.AppDeviceBridge.Geofencing` | the app | `AddGeofenceBridge()`: geofence regions and transitions, backed by Shiny.Geofencing |
 | `Shiny.AppDeviceBridge.BluetoothLE` | the app | `AddBluetoothLEBridge()` |
 | `Shiny.AppDeviceBridge.Beacons` | the app | `AddBeaconsBridge(BeaconFeatures.All)`: iBeacon ranging and background region monitoring, Eddystone scanning, and broadcasting as a beacon, backed by Shiny.Beacons |
@@ -645,6 +645,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | GPS | `GET gps/status`, `POST gps/access`, `GET gps/last`, `GET gps/current`, `GET/POST/DELETE gps/listener` | `gps.reading` |
 | Geofences | `GET geofences/status`, `POST geofences/access`, `GET/POST/DELETE geofences/regions`, `DELETE geofences/regions/{id}`, `GET geofences/regions/{id}/state` | `geofence.status` |
 | Motion activity | `GET motion/status`, `POST motion/access`, `GET motion/current`, `GET/POST/DELETE motion/listener` | `motion.activity` |
+| Geocoding | `GET geocoding/reverse?latitude=&longitude=` | |
 | Beacons | `GET beacons/status`, `POST beacons/access`, `GET/POST/DELETE beacons/ranging`, `DELETE beacons/ranging/{id}`, `GET/POST/DELETE beacons/regions`, `DELETE beacons/regions/{id}`, `GET beacons/regions/{id}/state`, `POST/DELETE beacons/eddystone`, `GET/DELETE beacons/broadcast`, `POST beacons/broadcast/{ibeacon,eddystone-uid,eddystone-url}` | `beacons.ranged`, `beacons.region`, `beacons.eddystone` |
 | Bluetooth LE | `GET ble/status`, `POST ble/access`, `POST/DELETE ble/scan`, `GET ble/peripherals[/{uuid}]`, `POST/DELETE …/connection`, `GET …/rssi`, `GET …/services`, `GET …/characteristics`, `GET/PUT …/characteristics/{c}`, `POST/DELETE …/notifications` | `ble.scan`, `ble.status`, `ble.notification`, `ble.error` |
 | Receipt printers | `GET printers/status`, `POST printers/scan`, `POST/DELETE printers/connection`, `POST printers/print`, `POST printers/render` | `printers.disconnected` |
@@ -765,6 +766,16 @@ returns `403`). `vibrate` is capped at 5 seconds.
 There's no history, only the latest reading and live ones. It ships in `Shiny.AppDeviceBridge.Gps`, but `AddGpsBridge()` doesn't include it,
 because it needs its own setup: `NSMotionUsageDescription` on iOS (the permission request crashes without it),
 and `ACTIVITY_RECOGNITION` with Google Play Services on Android. Other platforms return `501`.
+
+**Geocoding:** `AddGeocodingBridge()` turns a position into addresses with the platform geocoder: MapKit/CoreLocation on
+iOS and Mac Catalyst, `android.location.Geocoder` on Android. `GET geocoding/reverse?latitude=&longitude=` returns
+placemarks, most relevant first: `name`, `subThoroughfare` (street number), `thoroughfare`, `subLocality`, `locality`,
+`subAdministrativeArea`, `administrativeArea`, `postalCode`, `countryCode`, `countryName` and `formattedAddress`. Any part
+the geocoder couldn't resolve is `null`, and the list is empty when nothing is there. No location permission is involved,
+but every lookup goes to the platform's service over the network, so it ships separately from `AddGpsBridge()`. When that
+service can't be reached the call returns `503` (`geocoder_unavailable`), and a position off the map returns `400`. Other platforms
+return `501`, and so do Android devices without a geocoding backend (typically no Google Play Services). For the other
+direction, address to position, see the Maps package's `directions/geocode`.
 
 **Beacons:** `AddBeaconsBridge()` registers all four features. To leave some out, pass `BeaconFeatures` flags: for
 example `AddBeaconsBridge(BeaconFeatures.Ranging | BeaconFeatures.Eddystone)` skips monitoring's background location and
