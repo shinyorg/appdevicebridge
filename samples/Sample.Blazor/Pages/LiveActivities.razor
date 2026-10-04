@@ -1,0 +1,92 @@
+@page "/live-activities"
+@inherits BridgePage
+@inject ILiveActivitiesBridge Activities
+
+<h1>Live activities</h1>
+<p class="muted">A delivery on the Lock Screen and in the Dynamic Island on iOS, or a Live Update on Android 16. iOS needs the app built with <code>ShinyLiveActivityWidget</code> and Live Activities switched on for it in Settings.</p>
+
+<div class="actions">
+    <button @onclick="@(() => Run(() => Activities.GetStatusAsync(), Json.LiveActivitiesStatus))">Status</button>
+    <button @onclick="@(() => Run(() => Activities.RequestAccessAsync(), Json.LiveActivitiesStatus))">Request access</button>
+    <button @onclick="@(() => Run(() => Activities.GetActivitiesAsync(), Json.IReadOnlyListLiveActivity))">Running</button>
+</div>
+
+<div class="actions">
+    <button disabled="@(current is not null)" @onclick="StartAsync">Start delivery</button>
+    <button disabled="@(current is null)" @onclick="AdvanceAsync">Advance</button>
+    <button disabled="@(current is null)" @onclick="EndAsync">Delivered</button>
+    <button @onclick="EndAllAsync">End all</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    static LiveActivitiesJsonContext Json => LiveActivitiesJsonContext.Default;
+
+    // The stops a pretend delivery makes on its way.
+    static readonly string[] Stops = ["Order received", "Being packed", "Out for delivery", "Two stops away", "Arriving now"];
+
+    LiveActivity? current;
+    int stop;
+    string log = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen<LiveActivity>(Activities.OnStartedAsync, e => Log("liveactivities.started", Compact(e, Json.LiveActivity)));
+        await Listen<LiveActivity>(Activities.OnStateChangedAsync, e =>
+        {
+            Log("liveactivities.state", Compact(e, Json.LiveActivity));
+            if (e.Id == current?.Id && e.State is LiveActivityState.Ended or LiveActivityState.Dismissed)
+                current = null;
+        });
+        await Listen<LiveActivityPushToken>(Activities.OnPushTokenAsync, e => Log("liveactivities.token", Compact(e, Json.LiveActivityPushToken)));
+        await Listen<LiveActivityPushToStartToken>(Activities.OnPushToStartTokenAsync, e => Log("liveactivities.starttoken", Compact(e, Json.LiveActivityPushToStartToken)));
+    }
+
+    static LiveActivityContent Content(int stop) => new(
+        Title: Stops[stop],
+        Body: "Order #4821 · 2 items",
+        ShortStatus: $"{Stops.Length - 1 - stop} min",
+        Progress: new LiveActivityProgress(Value: (double)stop / (Stops.Length - 1)),
+        Data: new Dictionary<string, string> { ["order"] = "4821" }
+    );
+
+    Task StartAsync() => Run(async () =>
+    {
+        stop = 0;
+        current = await Activities.StartAsync(new LiveActivityStartRequest(
+            Content(stop),
+            new Dictionary<string, string> { ["order"] = "4821" },
+            Kind: "delivery",
+
+            // A push token needs the aps-environment entitlement, which the sample does not have.
+            RequestPushToken: false
+        ));
+        return current;
+    }, Json.LiveActivity);
+
+    Task AdvanceAsync() => Run(async () =>
+    {
+        stop = Math.Min(stop + 1, Stops.Length - 1);
+
+        // The last stop alerts; the others refresh silently.
+        var alert = stop == Stops.Length - 1 ? new LiveActivityAlert("Your order is here", "Meet the driver at the door") : null;
+        await Activities.UpdateAsync(current!.Id, new LiveActivityUpdateRequest(Content(stop), alert));
+    }, "Updated.");
+
+    Task EndAsync() => Run(async () =>
+    {
+        var final = new LiveActivityContent(Title: "Delivered", Body: "Order #4821", ShortStatus: "Done", Progress: new LiveActivityProgress(Value: 1));
+        await Activities.EndAsync(current!.Id, new LiveActivityEndRequest(final, DateTimeOffset.Now.AddMinutes(1)));
+        current = null;
+    }, "Ended. It leaves the Lock Screen in a minute.");
+
+    Task EndAllAsync() => Run(async () =>
+    {
+        await Activities.EndAllAsync();
+        current = null;
+    }, "Ended every activity.");
+
+    void Log(string name, string payload) => log = Prepend(log, $"{DateTime.Now:T}  {name}  {payload}");
+}

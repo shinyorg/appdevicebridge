@@ -36,6 +36,8 @@
             "src/Shiny.AppDeviceBridge.Geofencing/Shiny.AppDeviceBridge.Geofencing.csproj",
             "src/Shiny.AppDeviceBridge.Gps.Client/Shiny.AppDeviceBridge.Gps.Client.csproj",
             "src/Shiny.AppDeviceBridge.Gps/Shiny.AppDeviceBridge.Gps.csproj",
+            "src/Shiny.AppDeviceBridge.LiveActivities.Client/Shiny.AppDeviceBridge.LiveActivities.Client.csproj",
+            "src/Shiny.AppDeviceBridge.LiveActivities/Shiny.AppDeviceBridge.LiveActivities.csproj",
             "src/Shiny.AppDeviceBridge.MapPacks/Shiny.AppDeviceBridge.MapPacks.csproj",
             "src/Shiny.AppDeviceBridge.Maps.Blazor/Shiny.AppDeviceBridge.Maps.Blazor.csproj",
             "src/Shiny.AppDeviceBridge.Maps.Client/Shiny.AppDeviceBridge.Maps.Client.csproj",

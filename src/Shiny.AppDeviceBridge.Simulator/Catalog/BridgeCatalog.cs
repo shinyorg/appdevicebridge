@@ -14,6 +14,7 @@ using FoldersClient = Shiny.AppDeviceBridge.Folders.Client;
 using GeofencingClient = Shiny.AppDeviceBridge.Geofencing.Client;
 using GpsClient = Shiny.AppDeviceBridge.Gps.Client;
 using HealthClient = Shiny.AppDeviceBridge.Health.Client;
+using LiveActivitiesClient = Shiny.AppDeviceBridge.LiveActivities.Client;
 using MapsClient = Shiny.AppDeviceBridge.Maps.Client;
 using NotificationsClient = Shiny.AppDeviceBridge.Notifications.Client;
 using ObdClient = Shiny.AppDeviceBridge.Obd.Client;
@@ -113,6 +114,7 @@ public static class BridgeCatalog
             Describe(typeof(DiscoveryClient.IDiscoveryBridge), DiscoveryClient.DiscoveryJsonContext.Default),
             Describe(typeof(FoldersClient.IFoldersBridge), FoldersClient.FoldersJsonContext.Default),
             Describe(typeof(HealthClient.IHealthBridge), HealthClient.HealthJsonContext.Default),
+            Describe(typeof(LiveActivitiesClient.ILiveActivitiesBridge), LiveActivitiesClient.LiveActivitiesJsonContext.Default),
             Describe(typeof(TransfersClient.ITransfersBridge), TransfersClient.TransfersJsonContext.Default),
             Describe(typeof(GpsClient.IGpsBridge), GpsClient.GpsJsonContext.Default),
             Describe(typeof(GeofencingClient.IGeofencesBridge), GeofencingClient.GeofencingJsonContext.Default),

@@ -26,6 +26,7 @@ using Shiny.AppDeviceBridge.Contacts.Client;
 using Shiny.AppDeviceBridge.Wifi.Client;
 using Shiny.AppDeviceBridge.Push.Client;
 using Shiny.AppDeviceBridge.Wearables.Client;
+using Shiny.AppDeviceBridge.LiveActivities.Client;
 using Shiny.AppDeviceBridge.Maps.Blazor;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
@@ -61,6 +62,7 @@ builder.Services
     .AddWifiBridgeClient()
     .AddPushBridgeClient()
     .AddWearablesBridgeClient()
+    .AddLiveActivitiesBridgeClient()
     .AddBridgeMaps();
 builder.Services.AddScoped<NativeCallHandlers>();
 

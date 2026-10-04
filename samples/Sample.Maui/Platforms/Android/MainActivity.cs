@@ -8,7 +8,7 @@ namespace Sample.Maui;
 // link reaches this activity through OnNewIntent instead of stacking a second WebView and host.
 [Activity(
     Name = "org.shinylib.appdevicebridge.sample.MainActivity",
-    Theme = "@style/Maui.MainTheme.NoActionBar",
+    Theme = "@style/Maui.SplashTheme",
     MainLauncher = true,
     LaunchMode = LaunchMode.SingleTop,
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density

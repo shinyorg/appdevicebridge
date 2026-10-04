@@ -12,7 +12,7 @@
     <SupportedOSPlatformVersion>14.0</SupportedOSPlatformVersion>
     <RootNamespace>Sample.MacOS</RootNamespace>
 
-    <ApplicationTitle>AppDeviceBridge Sample</ApplicationTitle>
+    <ApplicationTitle>App Bridge</ApplicationTitle>
     <ApplicationId>org.shinylib.appdevicebridge.sample</ApplicationId>
     <ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>

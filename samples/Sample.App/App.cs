@@ -30,6 +30,6 @@ public class App : Application
         page.Content = new Grid { host, traffic };
 #endif
 
-        return new(page) { Title = "AppDeviceBridge Sample" };
+        return new(page) { Title = "App Bridge" };
     }
 }

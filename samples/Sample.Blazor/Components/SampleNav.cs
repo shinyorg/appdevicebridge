@@ -38,6 +38,7 @@ public static class SampleNav
         new("Messaging",
             new NavItem("push", "Push", "bell", "push"),
             new NavItem("watch", "Watch", "watch", "wearables"),
+            new NavItem("live-activities", "Live activities", "bolt", "liveactivities"),
             new NavItem("notifications", "Notifications", "message", "notifications"),
             new NavItem("links", "Links", "link", "links")),
         new("Data",

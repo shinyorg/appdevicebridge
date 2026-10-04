@@ -60,6 +60,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Camera/Shiny.AppDeviceBridge.Camera.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Simulator/Shiny.AppDeviceBridge.Simulator.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wearables/Shiny.AppDeviceBridge.Wearables.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.LiveActivities/Shiny.AppDeviceBridge.LiveActivities.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Printers/Shiny.AppDeviceBridge.Printers.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Printing/Shiny.AppDeviceBridge.Printing.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Beacons/Shiny.AppDeviceBridge.Beacons.csproj" />

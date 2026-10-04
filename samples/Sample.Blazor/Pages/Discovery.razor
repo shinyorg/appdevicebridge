@@ -34,7 +34,7 @@
 
     // iOS only lets the app advertise and browse types listed in NSBonjourServices; the sample lists this one.
     Task PublishSelf() => Run(() => DiscoveryBridge.PublishMdnsAsync(new MdnsPublishRequest(
-        "AppDeviceBridge Sample",
+        "App Bridge",
         "_appdevicebridge._tcp",
         5780,
         TxtRecords: new Dictionary<string, string> { ["app"] = "sample" }

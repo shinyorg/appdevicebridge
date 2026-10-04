@@ -14,6 +14,7 @@ export * from "./geofencing.js";
 export * from "./gps.js";
 export * from "./health.js";
 export * from "./http-transfers.js";
+export * from "./live-activities.js";
 export * from "./maps.js";
 export * from "./notifications.js";
 export * from "./obd.js";

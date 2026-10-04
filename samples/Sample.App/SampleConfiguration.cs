@@ -23,6 +23,7 @@ using Shiny.AppDeviceBridge.Printers;
 using Shiny.AppDeviceBridge.Printing;
 using Shiny.AppDeviceBridge.Push;
 using Shiny.AppDeviceBridge.Wearables;
+using Shiny.AppDeviceBridge.LiveActivities;
 using Shiny.AppDeviceBridge.RpiCamera;
 using Shiny.AppDeviceBridge.ScreenRecorder;
 using Shiny.AppDeviceBridge.Speech;
@@ -82,6 +83,9 @@ public static class SampleConfiguration
 
                         // A paired Apple Watch or Wear OS companion app; the page or background.js answers what it sends.
                         .AddWearablesBridge()
+
+                        // iOS Live Activities and Android Live Updates; the iOS head builds Shiny's stock widget into the app.
+                        .AddLiveActivitiesBridge()
                         .AddNotificationsBridge()
                         .AddHttpTransfersBridge()
                         .AddHealthBridge()

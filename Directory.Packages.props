@@ -22,6 +22,7 @@
         <PackageVersion Include="Shiny.Push" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Notifications" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Wearables" Version="$(ShinyVersion)"/>
+        <PackageVersion Include="Shiny.Mobile.LiveActivities" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Notifications.Linux" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Net.Wifi" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Net.Wifi.Linux" Version="$(ShinyVersion)"/>
@@ -50,7 +51,6 @@
         <PackageVersion Include="SkiaSharp" Version="4.151.1"/>
         <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.151.1"/>
         <PackageVersion Include="Xamarin.AndroidX.DocumentFile" Version="1.1.0.3"/>
-        <PackageVersion Include="GirCore.Gtk-4.0" Version="0.7.0"/>
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12"/>
         <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12"/>
         <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0"/>

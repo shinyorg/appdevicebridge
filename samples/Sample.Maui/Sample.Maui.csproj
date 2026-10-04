@@ -12,7 +12,7 @@
     <SingleProject>true</SingleProject>
     <RootNamespace>Sample.Maui</RootNamespace>
 
-    <ApplicationTitle>AppDeviceBridge Sample</ApplicationTitle>
+    <ApplicationTitle>App Bridge</ApplicationTitle>
     <ApplicationId>org.shinylib.appdevicebridge.sample</ApplicationId>
     <ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
@@ -20,14 +20,22 @@
     <!-- 26: the Health bridge's Health Connect client requires it. -->
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">26.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
-    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">17.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
     <TargetPlatformMinVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</TargetPlatformMinVersion>
     <WindowsPackageType>None</WindowsPackageType>
 
+    <!-- Live activities bridge: compiles Shiny.Mobile.LiveActivities' stock Lock Screen / Dynamic Island widget into the app. -->
+    <ShinyLiveActivityWidget Condition="$(TargetFramework.Contains('-ios'))">true</ShinyLiveActivityWidget>
+
     <CodesignEntitlements Condition="$(TargetFramework.Contains('-ios'))">Platforms/iOS/Entitlements.plist</CodesignEntitlements>
     <CodesignEntitlements Condition="$(TargetFramework.Contains('-maccatalyst'))">Platforms/MacCatalyst/Entitlements.plist</CodesignEntitlements>
   </PropertyGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources/AppIcon/appicon.svg" ForegroundFile="Resources/AppIcon/appiconfg.svg" ForegroundScale="0.75" Color="#4F46E5" />
+    <MauiSplashScreen Include="Resources/Splash/splash.svg" Color="#4F46E5" BaseSize="128,128" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />

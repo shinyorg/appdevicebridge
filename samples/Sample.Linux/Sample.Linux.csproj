@@ -11,7 +11,7 @@
          runs there. -->
     <NoWarn>$(NoWarn);CA1416</NoWarn>
 
-    <ApplicationTitle>AppDeviceBridge Sample</ApplicationTitle>
+    <ApplicationTitle>App Bridge</ApplicationTitle>
     <ApplicationId>org.shinylib.appdevicebridge.sample</ApplicationId>
     <ApplicationDisplayVersion>1.0.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>

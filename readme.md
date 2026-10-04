@@ -60,6 +60,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Jobs` | the app | `AddWebAppJob(name, configure)`: background jobs handled by the page or `background.js` |
 | `Shiny.AppDeviceBridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
 | `Shiny.AppDeviceBridge.Wearables` | the app | `AddWearablesBridge()`: the companion Apple Watch or Wear OS app, through Shiny.Wearables — status, live messages the page or `background.js` answers, shared context, queued transfers and files through the file roots (iOS and Android; `501` elsewhere) |
+| `Shiny.AppDeviceBridge.LiveActivities` | the app | `AddLiveActivitiesBridge()`: iOS Live Activities and Android 16 Live Updates, through Shiny.Mobile.LiveActivities — start, update and end them from the page, with their push tokens handed to the page or `background.js` (iOS and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.Maps` | the app | `AddMapsBridge()`: vector map tiles online or from regions the user downloads (verified against a signed catalog), live traffic flow and incidents from pluggable providers (TomTom, HERE and Azure Maps built in), turn-by-turn directions from an online Valhalla router, and addresses turned into stops by a pluggable geocoder (Nominatim built in) (all platforms) |
 | `Shiny.AppDeviceBridge.Maps.Valhalla` | the app | `AddOnDeviceDirections()`: directions computed on the phone over a downloaded region's road network (Android and iOS; online elsewhere) |
 | `Shiny.AppDeviceBridge.Maps.Blazor` | the web app | `<BridgeMap>`: MapLibre GL JS bundled for offline use, with pins, lines, areas, circles, click-to-draw, routes and live traffic |
@@ -80,7 +81,7 @@ app, served from the device itself, updated from your own server, and able to ca
 
 AppSupport, AppSupport.Linux, AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
 `Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi,
-HttpTransfers, Jobs, Gps, Geofencing, Notifications, Push, Wearables, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
+HttpTransfers, Jobs, Gps, Geofencing, Notifications, Push, Wearables, LiveActivities, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
 ## The app
@@ -654,6 +655,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Notifications | `GET notifications`, `POST notifications/access`, `POST notifications/send`, `GET notifications/pending`, `DELETE notifications[?scope=]`, `DELETE notifications/{id}`, `GET/PUT notifications/badge`, `GET/POST notifications/channels`, `DELETE notifications/channels/{id}` | `notification.entry`, `notification.received` |
 | HTTP transfers | `GET/POST/DELETE transfers`, `GET/DELETE transfers/{id}`, `POST transfers/{id}/pause`, `POST transfers/{id}/resume` | `transfer.progress`, `transfer.completed`, `transfer.failed`, `transfer.cancelled` |
 | Wearables | `GET wearables`, `POST wearables/messages`, `GET/PUT wearables/context`, `GET/POST wearables/transfers`, `DELETE wearables/transfers/{id}`, `POST wearables/files` | `wearables.status`, `wearables.message`, `wearables.context`, `wearables.transfer`, `wearables.file`, `wearables.completed` |
+| Live activities | `GET liveactivities`, `POST liveactivities/access`, `GET/POST/DELETE liveactivities/activities`, `PUT liveactivities/activities/{id}`, `POST liveactivities/activities/{id}/end` | `liveactivities.started`, `liveactivities.state`, `liveactivities.token`, `liveactivities.starttoken` |
 | Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/traffic/{z}/{x}/{y}`, `GET maps/incidents/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
 | Directions | `GET directions`, `POST directions/route`, `GET directions/geocode?query=` | |
 | App links | `GET/DELETE links/pending` | `app.link` |
@@ -1034,6 +1036,24 @@ other platform answers `501`.
 - **The companion app** speaks Shiny.Wearables' protocol (paths under `/shiny` on Wear OS, `path`/`data` dictionaries
   on watchOS). On Wear OS both apps share the application id and signing key.
 
+**Live activities** (`Shiny.AppDeviceBridge.LiveActivities`, `AddLiveActivitiesBridge()`): iOS Live Activities on the
+Lock Screen and in the Dynamic Island, and Android 16 Live Updates (an ordinary progress notification on older Android),
+through Shiny.Mobile.LiveActivities 5.9. iOS 16.2+ and Android only; every other platform answers `501`.
+- **iOS needs the widget extension:** set `<ShinyLiveActivityWidget>true</ShinyLiveActivityWidget>` for the iOS target
+  and the build compiles Shiny's stock widget into the app and adds `NSSupportsLiveActivities`. Without it, starting an
+  activity succeeds and nothing appears.
+- **Start, update, end:** `POST liveactivities/activities` with `{ content, attributes?, kind?, requestPushToken? }`
+  returns `{ id, state }`. `PUT liveactivities/activities/{id}` with `{ content, alert? }` replaces what it says, silently
+  unless `alert` is set; `POST liveactivities/activities/{id}/end` takes `{ content?, dismissAt? }`, and
+  `DELETE liveactivities/activities` ends them all. Content is `title`, `body`, `shortStatus`, `progress` (`{ value }`
+  0–1, `{ start, end }` or `{ indeterminate }`), `staleDate`, `relevanceScore` and `data`.
+- **Errors:** `404` for an id that isn't running, `400` without `content` or with progress outside 0–1, and `502`
+  `live_activity_failed` when the system refuses — live activities switched off, or too many running.
+- **Push tokens:** `liveactivities.token` (one per activity) and `liveactivities.starttoken` (push-to-start, iOS 17.2+)
+  go to the page's handler, or `background.js` when no page is open, so the app's server always hears about them.
+  `requestPushToken` defaults to true, and on iOS needs the `aps-environment` entitlement: without it the start fails
+  with `502`. An app without push starts with `requestPushToken: false`.
+
 **Maps and directions** (`Shiny.AppDeviceBridge.Maps`, `AddMapsBridge()`): online by default, offline where the user
 downloaded a region. Every platform; on-device directions on Android and iOS with `Shiny.AppDeviceBridge.Maps.Valhalla`.
 - **Tiles:** `GET maps` gives the tile, glyph and sprite URL templates a renderer uses. A tile comes from an installed
@@ -1067,6 +1087,18 @@ downloaded a region. Every platform; on-device directions on Android and iOS wit
   Framework grant; Windows and Linux (GTK's file dialog) keep the path.
 - **Android folders aren't paths.** The files bridge reads and writes them through the Storage Access Framework,
   but bridges that hand the OS a file path — sharing, transfers, notification images — refuse them.
+- **A plain `net10.0` project that references it** (a shared setup project that mobile heads also use) compiles
+  against the Linux build, which references GirCore. GirCore's source generators then run in that project, and the code
+  they add references GTK's assemblies, which a mobile app doesn't ship. iOS stops at launch with
+  `Could not find GLib-2.0`. Remove the generators in that project's csproj:
+
+  ```xml
+  <Target Name="_DropGirCoreGenerators" AfterTargets="ResolveLockFileAnalyzers">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="$([System.String]::Copy('%(Analyzer.NuGetPackageId)').StartsWith('GirCore.'))" />
+    </ItemGroup>
+  </Target>
+  ```
 
 **Tray icon** (`Shiny.AppDeviceBridge.Desktop`, `AddTrayIconBridge()`): the system tray on Windows, the menu bar on
 macOS, the status notifier area on Linux — desktop only, `501` elsewhere.
@@ -1510,6 +1542,7 @@ then the handler. It gets `BackgroundScriptTimeout` (25 s) and 64 MB.
 | Notification presented while the app is open (Apple platforms) | `notification.received` with the same shape | `AddNotificationsBridge()` |
 | HTTP transfer finished | `transfer.completed` / `transfer.failed` with the transfer | `AddHttpTransfersBridge()` (Bridge.HttpTransfers) |
 | Watch message, context, transfer or file | `wearables.message` (its return value is the reply), `wearables.context`, `wearables.transfer`, `wearables.file` | `AddWearablesBridge()` (Bridge.Wearables) |
+| Live activity started, changed state, or got a push token | `liveactivities.started`, `liveactivities.state`, `liveactivities.token` with `{ activityId, token }`, `liveactivities.starttoken` with `{ token }` | `AddLiveActivitiesBridge()` (Bridge.LiveActivities) |
 
 From your own native code, call `WebAppInvoker.InvokeAsync(name, payload, typeInfo)`.
 

@@ -56,13 +56,20 @@ public static class AppLinksBridgeExtensions
         bridge.Maui.ConfigureLifecycleEvents(events => events.AddiOS(ios => ios
             .OpenUrl((_, url, _) => Receive(links, url))
             .ContinueUserActivity((_, activity, _) => Receive(links, activity))
+            // UIKit passes nil for both sets on a launch that carried no link, which the bindings surface as null.
             .SceneWillConnect((_, _, connection) =>
             {
-                foreach (var context in connection.UrlContexts)
-                    Receive(links, context.Url);
+                if (connection?.UrlContexts is { } contexts)
+                {
+                    foreach (var context in contexts)
+                        Receive(links, context.Url);
+                }
 
-                foreach (var activity in connection.UserActivities)
-                    Receive(links, activity);
+                if (connection?.UserActivities is { } activities)
+                {
+                    foreach (var activity in activities)
+                        Receive(links, activity);
+                }
             })
             .SceneOpenUrl((_, contexts) =>
             {
