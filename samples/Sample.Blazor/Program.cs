@@ -8,6 +8,8 @@ using Shiny.AppDeviceBridge.Photos.Client;
 using Shiny.AppDeviceBridge.RpiCamera.Client;
 using Shiny.AppDeviceBridge.Folders.Client;
 using Shiny.AppDeviceBridge.Obd.Client;
+using Shiny.AppDeviceBridge.Printers.Client;
+using Shiny.AppDeviceBridge.Printing.Client;
 using Shiny.AppDeviceBridge.Notifications.Client;
 using Shiny.AppDeviceBridge.Desktop.Client;
 using Shiny.AppDeviceBridge.AppSupport.Client;
@@ -38,6 +40,8 @@ builder.Services
     .AddRpiCameraBridgeClient()
     .AddFoldersBridgeClient()
     .AddObdBridgeClient()
+    .AddPrintersBridgeClient()
+    .AddPrintingBridgeClient()
     .AddNotificationsBridgeClient()
     .AddTrayBridgeClient()
     .AddQuickEntryBridgeClient()

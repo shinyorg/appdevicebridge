@@ -106,6 +106,12 @@ dev server.
 - **`dev server did not start` again and again:** earlier `dotnet watch` processes that crashed can hang and keep the
   watcher; `pgrep -fl "dotnet watch run --launch-profile device"` and kill them before `up`.
 
+- **A native library can go stale in the bundle.** An incremental build only copies a native asset when the package's
+  file is newer, so after a package upgrade `MonoBundle/` can keep the old one. Seen with SkiaSharp 4: "The version of the
+  native libSkiaSharp library (119.0) is incompatible". Never delete a single file from the `.app`: the next build copies
+  it back unsigned, and every launch dies with `SIGKILL (Code Signature Invalid)`. Run `down`, then
+  `dotnet build samples/Sample.MacOS/Sample.MacOS.csproj -t:Rebuild -p:ValidateXcodeVersion=false`, then `up`.
+
 ## Troubleshooting
 
 - **`shot` says `could not create image from window`** while `status` is all green: the Mac's screen is locked

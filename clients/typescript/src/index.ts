@@ -18,6 +18,8 @@ export * from "./maps.js";
 export * from "./notifications.js";
 export * from "./obd.js";
 export * from "./photos.js";
+export * from "./printers.js";
+export * from "./printing.js";
 export * from "./push.js";
 export * from "./rpi-camera.js";
 export * from "./screen-recorder.js";

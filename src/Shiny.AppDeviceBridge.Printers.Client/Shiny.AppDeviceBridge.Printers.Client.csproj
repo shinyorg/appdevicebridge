@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Printers.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge receipt printer bridge — find ESC/POS and TSPL printers over Bluetooth LE or the network, connect, print a receipt built in the page, and render it to PDF — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddPrintersBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

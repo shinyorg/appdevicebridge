@@ -19,6 +19,8 @@ using Shiny.AppDeviceBridge.Maps.Valhalla;
 using Shiny.AppDeviceBridge.Notifications;
 using Shiny.AppDeviceBridge.Obd;
 using Shiny.AppDeviceBridge.Photos;
+using Shiny.AppDeviceBridge.Printers;
+using Shiny.AppDeviceBridge.Printing;
 using Shiny.AppDeviceBridge.Push;
 using Shiny.AppDeviceBridge.Wearables;
 using Shiny.AppDeviceBridge.RpiCamera;
@@ -70,6 +72,10 @@ public static class SampleConfiguration
                         .AddBluetoothLEBridge()
                         .AddBeaconsBridge()
                         .AddObdBridge()
+
+                        // Receipt printers over Bluetooth LE or port 9100, and the OS print dialog / CUPS for everything else.
+                        .AddPrintersBridge()
+                        .AddPrintingBridge()
                         .AddWifiBridge()
                         .AddDiscoveryBridge()
                         .AddPushBridge(o => o.DispatchToWebApp = true)

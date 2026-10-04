@@ -1,0 +1,126 @@
+@page "/printing"
+@inherits BridgePage
+@inject IPrintersBridge Printers
+@inject IPrintingBridge OsPrinting
+
+<h1>Printing</h1>
+<p class="muted">A receipt printer over Bluetooth LE or port 9100, and the operating system's own printing. No printer handy? <code>nc -l 9100 | xxd</code> on this machine stands in for one at 127.0.0.1.</p>
+
+<h2>Receipt printer</h2>
+<div class="actions">
+    <button @onclick="@(() => Run(() => Printers.GetStatusAsync(), PrintersJson.PrintersStatus))">Status</button>
+    <button @onclick="@(() => Scan(PrinterTransport.Ble))">Scan Bluetooth</button>
+    <button @onclick="@(() => Scan(PrinterTransport.Network))">Scan network</button>
+    <button @onclick="@(() => Run(() => Printers.DisconnectAsync(), "Disconnected."))">Disconnect</button>
+</div>
+
+<div class="actions">
+    <input @bind="host" placeholder="192.168.1.50" />
+    <input @bind="port" placeholder="9100" type="number" />
+    <select @bind="paper">
+        <option value="@PrinterPaper.Paper58mm">58mm</option>
+        <option value="@PrinterPaper.Paper80mm">80mm</option>
+    </select>
+    <button @onclick="ConnectNetwork">Connect network</button>
+</div>
+
+<ul class="list">
+    @foreach (var printer in found)
+    {
+        <li>
+            <strong>@(printer.Name ?? "(unnamed)")</strong> <span class="muted">@printer.Transport · @printer.Id @printer.Profile</span>
+            <button @onclick="() => Connect(printer)">Connect</button>
+        </li>
+    }
+</ul>
+
+<div class="actions">
+    <button @onclick="PrintReceipt">Print receipt</button>
+    <button @onclick="RenderReceipt">Render receipt to PDF</button>
+</div>
+
+<h2>Operating system</h2>
+<div class="actions">
+    <button @onclick="@(() => Run(() => OsPrinting.GetCapabilitiesAsync(), PrintingJson.PrintingCapabilities))">Capabilities</button>
+    <button @onclick="@(() => Run(() => OsPrinting.GetPrintersAsync(), PrintingJson.IReadOnlyListInstalledPrinter))">Installed printers</button>
+    <button @onclick="PrintHtml">Print HTML</button>
+    <button @onclick="HtmlToPdf">HTML to PDF</button>
+    <button @onclick="PrintPdf" disabled="@(pdf is null)">Print rendered receipt</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    static PrintersJsonContext PrintersJson => PrintersJsonContext.Default;
+    static PrintingJsonContext PrintingJson => PrintingJsonContext.Default;
+
+    IReadOnlyList<DiscoveredPrinter> found = [];
+    string host = "127.0.0.1";
+    int port = 9100;
+    PrinterPaper paper = PrinterPaper.Paper58mm;
+    int columns = 32;
+    byte[]? pdf;
+    string log = String.Empty;
+
+    protected override Task OnInitializedAsync()
+        => Listen<PrinterDisconnected>(Printers.OnDisconnectedAsync, e => log = Prepend(log, $"{DateTime.Now:T}  disconnected  {e.Id}"));
+
+    Task Scan(PrinterTransport transport) => Run(async () =>
+    {
+        found = [];
+        return found = await Printers.ScanAsync(new PrinterScanRequest(transport, 5000));
+    }, PrintersJson.IReadOnlyListDiscoveredPrinter);
+
+    Task Connect(DiscoveredPrinter printer) => Run(async () => Connected(await Printers.ConnectAsync(new PrinterConnectRequest(Id: printer.Id, Paper: paper))), PrintersJson.ConnectedPrinter);
+
+    Task ConnectNetwork() => Run(async () => Connected(await Printers.ConnectAsync(new PrinterConnectRequest(PrinterTransport.Network, Host: host, Port: port, Paper: paper))), PrintersJson.ConnectedPrinter);
+
+    ConnectedPrinter Connected(ConnectedPrinter printer)
+    {
+        columns = printer.Capabilities.CharactersPerLine;
+        return printer;
+    }
+
+    // Laid out in the connected printer's columns, so the same receipt fits 58mm and 80mm paper.
+    PrintElements Receipt() => new PrintElements()
+        .AlignCenter().Bold().Size(2).Line("SHINY MART").ResetStyle()
+        .Line("AppDeviceBridge sample")
+        .AlignLeft().Line(new string('-', columns))
+        .Line(Columns("Coffee", "3.50"))
+        .Line(Columns("Croissant", "2.75"))
+        .Line(new string('-', columns))
+        .Bold().Line(Columns("TOTAL", "6.25")).Bold(false)
+        .Feed()
+        .AlignCenter()
+        .Barcode(PrintBarcodeFormat.Code128, "ORDER-1042", height: 60)
+        .QrCode("https://shinylib.net/appdevicebridge/printing/", moduleSize: 5)
+        .Line(DateTime.Now.ToString("g"))
+        .Cut();
+
+    string Columns(string left, string right)
+        => left + new string(' ', Math.Max(1, columns - left.Length - right.Length)) + right;
+
+    Task PrintReceipt() => Run(() => Printers.PrintAsync(Receipt().ToRequest()), PrintersJson.PrintReceiptResult);
+
+    Task RenderReceipt() => Run(
+        async () => pdf = await Printers.RenderAsync(new PrintRenderRequest(Receipt().Elements, Paper: paper)),
+        "Rendered to PDF. Print it through the operating system below."
+    );
+
+    Task PrintPdf() => Run(
+        () => OsPrinting.PrintAsync(new PrintJobRequest(PrintJobContent.Pdf, Convert.ToBase64String(pdf!), Options: new PrintJobOptions("Sample receipt"))),
+        PrintingJson.PrintJobResult
+    );
+
+    // Fills the same slot as the rendered receipt, so "Print rendered receipt" prints it.
+    Task HtmlToPdf() => Run(
+        async () => pdf = await OsPrinting.HtmlToPdfAsync(new HtmlToPdfRequest("<h1>Hello from the web app</h1><p>Laid out by the device.</p>")),
+        "Turned into a PDF. Print it with the button above."
+    );
+
+    Task PrintHtml() => Run(
+        () => OsPrinting.PrintAsync(new PrintJobRequest(PrintJobContent.Html, Html: "<h1>Hello from the web app</h1><p>Printed through the operating system.</p>", Options: new PrintJobOptions("Sample page"))),
+        PrintingJson.PrintJobResult
+    );
+}

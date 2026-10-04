@@ -53,6 +53,8 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.BluetoothLE` | the app | `AddBluetoothLEBridge()` |
 | `Shiny.AppDeviceBridge.Beacons` | the app | `AddBeaconsBridge(BeaconFeatures.All)`: iBeacon ranging and background region monitoring, Eddystone scanning, and broadcasting as a beacon, backed by Shiny.Beacons |
 | `Shiny.AppDeviceBridge.Obd` | the app | `AddObdBridge()`: OBD-II over Bluetooth LE or Wi-Fi adapters — decoded PIDs, VIN, trouble codes, live readings |
+| `Shiny.AppDeviceBridge.Printers` | the app | `AddPrintersBridge()`: ESC/POS and TSPL receipt and label printers over Bluetooth LE or the network (raw TCP 9100, found over mDNS) — receipts the page builds, rendered to PDF too |
+| `Shiny.AppDeviceBridge.Printing` | the app | `AddPrintingBridge()`: the operating system's own printing — a PDF, image or HTML through AirPrint, Android's print dialog, the Windows spooler or CUPS |
 | `Shiny.AppDeviceBridge.Wifi` | the app | `AddWifiBridge(hotspot: false)`: current network and changes, scan, connect, known networks, radio, hotspot |
 | `Shiny.AppDeviceBridge.Discovery` | the app | `AddDiscoveryBridge(DiscoveryProtocols.All)`: mDNS/Bonjour, SSDP/UPnP, WS-Discovery search, browse, resolve and publish |
 | `Shiny.AppDeviceBridge.Jobs` | the app | `AddWebAppJob(name, configure)`: background jobs handled by the page or `background.js` |
@@ -77,7 +79,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.RpiCamera` | the app, or a headless Pi | `bridge.AddRpiCameraBridge()`, on a MAUI or headless bridge builder: Raspberry Pi cameras through libcamera — snapshots, captures into a file root, sensor controls and a shared live MJPEG stream; `camera.StreamToAsync(stream)` streams framed JPEGs into any `Stream`, such as a Bluetooth LE L2CAP channel, for `ReadFramesAsync` to read |
 
 AppSupport, AppSupport.Linux, AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
-`Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Discovery, Wifi,
+`Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi,
 HttpTransfers, Jobs, Gps, Geofencing, Notifications, Push, Wearables, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
@@ -644,6 +646,8 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Motion activity | `GET motion/status`, `POST motion/access`, `GET motion/current`, `GET/POST/DELETE motion/listener` | `motion.activity` |
 | Beacons | `GET beacons/status`, `POST beacons/access`, `GET/POST/DELETE beacons/ranging`, `DELETE beacons/ranging/{id}`, `GET/POST/DELETE beacons/regions`, `DELETE beacons/regions/{id}`, `GET beacons/regions/{id}/state`, `POST/DELETE beacons/eddystone`, `GET/DELETE beacons/broadcast`, `POST beacons/broadcast/{ibeacon,eddystone-uid,eddystone-url}` | `beacons.ranged`, `beacons.region`, `beacons.eddystone` |
 | Bluetooth LE | `GET ble/status`, `POST ble/access`, `POST/DELETE ble/scan`, `GET ble/peripherals[/{uuid}]`, `POST/DELETE …/connection`, `GET …/rssi`, `GET …/services`, `GET …/characteristics`, `GET/PUT …/characteristics/{c}`, `POST/DELETE …/notifications` | `ble.scan`, `ble.status`, `ble.notification`, `ble.error` |
+| Receipt printers | `GET printers/status`, `POST printers/scan`, `POST/DELETE printers/connection`, `POST printers/print`, `POST printers/render` | `printers.disconnected` |
+| Printing | `GET printing/capabilities`, `GET printing/printers`, `POST printing/print`, `POST printing/print/{pdf,image}`, `POST printing/html-to-pdf` | |
 | OBD-II | `GET obd/status`, `GET obd/commands`, `POST obd/scan`, `GET obd/adapters`, `POST/DELETE obd/connection`, `POST obd/command`, `POST obd/raw`, `GET obd/vin`, `GET/DELETE obd/dtc`, `POST/DELETE obd/monitor` | `obd.reading`, `obd.disconnected` |
 | Wi-Fi | `GET wifi`, `POST wifi/access`, `GET wifi/networks`, `GET wifi/current`, `POST/DELETE wifi/connection`, `GET wifi/known`, `DELETE wifi/known?id=`, `GET/PUT wifi/radio`, `GET/POST/DELETE wifi/hotspot`, `GET wifi/hotspot/clients` | `wifi.changed`, `wifi.hotspot` |
 | Discovery | `POST discovery/{mdns,ssdp,wsd}/search`, `POST discovery/{mdns,ssdp,wsd}/browse`, `GET discovery/mdns/resolve`, `GET discovery/wsd/resolve`, `GET discovery/ssdp/description?udn=`, `POST discovery/{mdns,ssdp,wsd}/publications`, `GET discovery/browses`, `DELETE discovery/browses/{id}`, `GET discovery/publications`, `DELETE discovery/publications/{id}` | `discovery.mdns`, `discovery.ssdp`, `discovery.wsd`, `discovery.error`, `discovery.stopped` |
@@ -802,6 +806,32 @@ feature's access.
 - **Platform setup:** Bluetooth as for the Bluetooth LE bridge. Wi-Fi adapters need
   `NSLocalNetworkUsageDescription` on iOS and Mac Catalyst. On Android, the app has to bind to the
   adapter's network, which has no internet. Linux supports Wi-Fi adapters only.
+
+**Receipt printers:**
+- **Printers:** ESC/POS (or TSPL) over Bluetooth LE or raw TCP, one at a time. `scan` finds Bluetooth printers matching a
+  known model, or with `"transport": "Network"` browses mDNS for `_pdl-datastream._tcp` and `_printer._tcp`.
+  `connection` takes the `id` from a scan, or a network `host` and `port`. The host must be a loopback, private or
+  link-local IP address, and the port one of `PrintersBridgeOptions.NetworkPorts` (9100–9102), because a receipt can
+  carry raw bytes. `paper` (`Paper58mm`, `Paper80mm`) or `capabilities` say what the printer is.
+- **Receipts:** `print` takes a list of elements — text, alignment, bold, size, barcodes, QR codes, images (a base64
+  PNG or JPEG, scaled to the printer's width), feeds, cuts and raw bytes — and answers `400` naming any element the
+  printer can't print. A cut on a printer without a cutter only feeds. In C#, `PrintElements` builds the list.
+  Without a printer it answers `409`. A failed write drops the printer with `printers.disconnected`.
+- **PDF:** `render` turns the same elements into `application/pdf`, for the printing bridge or a download. It needs no
+  printer. Linux apps add `SkiaSharp.NativeAssets.Linux`, or it answers `501`.
+- **Platform setup:** Bluetooth as for the Bluetooth LE bridge. Network printers need
+  `NSLocalNetworkUsageDescription` and both service types in `NSBonjourServices` on iOS and Mac Catalyst. Linux
+  supports Bluetooth printers once the app registers Shiny.BluetoothLE.Linux.
+
+**Printing:** the operating system's own print pipeline: AirPrint on iOS and Mac Catalyst, PrintManager on Android,
+the spooler on Windows and CUPS on Linux and macOS. `print` takes a base64 PDF or image, HTML, or an http(s) URL, and
+answers once the dialog closes or the job is spooled. A large document goes as the raw body of `print/pdf` or
+`print/image` instead, options in the query, streamed to a temporary file (up to `PrintingBridgeOptions.MaxFileBytes`,
+512 MB); the JSON route is capped at `MaxJsonBytes` (16 MB), and both answer `413` past it. `html-to-pdf` lays HTML out
+on pages and returns the PDF with no print UI, on iOS, Mac Catalyst and Android (`501` elsewhere). `Cancelled` is a result, not an error. `GET printing/capabilities`
+says what works. HTML on Windows and CUPS answers `501`, so render it to a PDF first. `options.silent` with a `printerId`
+from `GET printing/printers` skips the dialog on Windows and CUPS. A sandboxed macOS app needs
+`com.apple.security.print`.
 
 **HTTP transfers:**
 - **Queuing:** `POST /_bridge/transfers` with a `type` (`Download`, `UploadMultipart` or `UploadRaw`), a `url`,

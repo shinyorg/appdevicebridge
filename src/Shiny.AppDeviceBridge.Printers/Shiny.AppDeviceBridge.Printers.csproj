@@ -4,14 +4,13 @@
     <!-- Cleared: src/Directory.Build.props sets the single target. -->
     <TargetFramework></TargetFramework>
 
-    <!-- Multi-targeted like the Bluetooth LE bridge: BLE adapters need Shiny.BluetoothLE's platform builds, the
-         only ones that register a real IBleManager. Wi-Fi adapters are plain TCP and work from every target,
-         the plain net10.0 one (Linux) included. -->
+    <!-- Multi-targeted like the OBD bridge: Bluetooth printers need Shiny.BluetoothLE's platform builds, the only ones that
+         register a real IBleManager. Network printers are plain TCP and work from every target, Linux's net10.0 included. -->
     <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
-    <RootNamespace>Shiny.AppDeviceBridge.Obd</RootNamespace>
-    <Description>OBD-II vehicle diagnostics for a Shiny.AppDeviceBridge web app, backed by Shiny.Obd — find Bluetooth LE adapters, connect over BLE or Wi-Fi, read decoded PIDs, the VIN and trouble codes, and stream readings to the page as events. One call: bridge.AddObdBridge().</Description>
+    <RootNamespace>Shiny.AppDeviceBridge.Printers</RootNamespace>
+    <Description>Receipt and label printers for a Shiny.AppDeviceBridge web app, backed by Shiny.Printers — find ESC/POS and TSPL printers over Bluetooth LE or the network, connect, print receipts the page builds, and render them to PDF. One call: bridge.AddPrintersBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -22,13 +21,19 @@
 
   <ItemGroup>
     <PackageReference Include="Shiny.BluetoothLE" />
-    <PackageReference Include="Shiny.Obd" />
-    <PackageReference Include="Shiny.Obd.Ble" />
-    <PackageReference Include="Shiny.Obd.Wifi" />
+    <PackageReference Include="Shiny.Printers" />
+    <PackageReference Include="Shiny.Printers.BluetoothLE" />
+    <PackageReference Include="Shiny.Printers.Network" />
+    <PackageReference Include="Shiny.Printing.Rendering" />
+    <PackageReference Include="SkiaSharp" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Wi-Fi adapters run their own access point on a private address; the page may only name one of those. -->
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The page may only name a printer on the local network. -->
     <Compile Include="../Shared/LocalNetwork.cs" Link="LocalNetwork.cs" />
   </ItemGroup>
 
@@ -38,7 +43,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
-    <ProjectReference Include="../Shiny.AppDeviceBridge.Obd.Client/Shiny.AppDeviceBridge.Obd.Client.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Printers.Client/Shiny.AppDeviceBridge.Printers.Client.csproj" />
   </ItemGroup>
 
 </Project>

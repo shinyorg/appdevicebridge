@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Printing.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge printing bridge — print a PDF, an image or HTML through the operating system's own print dialog or straight to an installed printer — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddPrintingBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

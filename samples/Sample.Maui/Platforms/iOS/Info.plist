@@ -34,6 +34,9 @@
 	<array>
 		<string>_http._tcp</string>
 		<string>_appdevicebridge._tcp</string>
+		<!-- network receipt printers, for the printers bridge -->
+		<string>_pdl-datastream._tcp</string>
+		<string>_printer._tcp</string>
 	</array>
 
 	<key>NSLocationWhenInUseUsageDescription</key>

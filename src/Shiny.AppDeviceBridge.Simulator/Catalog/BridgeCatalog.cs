@@ -18,6 +18,8 @@ using MapsClient = Shiny.AppDeviceBridge.Maps.Client;
 using NotificationsClient = Shiny.AppDeviceBridge.Notifications.Client;
 using ObdClient = Shiny.AppDeviceBridge.Obd.Client;
 using PhotosClient = Shiny.AppDeviceBridge.Photos.Client;
+using PrintersClient = Shiny.AppDeviceBridge.Printers.Client;
+using PrintingClient = Shiny.AppDeviceBridge.Printing.Client;
 using PushClient = Shiny.AppDeviceBridge.Push.Client;
 using RpiCameraClient = Shiny.AppDeviceBridge.RpiCamera.Client;
 using ScreenRecorderClient = Shiny.AppDeviceBridge.ScreenRecorder.Client;
@@ -120,6 +122,8 @@ public static class BridgeCatalog
             Describe(typeof(NotificationsClient.INotificationsBridge), NotificationsClient.NotificationsJsonContext.Default),
             Describe(typeof(ObdClient.IObdBridge), ObdClient.ObdJsonContext.Default),
             Describe(typeof(PhotosClient.IPhotosBridge), PhotosClient.PhotosJsonContext.Default),
+            Describe(typeof(PrintersClient.IPrintersBridge), PrintersClient.PrintersJsonContext.Default),
+            Describe(typeof(PrintingClient.IPrintingBridge), PrintingClient.PrintingJsonContext.Default),
             Describe(typeof(PushClient.IPushBridge), PushClient.PushJsonContext.Default),
             Describe(typeof(RpiCameraClient.IRpiCameraBridge), RpiCameraClient.RpiCameraJsonContext.Default),
             Describe(typeof(ScreenRecorderClient.IScreenRecorderBridge), ScreenRecorderClient.ScreenRecorderJsonContext.Default),

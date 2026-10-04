@@ -47,6 +47,8 @@
         <ProjectReference Include="../Shiny.AppDeviceBridge.Notifications.Client/Shiny.AppDeviceBridge.Notifications.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Obd.Client/Shiny.AppDeviceBridge.Obd.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Photos.Client/Shiny.AppDeviceBridge.Photos.Client.csproj"/>
+        <ProjectReference Include="../Shiny.AppDeviceBridge.Printers.Client/Shiny.AppDeviceBridge.Printers.Client.csproj"/>
+        <ProjectReference Include="../Shiny.AppDeviceBridge.Printing.Client/Shiny.AppDeviceBridge.Printing.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Push.Client/Shiny.AppDeviceBridge.Push.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.RpiCamera.Client/Shiny.AppDeviceBridge.RpiCamera.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.ScreenRecorder.Client/Shiny.AppDeviceBridge.ScreenRecorder.Client.csproj"/>
