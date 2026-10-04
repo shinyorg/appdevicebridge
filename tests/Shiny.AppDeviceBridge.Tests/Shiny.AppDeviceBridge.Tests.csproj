@@ -64,6 +64,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Printers/Shiny.AppDeviceBridge.Printers.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Printing/Shiny.AppDeviceBridge.Printing.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Beacons/Shiny.AppDeviceBridge.Beacons.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Gps/Shiny.AppDeviceBridge.Gps.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.ScreenRecorder/Shiny.AppDeviceBridge.ScreenRecorder.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps/Shiny.AppDeviceBridge.Maps.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Valhalla/Shiny.AppDeviceBridge.Maps.Valhalla.csproj" SetTargetFramework="TargetFramework=net10.0" />

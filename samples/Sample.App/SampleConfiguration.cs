@@ -70,6 +70,7 @@ public static class SampleConfiguration
                         .AddGpsBridge()
                         .AddGeofenceBridge()
                         .AddMotionActivityBridge()
+                        .AddGeocodingBridge()
                         .AddBluetoothLEBridge()
                         .AddBeaconsBridge()
                         .AddObdBridge()

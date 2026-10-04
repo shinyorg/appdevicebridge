@@ -58,6 +58,46 @@ export interface MotionListener {
     isListening: boolean;
 }
 
+/** A human-readable description of a position from the platform geocoder. Any part it could not resolve is null. */
+export interface Placemark {
+    /** The latitude of the position the placemark describes. */
+    latitude: number;
+    /** The longitude of the position the placemark describes. */
+    longitude: number;
+    /** The name of the place: a landmark or business, or the street address. */
+    name: string | null;
+    /** The street number. */
+    subThoroughfare: string | null;
+    /** The street name. */
+    thoroughfare: string | null;
+    /** The neighbourhood or district. */
+    subLocality: string | null;
+    /** The city or town. */
+    locality: string | null;
+    /** The county or equivalent. */
+    subAdministrativeArea: string | null;
+    /** The state, province or equivalent. */
+    administrativeArea: string | null;
+    /** The postal or zip code. */
+    postalCode: string | null;
+    /** The ISO 3166-1 alpha-2 country code. */
+    countryCode: string | null;
+    /** The localized country name. */
+    countryName: string | null;
+    /** The full address on one line, formatted by the platform. */
+    formattedAddress: string | null;
+}
+
+/** Reverse geocoding: the addresses at a position, from the platform geocoder (MapKit / CoreLocation on Apple, `android.location.Geocoder` on Android), which needs network access but no location permission. Android, iOS and Mac Catalyst; elsewhere, and on Android devices without a geocoding backend, every call fails with 501. */
+export class GeocodingBridge {
+    constructor(private readonly transport: BridgeTransport = browserTransport()) {}
+
+    /** The placemarks at a position, most relevant first — empty when the geocoder found nothing. Fails with 400 for a position off the map and 503 when the platform geocoder could not answer (typically no network). */
+    reverseGeocode(latitude: number, longitude: number, options?: { signal?: AbortSignal }): Promise<Placemark[]> {
+        return call<Placemark[]>(this.transport, "GET", `geocoding/reverse` + query({ latitude: latitude, longitude: longitude }), { signal: options?.signal });
+    }
+}
+
 /** GPS: permission, the last and current position, and a listener whose readings arrive as events. Android, iOS, Mac Catalyst and Windows; elsewhere every call fails with 501. */
 export class GpsBridge {
     constructor(private readonly transport: BridgeTransport = browserTransport()) {}
