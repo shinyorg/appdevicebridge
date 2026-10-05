@@ -97,6 +97,12 @@ triggers:
   - barometer
   - Shiny.AppDeviceBridge.Gps
   - Shiny.AppDeviceBridge.Geofencing
+  - Shiny.AppDeviceBridge.DocumentGeofencing
+  - AddDocumentGeofenceBridge
+  - IDocumentGeofencesBridge
+  - WebAppDocumentGeofenceDelegate
+  - document geofencing
+  - polygon geofence
   - IGpsBridge
   - IGeofencesBridge
   - IMotionBridge
@@ -326,7 +332,7 @@ calls device features from that web app, updates it over the air, or writes a br
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
   - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi, HttpTransfers, Jobs (plain `net10.0`), Gps
-    (GPS/motion), Geofencing, Notifications, Push, Wearables, LiveActivities, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
+    (GPS/motion), Geofencing, DocumentGeofencing, Notifications, Push, Wearables, LiveActivities, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless (on macOS they register Shiny's core services themselves).
@@ -447,8 +453,9 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | built in | (always) | `Shiny.AppDeviceBridge.Client`: `IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge` |
 | `.AppSupport` | `AddAppSupportBridge()` | `IAppBridge` — info, orientation, browser, maps, store, launch at login, share, haptics, connectivity, battery, screen, clipboard; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), each stopped once nothing listens to its event |
 | `.AppSupport.Linux` | `AddAppSupportLinux()` on the GTK4 head, after `AddAppSupportBridge()` | battery and energy saver from UPower and power-profiles-daemon, with change events. The maui-labs GTK4 battery never raises them, so a Linux head without this gets no `app.battery` events |
-| `.Gps` | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()` | `IGpsBridge`, `IMotionBridge`, `IGeocodingBridge` (`GpsJsonContext`): `ReverseGeocodeAsync(latitude, longitude)` returns `Placemark`s from the platform geocoder (iOS, Mac Catalyst, Android; 501 elsewhere and on Android without a geocoding backend). It needs network but no location permission, and fails with 503 `geocoder_unavailable` when offline. Address → position is the Maps package's `IDirectionsBridge.GeocodeAsync`, not this |
+| `.Gps` | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()` | `IGpsBridge`, `IMotionBridge`, `IGeocodingBridge` (`GpsJsonContext`): `ReverseGeocodeAsync(latitude, longitude)` returns `Placemark`s from the platform geocoder (MapKit on iOS/Mac Catalyst, Android's Geocoder) or OpenStreetMap's Nominatim everywhere else, so it works on every platform; `services.AddGeocoding(o => o.BaseUri = …)` before the bridge points Nominatim at your own server. It needs network but no location permission, and fails with 503 `geocoder_unavailable` when offline. Address → position is the Maps package's `IDirectionsBridge.GeocodeAsync`, not this |
 | `.Geofencing` | `AddGeofenceBridge()` | `IGeofencesBridge` (`GeofencingJsonContext`) |
+| `.DocumentGeofencing` | `AddDocumentGeofenceBridge(cfg => cfg.AddRegionSet<T>(name, idSelector, nameSelector, withinMeters:, filter:), o => { o.UseDelegate<T>(); o.RegionSerializerOptions; })` | `IDocumentGeofencesBridge` (`DocumentGeofencingJsonContext`): `GetStatusAsync`, `RequestAccessAsync`, `StartAsync`, `StopAsync`, `GetCurrentAsync`, `OnChangeAsync` (`documentgeofence.change`; background.js `documentgeofence`). Regions are Shiny.DocumentDb documents, registered in C# only — the app registers the store (spatial provider, `MapSpatialProperty`) itself and must not also call `AddDocumentGeofencing`. `region` is the document via the store's `JsonSerializerOptions` (null without metadata). `start`: 409 `geofence_refused`, 501 `spatial_not_supported`. Shares Shiny.Gps' listener with the GPS bridge. Android, iOS, Mac Catalyst; 501 elsewhere |
 | `.BluetoothLE` | `AddBluetoothLEBridge()` | `IBluetoothLEBridge` |
 | `.Beacons` | `AddBeaconsBridge(BeaconFeatures.All, options)`: pass flags to register only some features; a feature left out, or one the platform reports `NotSupported` (iBeacon ranging and monitoring on macOS), answers 501 | `IBeaconsBridge` (`BeaconsJsonContext`): ranging and Eddystone scans need their event listened to first (`OnBeaconAsync`, `OnEddystoneAsync`), otherwise 409 `not_listening`, and stop with the last listener. Monitoring transitions go to `OnRegionAsync` and the `beacon` native call |
 | `.Obd` | `AddObdBridge()` | `IObdBridge` |

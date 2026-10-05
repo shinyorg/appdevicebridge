@@ -10,9 +10,9 @@ using Native = Shiny.Locations;
 namespace Shiny.AppDeviceBridge.Tests;
 
 /// <summary>
-/// The geocoding bridge over a fake Shiny.Gps geocoder: 501 without one or where the platform has no backend, positions
+/// The geocoding bridge over a fake Shiny.Gps geocoder: 501 without one or with one that reports itself unsupported, positions
 /// checked before they reach it, its placemarks mapped to the contract, and its failures answered as 503. MapKit and
-/// Android's Geocoder themselves are Shiny.Gps' and need a device.
+/// Android's Geocoder themselves are Shiny.Gps' and need a device; its Nominatim fallback needs the network.
 /// </summary>
 public class GeocodingBridgeTests
 {
@@ -26,9 +26,9 @@ public class GeocodingBridgeTests
     }
 
     [Fact]
-    public async Task Answers_501_where_the_platform_has_no_geocoding_backend()
+    public async Task Answers_501_when_the_geocoder_reports_itself_unsupported()
     {
-        // Shiny.Gps on an Android device without Google Play Services: the geocoder is registered but cannot answer.
+        // An app's own IGeocoder that cannot answer here (Shiny.Gps' own fall back to Nominatim instead).
         var geocoder = new FakeGeocoder { IsSupported = false };
         await using var fixture = await GeocodingFixture.StartAsync(geocoder);
 
@@ -127,9 +127,9 @@ public class GeocodingBridgeTests
         var server = provider.GetRequiredService<AppDeviceBridgeServer>();
         _ = server.Http;
 
-        // Plain net10.0 is a platform Shiny has no geocoder for, so the bridge is there and answers 501.
+        // Plain net10.0 has no platform geocoder: Shiny.Gps falls back to OpenStreetMap's Nominatim, so it is supported.
         var bridge = Assert.Single(server.Bridges.OfType<GeocodingBridge>());
-        Assert.False(bridge.IsSupported);
+        Assert.True(bridge.IsSupported);
     }
 
     sealed class GeocodingFixture : IAsyncDisposable

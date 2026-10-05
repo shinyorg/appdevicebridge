@@ -12,6 +12,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
+    <!-- The document geofencing demo: US states / Canadian provinces and their cities, in a SQLite store. -->
+    <PackageReference Include="Shiny.DocumentDb.Sqlite" />
+    <PackageReference Include="Shiny.DocumentDb.Geo" />
+    <PackageReference Include="SQLitePCLRaw.lib.e_sqlite3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,6 +31,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Health/Shiny.AppDeviceBridge.Health.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.HttpTransfers/Shiny.AppDeviceBridge.HttpTransfers.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Jobs/Shiny.AppDeviceBridge.Jobs.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.DocumentGeofencing/Shiny.AppDeviceBridge.DocumentGeofencing.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Geofencing/Shiny.AppDeviceBridge.Geofencing.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Gps/Shiny.AppDeviceBridge.Gps.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Notifications/Shiny.AppDeviceBridge.Notifications.csproj" />

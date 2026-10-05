@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Cleared: src/Directory.Build.props sets the single target, and TargetFramework wins over
+         TargetFrameworks when both are set. -->
+    <TargetFramework></TargetFramework>
+
+    <!-- Multi-targeted because AddDocumentGeofencing only exists in Shiny.DocumentDb.Geofencing's platform builds, so
+         AddDocumentGeofenceBridge has to be compiled per platform to call it. The plain net10.0 target serves the
+         desktop heads, where the endpoints answer 501. -->
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+
+    <RootNamespace>Shiny.AppDeviceBridge.DocumentGeofencing</RootNamespace>
+    <Description>Document geofencing endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.DocumentDb.Geofencing — GPS-driven monitoring of an unlimited number of polygon and proximity regions stored as documents, the regions the device is in, and enter/exit changes delivered to the page as events and to background.js. One call: bridge.AddDocumentGeofenceBridge(cfg => cfg.AddRegionSet&lt;T&gt;(…)).</Description>
+
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">26.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shiny.DocumentDb.Geofencing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.DocumentGeofencing.Client/Shiny.AppDeviceBridge.DocumentGeofencing.Client.csproj" />
+  </ItemGroup>
+
+</Project>

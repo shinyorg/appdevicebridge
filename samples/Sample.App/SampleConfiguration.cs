@@ -8,6 +8,8 @@ using Shiny.AppDeviceBridge.Calendar;
 using Shiny.AppDeviceBridge.Camera;
 using Shiny.AppDeviceBridge.Contacts;
 using Shiny.AppDeviceBridge.Discovery;
+using Shiny.AppDeviceBridge.DocumentGeofencing;
+using Shiny.DocumentDb.Geo;
 using Shiny.AppDeviceBridge.Folders;
 using Shiny.AppDeviceBridge.Geofencing;
 using Shiny.AppDeviceBridge.Gps;
@@ -49,6 +51,8 @@ public static class SampleConfiguration
         builder.UseTrafficMonitor();
 #endif
 
+        builder.Services.AddSampleGeoStore();
+
         return builder
             .UseAppDeviceBridge(
                 bridge =>
@@ -69,6 +73,13 @@ public static class SampleConfiguration
                         .AddAppSupportBridge(startup: o => o.Arguments.Add("--autostart"))
                         .AddGpsBridge()
                         .AddGeofenceBridge()
+
+                        // Unlimited polygon and proximity regions, as documents: which state or province the device is in,
+                        // and any city within 25 km. Android, iOS and Mac Catalyst; it shares Shiny.Gps' one listener with
+                        // the GPS bridge, so stopping that listener on the Location page stops these too.
+                        .AddDocumentGeofenceBridge(cfg => cfg
+                            .AddRegionSet<GeoRegion>("regions", r => r.Id, r => r.Name)
+                            .AddRegionSet<GeoCity>("cities", c => c.Id, c => c.Name, withinMeters: 25_000))
                         .AddMotionActivityBridge()
                         .AddGeocodingBridge()
                         .AddBluetoothLEBridge()

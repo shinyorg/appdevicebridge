@@ -15,6 +15,7 @@ using Shiny.AppDeviceBridge.Desktop.Client;
 using Shiny.AppDeviceBridge.AppSupport.Client;
 using Shiny.AppDeviceBridge.Discovery.Client;
 using Shiny.AppDeviceBridge.HttpTransfers.Client;
+using Shiny.AppDeviceBridge.DocumentGeofencing.Client;
 using Shiny.AppDeviceBridge.Geofencing.Client;
 using Shiny.AppDeviceBridge.Gps.Client;
 using Shiny.AppDeviceBridge.ScreenRecorder.Client;
@@ -52,6 +53,7 @@ builder.Services
     .AddTransfersBridgeClient()
     .AddGpsBridgeClient()
     .AddGeofencesBridgeClient()
+    .AddDocumentGeofencesBridgeClient()
     .AddMotionBridgeClient()
     .AddGeocodingBridgeClient()
     .AddSpeechBridgeClient()

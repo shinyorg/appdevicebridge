@@ -9,6 +9,7 @@ export * from "./camera.js";
 export * from "./contacts.js";
 export * from "./desktop.js";
 export * from "./discovery.js";
+export * from "./document-geofencing.js";
 export * from "./folders.js";
 export * from "./geofencing.js";
 export * from "./gps.js";

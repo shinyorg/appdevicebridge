@@ -1,5 +1,5 @@
 // Runs in the app's embedded JavaScript engine when a native call arrives and no page is open to take it —
-// a background job, a GPS reading, a geofence or beacon region transition, a notification tap or a finished transfer
+// a background job, a GPS reading, a geofence, document region or beacon region transition, a notification tap or a finished transfer
 // while the app is in the background.
 //
 // The same /_bridge endpoints the page uses are available through fetch. There is no DOM, no timers and no
@@ -17,6 +17,11 @@ appdevicebridge.on("gps", async reading => {
 
 appdevicebridge.on("geofence", async ({ identifier, state }) => {
     await log(`geofence ${identifier}: ${state}`);
+});
+
+// A state, province or nearby city entered or left — the region document itself rides along in `region`.
+appdevicebridge.on("documentgeofence", async ({ regionSet, regionId, regionName, entered }) => {
+    await log(`${entered ? "entered" : "left"} ${regionSet} ${regionName ?? regionId}`);
 });
 
 appdevicebridge.on("motion", async ({ activity, confidence }) => {

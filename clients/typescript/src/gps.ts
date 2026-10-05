@@ -88,7 +88,7 @@ export interface Placemark {
     formattedAddress: string | null;
 }
 
-/** Reverse geocoding: the addresses at a position, from the platform geocoder (MapKit / CoreLocation on Apple, `android.location.Geocoder` on Android), which needs network access but no location permission. Android, iOS and Mac Catalyst; elsewhere, and on Android devices without a geocoding backend, every call fails with 501. */
+/** Reverse geocoding: the addresses at a position, from the platform geocoder (MapKit / CoreLocation on iOS and Mac Catalyst, `android.location.Geocoder` on Android) or, on Windows, Linux, macOS and Android devices without a geocoding backend, OpenStreetMap's Nominatim. It needs network access but no location permission. */
 export class GeocodingBridge {
     constructor(private readonly transport: BridgeTransport = browserTransport()) {}
 

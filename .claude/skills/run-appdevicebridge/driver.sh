@@ -17,7 +17,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 OUT="$ROOT/artifacts/run-appdevicebridge"
-APP="$ROOT/samples/Sample.MacOS/bin/Debug/net10.0-macos/osx-arm64/AppDeviceBridge Sample.app"
+APP="$ROOT/samples/Sample.MacOS/bin/Debug/net10.0-macos/osx-arm64/App Bridge.app"
 APP_BIN="Contents/MacOS/Sample.MacOS"
 mkdir -p "$OUT"
 

@@ -13,8 +13,9 @@ namespace Shiny.AppDeviceBridge.Gps;
 /// <code>
 /// GET /_bridge/geocoding/reverse?latitude=&amp;longitude=    → [{ latitude, longitude, name, thoroughfare, locality, … }]
 /// </code>
-/// Unsupported — 501 — where Shiny registers no geocoder, and on Android devices without a geocoding backend
-/// (typically no Google Play Services).
+/// MapKit / CoreLocation on iOS and Mac Catalyst and <c>android.location.Geocoder</c> on Android; OpenStreetMap's
+/// Nominatim on Windows, Linux, macOS and Android devices without a geocoding backend. Unsupported — 501 — only without
+/// an <see cref="IGeocoder"/>, or with one of the app's own that reports itself unsupported.
 /// </summary>
 public sealed class GeocodingBridge(IServiceProvider services) : IWebAppBridge
 {
@@ -72,14 +73,16 @@ public static class GeocodingBridgeExtensions
     /// <summary>
     /// Adds <c>/_bridge/geocoding</c> and registers Shiny's platform geocoder. Not part of
     /// <see cref="GpsBridgeExtensions.AddGpsBridge"/>: it needs no location permission, but every lookup goes to the
-    /// platform's geocoding service over the network. Android, iOS and Mac Catalyst; other platforms answer 501.
+    /// platform's geocoding service over the network — or, where there is none, to OpenStreetMap's public Nominatim
+    /// server, which allows one request a second. To point that at your own server or change its User-Agent, call
+    /// <c>services.AddGeocoding(o => o.BaseUri = …)</c> first; the geocoder registered first is kept.
     /// </summary>
     public static TBuilder AddGeocodingBridge<TBuilder>(this TBuilder bridge)
         where TBuilder : AppDeviceBridgeBuilder
     {
         ArgumentNullException.ThrowIfNull(bridge);
 
-        // Registers nothing on the platforms Shiny has no geocoder for, which leaves the bridge answering 501.
+        // Keeps a geocoder the app registered first, including one from its own AddGeocoding(nominatim => …).
         bridge.Services.AddGeocoding();
         bridge.AddBridge<GeocodingBridge>();
         return bridge;

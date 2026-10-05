@@ -3,9 +3,9 @@ using Shiny.AppDeviceBridge.Client;
 namespace Shiny.AppDeviceBridge.Gps.Client;
 
 /// <summary>
-/// Reverse geocoding: the addresses at a position, from the platform geocoder (MapKit / CoreLocation on Apple,
-/// <c>android.location.Geocoder</c> on Android), which needs network access but no location permission. Android, iOS and
-/// Mac Catalyst; elsewhere, and on Android devices without a geocoding backend, every call fails with 501.
+/// Reverse geocoding: the addresses at a position, from the platform geocoder (MapKit / CoreLocation on iOS and Mac
+/// Catalyst, <c>android.location.Geocoder</c> on Android) or, on Windows, Linux, macOS and Android devices without a
+/// geocoding backend, OpenStreetMap's Nominatim. It needs network access but no location permission.
 /// </summary>
 [BridgeClient("geocoding", typeof(GpsJsonContext))]
 public interface IGeocodingBridge

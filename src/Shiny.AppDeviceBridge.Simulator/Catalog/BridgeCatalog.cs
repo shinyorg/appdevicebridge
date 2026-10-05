@@ -10,6 +10,7 @@ using CameraClient = Shiny.AppDeviceBridge.Camera.Client;
 using ContactsClient = Shiny.AppDeviceBridge.Contacts.Client;
 using DesktopClient = Shiny.AppDeviceBridge.Desktop.Client;
 using DiscoveryClient = Shiny.AppDeviceBridge.Discovery.Client;
+using DocumentGeofencingClient = Shiny.AppDeviceBridge.DocumentGeofencing.Client;
 using FoldersClient = Shiny.AppDeviceBridge.Folders.Client;
 using GeofencingClient = Shiny.AppDeviceBridge.Geofencing.Client;
 using GpsClient = Shiny.AppDeviceBridge.Gps.Client;
@@ -112,6 +113,7 @@ public static class BridgeCatalog
             Describe(typeof(DesktopClient.IQuickEntryBridge), DesktopClient.QuickEntryJsonContext.Default),
             Describe(typeof(DesktopClient.ITrayBridge), DesktopClient.TrayJsonContext.Default),
             Describe(typeof(DiscoveryClient.IDiscoveryBridge), DiscoveryClient.DiscoveryJsonContext.Default),
+            Describe(typeof(DocumentGeofencingClient.IDocumentGeofencesBridge), DocumentGeofencingClient.DocumentGeofencingJsonContext.Default),
             Describe(typeof(FoldersClient.IFoldersBridge), FoldersClient.FoldersJsonContext.Default),
             Describe(typeof(HealthClient.IHealthBridge), HealthClient.HealthJsonContext.Default),
             Describe(typeof(LiveActivitiesClient.ILiveActivitiesBridge), LiveActivitiesClient.LiveActivitiesJsonContext.Default),

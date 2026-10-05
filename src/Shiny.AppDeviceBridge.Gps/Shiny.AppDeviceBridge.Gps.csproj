@@ -7,7 +7,7 @@
 
     <!-- Multi-targeted because Shiny.Gps' registration methods only exist in its platform builds,
          with a different signature on each — so AddGpsBridge and AddMotionActivityBridge have to be compiled per platform to call
-         the right one. The plain net10.0 target serves the desktop heads, where the endpoints answer 501. -->
+         the right one. The plain net10.0 target serves the desktop heads, where GPS and motion answer 501 and geocoding uses Nominatim. -->
     <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 

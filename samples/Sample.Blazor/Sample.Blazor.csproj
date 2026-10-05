@@ -26,6 +26,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AppSupport.Client/Shiny.AppDeviceBridge.AppSupport.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Discovery.Client/Shiny.AppDeviceBridge.Discovery.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.HttpTransfers.Client/Shiny.AppDeviceBridge.HttpTransfers.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.DocumentGeofencing.Client/Shiny.AppDeviceBridge.DocumentGeofencing.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Geofencing.Client/Shiny.AppDeviceBridge.Geofencing.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Gps.Client/Shiny.AppDeviceBridge.Gps.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.ScreenRecorder.Client/Shiny.AppDeviceBridge.ScreenRecorder.Client.csproj" />
