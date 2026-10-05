@@ -55,6 +55,7 @@
         <ProjectReference Include="../Shiny.AppDeviceBridge.ScreenRecorder.Client/Shiny.AppDeviceBridge.ScreenRecorder.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Speech.Client/Shiny.AppDeviceBridge.Speech.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Wearables.Client/Shiny.AppDeviceBridge.Wearables.Client.csproj"/>
+        <ProjectReference Include="../Shiny.AppDeviceBridge.InAppPurchases.Client/Shiny.AppDeviceBridge.InAppPurchases.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.LiveActivities.Client/Shiny.AppDeviceBridge.LiveActivities.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Maps.Client/Shiny.AppDeviceBridge.Maps.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Wifi.Client/Shiny.AppDeviceBridge.Wifi.Client.csproj"/>

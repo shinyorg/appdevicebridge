@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- One target: Shiny.Mobile.InAppPurchases carries the platform code (StoreKit 2 on iOS, Play Billing on Android)
+         and NuGet picks its build for the app's head. Everywhere else it registers no manager, and the bridge answers
+         501. -->
+    <RootNamespace>Shiny.AppDeviceBridge.InAppPurchases</RootNamespace>
+    <Description>In-app purchases for a Shiny.AppDeviceBridge web app, backed by Shiny.Mobile.InAppPurchases — App Store (StoreKit 2) and Google Play Billing products, purchases, entitlements and restores from the page, with purchase updates delivered to the page or background.js. One call: bridge.AddInAppPurchasesBridge().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shiny.Mobile.InAppPurchases" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.InAppPurchases.Client/Shiny.AppDeviceBridge.InAppPurchases.Client.csproj" />
+  </ItemGroup>
+
+</Project>

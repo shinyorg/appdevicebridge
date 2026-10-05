@@ -75,6 +75,12 @@ appdevicebridge.on("wearables.file", async ({ fileName, file }) => {
     await log(`watch file ${fileName}: ${file.root}/${file.path}`);
 });
 
+// A renewal, refund, Ask to Buy approval or purchase on another device, often with the app in the background. A real
+// app sends `verificationData` to its server, grants the entitlement, and only then finishes the purchase.
+appdevicebridge.on("purchases.updated", async ({ productId, transactionId, state, isFinished }) => {
+    await log(`purchase ${productId} ${transactionId}: ${state}${isFinished ? "" : " (unfinished)"}`);
+});
+
 async function read(key) {
     const response = await fetch(`/_bridge/settings/local/${key}`);
     return response.ok ? response.json() : null;

@@ -62,6 +62,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
 | `Shiny.AppDeviceBridge.Wearables` | the app | `AddWearablesBridge()`: the companion Apple Watch or Wear OS app, through Shiny.Wearables — status, live messages the page or `background.js` answers, shared context, queued transfers and files through the file roots (iOS and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.LiveActivities` | the app | `AddLiveActivitiesBridge()`: iOS Live Activities and Android 16 Live Updates, through Shiny.Mobile.LiveActivities — start, update and end them from the page, with their push tokens handed to the page or `background.js` (iOS and Android; `501` elsewhere) |
+| `Shiny.AppDeviceBridge.InAppPurchases` | the app | `AddInAppPurchasesBridge()`: App Store (StoreKit 2) and Google Play Billing purchases, through Shiny.Mobile.InAppPurchases — products, the store's purchase sheet, entitlements, finishing, restores and subscription management, with purchase updates handed to the page or `background.js` (iOS and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.Maps` | the app | `AddMapsBridge()`: vector map tiles online or from regions the user downloads (verified against a signed catalog), live traffic flow and incidents from pluggable providers (TomTom, HERE and Azure Maps built in), turn-by-turn directions from an online Valhalla router, and addresses turned into stops by a pluggable geocoder (Nominatim built in) (all platforms) |
 | `Shiny.AppDeviceBridge.Maps.Valhalla` | the app | `AddOnDeviceDirections()`: directions computed on the phone over a downloaded region's road network (Android and iOS; online elsewhere) |
 | `Shiny.AppDeviceBridge.Maps.Blazor` | the web app | `<BridgeMap>`: MapLibre GL JS bundled for offline use, with pins, lines, areas, circles, click-to-draw, routes and live traffic |
@@ -82,7 +83,7 @@ app, served from the device itself, updated from your own server, and able to ca
 
 AppSupport, AppSupport.Linux, AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
 `Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi,
-HttpTransfers, Jobs, Gps, Geofencing, DocumentGeofencing, Notifications, Push, Wearables, LiveActivities, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
+HttpTransfers, Jobs, Gps, Geofencing, DocumentGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
 ## The app
@@ -659,6 +660,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | HTTP transfers | `GET/POST/DELETE transfers`, `GET/DELETE transfers/{id}`, `POST transfers/{id}/pause`, `POST transfers/{id}/resume` | `transfer.progress`, `transfer.completed`, `transfer.failed`, `transfer.cancelled` |
 | Wearables | `GET wearables`, `POST wearables/messages`, `GET/PUT wearables/context`, `GET/POST wearables/transfers`, `DELETE wearables/transfers/{id}`, `POST wearables/files` | `wearables.status`, `wearables.message`, `wearables.context`, `wearables.transfer`, `wearables.file`, `wearables.completed` |
 | Live activities | `GET liveactivities`, `POST liveactivities/access`, `GET/POST/DELETE liveactivities/activities`, `PUT liveactivities/activities/{id}`, `POST liveactivities/activities/{id}/end` | `liveactivities.started`, `liveactivities.state`, `liveactivities.token`, `liveactivities.starttoken` |
+| In-app purchases | `GET purchases`, `POST purchases/products`, `POST purchases/purchase`, `GET purchases/entitlements`, `GET purchases/unfinished`, `POST purchases/transactions/{transactionId}/finish`, `POST purchases/restore`, `POST purchases/manage` | `purchases.updated` |
 | Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/traffic/{z}/{x}/{y}`, `GET maps/incidents/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
 | Directions | `GET directions`, `POST directions/route`, `GET directions/geocode?query=` | |
 | App links | `GET/DELETE links/pending` | `app.link` |
@@ -1078,6 +1080,34 @@ through Shiny.Mobile.LiveActivities 5.9. iOS 16.2+ and Android only; every other
   go to the page's handler, or `background.js` when no page is open, so the app's server always hears about them.
   `requestPushToken` defaults to true, and on iOS needs the `aps-environment` entitlement: without it the start fails
   with `502`. An app without push starts with `requestPushToken: false`.
+
+**In-app purchases** (`Shiny.AppDeviceBridge.InAppPurchases`, `AddInAppPurchasesBridge()`): consumables,
+non-consumables and auto-renewable subscriptions through the App Store (StoreKit 2) and Google Play Billing, via
+Shiny.Mobile.InAppPurchases 5.9. iOS and Android only; every other platform answers `501`. The store's own sheet takes
+the payment — this is not Apple Pay or Google Pay.
+- **Products and buying:** `POST purchases/products` with `{ productIds }` returns localized products, with Google base
+  plans and offers (and Apple's introductory offer) under `subscriptionOffers`; unknown ids are left out.
+  `POST purchases/purchase` with `{ productId, accountToken?, offerToken?, quantity?, replacement? }` opens the sheet and
+  returns `{ status, purchase? }`: `Success`, `Pending` (Ask to Buy, a slow payment — never grant it), `Cancelled` or
+  `AlreadyOwned`. Always send `accountToken` (your user's id as a GUID): the stores echo it back on every transaction
+  and server notification.
+- **Verify, grant, then finish:** send `purchase.verificationData` (Apple's signed JWS, Google's purchase token) to your
+  server — Shiny.Mobile.InAppPurchases.Server's `IPurchaseVerifier` takes it as it is — store the entitlement, then
+  `POST purchases/transactions/{transactionId}/finish` with `{ consume }`. `consume: true` makes a consumable buyable
+  again. The bridge finds the purchase in the store by its transaction id rather than trusting a record the page sends,
+  and answers `404` `purchase_not_found` when there is none — usually because it was finished already. Google Play
+  refunds a purchase not finished within three days.
+- **Owned and unfinished:** `GET purchases/entitlements` (non-consumables, active subscriptions, unfinished
+  consumables) and `GET purchases/unfinished` — check the latter at startup. `POST purchases/restore` syncs with the App
+  Store (it may ask the user to sign in, so only from a button) and returns the entitlements. `POST purchases/manage`
+  with `{ productId? }` opens the store's subscription screen.
+- **Updates:** `purchases.updated` carries a purchase that changed outside a purchase call — Ask to Buy approvals,
+  renewals, refunds (`state: "Revoked"`), purchases on another device. Shiny listens from launch, so it goes to the
+  page's handler or to `background.js` when no page is open. The same purchase can arrive more than once: key on
+  `transactionId`. An app that already calls `AddInAppPurchases` keeps its own delegate; the bridge adds its own beside it.
+- **Errors:** the store's failures by `code`: `503` `store_unavailable` or `network`, `403` `not_allowed`, `404`
+  `product_not_found`, `409` `product_unavailable`, `no_user_interface` or `invalid_state` (such as finishing a pending
+  purchase), `400` `developer_error`, and `502` `verification_failed` or `purchase_failed`.
 
 **Maps and directions** (`Shiny.AppDeviceBridge.Maps`, `AddMapsBridge()`): online by default, offline where the user
 downloaded a region. Every platform; on-device directions on Android and iOS with `Shiny.AppDeviceBridge.Maps.Valhalla`.
@@ -1569,6 +1599,7 @@ then the handler. It gets `BackgroundScriptTimeout` (25 s) and 64 MB.
 | HTTP transfer finished | `transfer.completed` / `transfer.failed` with the transfer | `AddHttpTransfersBridge()` (Bridge.HttpTransfers) |
 | Watch message, context, transfer or file | `wearables.message` (its return value is the reply), `wearables.context`, `wearables.transfer`, `wearables.file` | `AddWearablesBridge()` (Bridge.Wearables) |
 | Live activity started, changed state, or got a push token | `liveactivities.started`, `liveactivities.state`, `liveactivities.token` with `{ activityId, token }`, `liveactivities.starttoken` with `{ token }` | `AddLiveActivitiesBridge()` (Bridge.LiveActivities) |
+| Purchase renewed, refunded, approved or bought on another device | `purchases.updated` with the purchase | `AddInAppPurchasesBridge()` (Bridge.InAppPurchases) |
 
 From your own native code, call `WebAppInvoker.InvokeAsync(name, payload, typeInfo)`.
 

@@ -45,6 +45,7 @@ public static class SampleNav
             new NavItem("contacts", "Contacts", "users", "contacts"),
             new NavItem("calendar", "Calendar", "calendar", "calendar"),
             new NavItem("health", "Health", "heart", "health"),
+            new NavItem("purchases", "Purchases", "cart", "purchases"),
             new NavItem("storage", "Storage", "database", "settings", "files"),
             new NavItem("folders", "Folders", "folder", "folders"))
     ];

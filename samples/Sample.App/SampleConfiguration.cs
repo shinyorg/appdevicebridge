@@ -25,6 +25,7 @@ using Shiny.AppDeviceBridge.Printers;
 using Shiny.AppDeviceBridge.Printing;
 using Shiny.AppDeviceBridge.Push;
 using Shiny.AppDeviceBridge.Wearables;
+using Shiny.AppDeviceBridge.InAppPurchases;
 using Shiny.AppDeviceBridge.LiveActivities;
 using Shiny.AppDeviceBridge.RpiCamera;
 using Shiny.AppDeviceBridge.ScreenRecorder;
@@ -98,6 +99,9 @@ public static class SampleConfiguration
 
                         // iOS Live Activities and Android Live Updates; the iOS head builds Shiny's stock widget into the app.
                         .AddLiveActivitiesBridge()
+
+                        // App Store and Google Play purchases; updates with no page open go to background.js.
+                        .AddInAppPurchasesBridge()
                         .AddNotificationsBridge()
                         .AddHttpTransfersBridge()
                         .AddHealthBridge()

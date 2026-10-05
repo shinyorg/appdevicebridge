@@ -1,0 +1,74 @@
+@page "/purchases"
+@inherits BridgePage
+@inject IInAppPurchasesBridge Purchases
+
+<h1>Purchases</h1>
+<p class="muted">App Store and Google Play purchases through the store's own sheet. Products load only in a build signed for an app that has them configured — App Store Connect or the Play Console — with a sandbox account or license tester signed in.</p>
+
+<div class="actions">
+    <button @onclick="@(() => Run(() => Purchases.GetStatusAsync(), Json.PurchasesStatus))">Status</button>
+    <button @onclick="LoadAsync">Products</button>
+    <button @onclick="@(() => Run(() => Purchases.GetEntitlementsAsync(), Json.IReadOnlyListPurchase))">Entitlements</button>
+    <button @onclick="@(() => Run(() => Purchases.GetUnfinishedAsync(), Json.IReadOnlyListPurchase))">Unfinished</button>
+    <button @onclick="@(() => Run(() => Purchases.RestoreAsync(), Json.IReadOnlyListPurchase))">Restore</button>
+    <button @onclick="@(() => Run(() => Purchases.ShowManageSubscriptionsAsync(new ManageSubscriptionsRequest()), "Opened."))">Manage subscriptions</button>
+</div>
+
+@if (products.Count > 0)
+{
+    <div class="actions">
+        @foreach (var product in products)
+        {
+            <button @onclick="@(() => BuyAsync(product))">Buy @product.Title · @product.DisplayPrice</button>
+        }
+    </div>
+}
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    static InAppPurchasesJsonContext Json => InAppPurchasesJsonContext.Default;
+
+    // Configure these in App Store Connect and the Play Console: a consumable, a non-consumable and a subscription.
+    const string Coins = "coins_100";
+    static readonly string[] ProductIds = [Coins, "remove_ads", "pro_monthly"];
+
+    // Stands in for the signed-in user; the stores echo it back on every transaction and server notification.
+    static readonly Guid Account = Guid.Parse("6f1d7c1e-3b0a-4c55-9a43-9d2b1f6f0a11");
+
+    IReadOnlyList<StoreProduct> products = [];
+    string log = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+        => await Listen<Purchase>(Purchases.OnUpdatedAsync, e =>
+        {
+            Log("purchases.updated", Compact(e, Json.Purchase));
+
+            // An Ask to Buy approval or a slow payment that went through: Run reports a failure rather than losing it.
+            if (e is { State: PurchaseState.Purchased, IsFinished: false })
+                _ = InvokeAsync(() => Run(() => GrantAndFinishAsync(e), $"Finished {e.ProductId}."));
+        });
+
+    Task LoadAsync() => Run(async () => products = await Purchases.GetProductsAsync(new ProductsRequest(ProductIds)), Json.IReadOnlyListStoreProduct);
+
+    Task BuyAsync(StoreProduct product) => Run(async () =>
+    {
+        var result = await Purchases.PurchaseAsync(new PurchaseRequest(product.Id, Account));
+
+        // Pending (Ask to Buy, a slow payment) is never granted; purchases.updated follows when it resolves.
+        if (result is { Status: PurchaseResultStatus.Success, Purchase: { } purchase })
+            await GrantAndFinishAsync(purchase);
+
+        return result;
+    }, Json.PurchaseResult);
+
+    async Task GrantAndFinishAsync(Purchase purchase)
+    {
+        // A real app sends purchase.VerificationData to its server here, and stores the entitlement, before finishing.
+        await Purchases.FinishAsync(purchase.TransactionId, new FinishPurchaseRequest(Consume: purchase.ProductId == Coins));
+        Log("finished", $"{purchase.ProductId} {purchase.TransactionId}");
+    }
+
+    void Log(string name, string payload) => log = Prepend(log, $"{DateTime.Now:T}  {name}  {payload}");
+}

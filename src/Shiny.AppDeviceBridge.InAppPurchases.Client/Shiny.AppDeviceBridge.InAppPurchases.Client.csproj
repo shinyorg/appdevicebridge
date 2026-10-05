@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.InAppPurchases.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge in-app purchases bridge — App Store (StoreKit 2) and Google Play Billing products, purchases, entitlements, restores and purchase updates — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddInAppPurchasesBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>
