@@ -26,7 +26,7 @@ public class TrafficTests
         var traffic = (await fixture.Maps.GetInfoAsync()).Traffic!;
 
         Assert.Equal("/_bridge/maps/traffic/{z}/{x}/{y}", traffic.TilesUrl);
-        Assert.Equal(TrafficTileFormat.Vector, traffic.Format);
+        Assert.Equal(TileFormat.Vector, traffic.Format);
         Assert.Equal(6, traffic.MinZoom);
         Assert.Equal(22, traffic.MaxZoom);
         Assert.Equal(120, traffic.RefreshSeconds);
@@ -94,7 +94,7 @@ public class TrafficTests
         await using var fixture = await MapsFixture.StartAsync(o => o.Traffic = provider);
 
         var traffic = (await fixture.Maps.GetInfoAsync()).Traffic!;
-        Assert.Equal(TrafficTileFormat.Raster, traffic.Format);
+        Assert.Equal(TileFormat.Raster, traffic.Format);
         Assert.Equal(512, traffic.TileSize);
         Assert.Null(traffic.SourceLayer);
         Assert.Equal(1, traffic.RefreshSeconds);
@@ -125,7 +125,7 @@ public class TrafficTests
 
         // The same tile from the new provider at once, not the old one's until it expires.
         options.Traffic = new HereTrafficProvider("here-secret");
-        Assert.Equal(TrafficTileFormat.Raster, (await fixture.Maps.GetInfoAsync()).Traffic!.Format);
+        Assert.Equal(TileFormat.Raster, (await fixture.Maps.GetInfoAsync()).Traffic!.Format);
         Assert.Equal([2], await fixture.WebView.GetByteArrayAsync("/_bridge/maps/traffic/12/850/1550"));
 
         options.Traffic = null;
@@ -153,7 +153,7 @@ public class TrafficTests
         });
 
         var traffic = (await fixture.Maps.GetInfoAsync()).Traffic!;
-        Assert.Equal(TrafficTileFormat.Raster, traffic.Format);
+        Assert.Equal(TileFormat.Raster, traffic.Format);
         Assert.Equal(512, traffic.TileSize);
         Assert.Contains("HERE", traffic.Attribution);
         Assert.DoesNotContain("here-secret", await fixture.WebView.GetStringAsync("/_bridge/maps"));
@@ -177,7 +177,7 @@ public class TrafficTests
         await using var fixture = await MapsFixture.StartAsync(o => o.Traffic = new AzureMapsTrafficProvider("azure-secret") { Style = AzureMapsTrafficStyle.RelativeDark });
         fixture.Network.Stub("atlas.microsoft.com", _ => Network.Bytes([1, 2, 3]));
 
-        Assert.Equal(TrafficTileFormat.Raster, (await fixture.Maps.GetInfoAsync()).Traffic!.Format);
+        Assert.Equal(TileFormat.Raster, (await fixture.Maps.GetInfoAsync()).Traffic!.Format);
         Assert.Equal([1, 2, 3], await fixture.WebView.GetByteArrayAsync("/_bridge/maps/traffic/12/850/1550"));
 
         var request = Assert.Single(fixture.Network.Requests);
@@ -193,7 +193,7 @@ public class TrafficTests
     [Fact]
     public async Task Azure_Maps_authenticates_with_Entra_ID()
     {
-        var provider = new AzureMapsTrafficProvider("client-id", _ => Task.FromResult("entra-token"));
+        var provider = new AzureMapsTrafficProvider(new AzureMapsCredential("client-id", _ => Task.FromResult("entra-token")));
         await using var fixture = await MapsFixture.StartAsync(o => o.Traffic = provider);
         fixture.Network.Stub("atlas.microsoft.com", _ => Network.Bytes([1]));
 
@@ -268,15 +268,15 @@ public class TrafficTests
     {
         public int Calls;
 
-        public TrafficLayer Layer { get; } = new(TrafficTileFormat.Raster, 0, 18, TimeSpan.FromMilliseconds(200), "© Example")
+        public TrafficLayer Layer { get; } = new(TileFormat.Raster, 0, 18, TimeSpan.FromMilliseconds(200), "© Example")
         {
             TileSize = 512
         };
 
-        public Task<TrafficTile?> GetTileAsync(int z, int x, int y, HttpClient http, CancellationToken cancellationToken)
+        public Task<ProviderTile?> GetTileAsync(int z, int x, int y, HttpClient http, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref this.Calls);
-            return Task.FromResult<TrafficTile?>(new TrafficTile(System.Text.Encoding.UTF8.GetBytes($"{z}/{x}/{y}"), "image/png"));
+            return Task.FromResult<ProviderTile?>(new ProviderTile(System.Text.Encoding.UTF8.GetBytes($"{z}/{x}/{y}"), "image/png"));
         }
     }
 }

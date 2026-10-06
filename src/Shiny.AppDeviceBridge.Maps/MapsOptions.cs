@@ -6,15 +6,13 @@ namespace Shiny.AppDeviceBridge.Maps;
 public sealed class MapsOptions
 {
     /// <summary>
-    /// Where tiles come from when no downloaded region covers them. Either a PMTiles archive answering Range requests —
-    /// <c>https://cdn.example.com/planet.pmtiles</c>, read a directory and a tile at a time — or a tile URL template with
-    /// <c>{z}</c>, <c>{x}</c> and <c>{y}</c>. Null for downloaded regions only. The page never sees this address, so a key
-    /// in it stays in the app.
+    /// Where the map comes from online: <see cref="ProtomapsBasemapProvider"/> for OpenStreetMap, <see cref="AzureMapsBasemapProvider"/>,
+    /// <see cref="GoogleMapsBasemapProvider"/>, or an <see cref="IBasemapProvider"/> of the app's own. Downloaded regions draw
+    /// wherever they cover the map, whatever the provider — under a raster provider's images, which leave them showing through
+    /// offline. Null for downloaded regions only. Its address and key never reach the page. Can be changed while the app runs
+    /// and takes effect from the next request; the page reads <c>GET /_bridge/maps</c> again to see it.
     /// </summary>
-    public string? OnlineTiles { get; set; }
-
-    /// <summary>The highest zoom the online source has. The renderer scales past it.</summary>
-    public int OnlineMaxZoom { get; set; } = 15;
+    public IBasemapProvider? Basemap { get; set; }
 
     /// <summary>
     /// The signed catalog of downloadable regions, as the release server's <c>MapMapPacks</c> serves it. Null when the app
@@ -39,8 +37,8 @@ public sealed class MapsOptions
     public Uri? OnlineAssets { get; set; } = new("https://protomaps.github.io/basemaps-assets/");
 
     /// <summary>
-    /// Disk space for online tiles already seen, so an area viewed online still draws offline. Oldest first to go.
-    /// Zero turns the cache off.
+    /// Disk space for online tiles already seen, so an area viewed online still draws offline. Oldest first to go. Only a
+    /// basemap whose terms allow it is kept (<see cref="BasemapLayer.Cacheable"/>). Zero turns the cache off.
     /// </summary>
     public long TileCacheBytes { get; set; } = 256L * 1024 * 1024;
 
@@ -56,7 +54,7 @@ public sealed class MapsOptions
     /// </summary>
     public int DownloadAttempts { get; set; } = 5;
 
-    /// <summary>The credit the map data's licence requires, as HTML.</summary>
+    /// <summary>The credit downloaded regions' map data requires, as HTML. OpenStreetMap's by default, as regions are built from it.</summary>
     public string Attribution { get; set; } = "<a href=\"https://www.openstreetmap.org/copyright\">© OpenStreetMap</a>";
 
     /// <summary>Where regions and assets are kept. <c>{DataDirectory}/maps</c> when null.</summary>
@@ -65,7 +63,10 @@ public sealed class MapsOptions
     /// <summary>Where the online tile cache is kept. A temporary directory for the app when null.</summary>
     public string? CacheDirectory { get; set; }
 
-    /// <summary>Adds headers to every request for tiles, assets and the catalog — an API key, say.</summary>
+    /// <summary>
+    /// Adds headers to every request for the catalog, region downloads, glyphs and sprites — an API key, say. Each provider
+    /// configures its own requests.
+    /// </summary>
     public Action<HttpRequestMessage>? ConfigureRequest { get; set; }
 
     /// <summary>
@@ -96,23 +97,19 @@ public sealed class MapsOptions
 public sealed class DirectionsOptions
 {
     /// <summary>
-    /// A Valhalla <c>route</c> endpoint: <c>https://valhalla.example.com/route</c> for your own, or
-    /// <c>https://api.stadiamaps.com/route/v1</c> for Stadia Maps. Null for on-device directions only.
+    /// Computes routes online, wherever no downloaded road network covers every stop: <see cref="ValhallaRouteProvider"/>,
+    /// <see cref="AzureMapsRouteProvider"/>, <see cref="GoogleMapsRouteProvider"/>, or an <see cref="IRouteProvider"/> of the
+    /// app's own. Null for on-device directions only. It can be replaced while the app runs; the next route uses the new one.
     /// </summary>
-    public Uri? OnlineRouteUrl { get; set; }
-
-    /// <summary>Sent as the <c>api_key</c> query parameter, which is how hosted Valhalla services take it. Never reaches the page.</summary>
-    public string? ApiKey { get; set; }
-
-    /// <summary>Adds headers to every online route request.</summary>
-    public Action<HttpRequestMessage>? ConfigureRequest { get; set; }
+    public IRouteProvider? Router { get; set; }
 
     /// <summary>How long an online route, or a geocoder search, may take.</summary>
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
-    /// Turns addresses into stops for <c>/_bridge/directions/geocode</c>: <see cref="NominatimGeocoder"/>, or a class of the
-    /// app's own. Null answers 501. It can be replaced while the app runs; the next search uses the new one.
+    /// Turns addresses into stops for <c>/_bridge/directions/geocode</c>: <see cref="NominatimGeocoder"/>,
+    /// <see cref="AzureMapsGeocoder"/>, <see cref="GoogleMapsGeocoder"/>, or a class of the app's own. Null answers 501. It can
+    /// be replaced while the app runs; the next search uses the new one.
     /// </summary>
     public IGeocoder? Geocoder { get; set; }
 }
@@ -125,13 +122,22 @@ public static class MapsBridgeExtensions
     /// <code>
     /// bridge.AddMapsBridge(o =>
     /// {
-    ///     o.OnlineTiles = "https://maps.example.com/planet.pmtiles";
+    ///     o.Basemap = new ProtomapsBasemapProvider("https://maps.example.com/planet.pmtiles");
     ///     o.Catalog = new Uri("https://releases.example.com/maps/catalog");
     ///     o.CatalogPublicKey = publicKey;
-    ///     o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route");
+    ///     o.Directions.Router = new ValhallaRouteProvider(new Uri("https://valhalla.example.com/route"));
     ///     o.Directions.Geocoder = new NominatimGeocoder("MyApp/1.0 (support@example.com)");
     ///     o.Traffic = new TomTomTrafficProvider(tomTomKey);
     ///     o.TrafficIncidents = new TomTomIncidentProvider(tomTomKey);
+    /// });
+    ///
+    /// // Or Azure Maps, or Google Maps, for any of the three:
+    /// var azure = new AzureMapsCredential(azureMapsKey);
+    /// bridge.AddMapsBridge(o =>
+    /// {
+    ///     o.Basemap = new AzureMapsBasemapProvider(azure);
+    ///     o.Directions.Router = new AzureMapsRouteProvider(azure);
+    ///     o.Directions.Geocoder = new AzureMapsGeocoder(azure);
     /// });
     ///
     /// // macOS: HttpClient's own TLS there stops at 1.2; NSURLSession speaks 1.3.

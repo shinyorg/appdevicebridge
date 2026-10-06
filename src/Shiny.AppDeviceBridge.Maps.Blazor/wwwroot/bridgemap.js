@@ -1,5 +1,6 @@
-// BridgeMap's half in the page: a MapLibre map drawing the maps bridge's tiles with the Protomaps basemap style, and the
-// overlays the component adds — pins as DOM markers, lines and areas as GeoJSON layers above the roads and below the
+// BridgeMap's half in the page: a MapLibre map drawing the maps bridge's vector tiles with the Protomaps basemap style — and,
+// when the app's online basemap is a raster one such as Azure Maps or Google Maps, its images laid over them — and the
+// overlays the component adds: pins as DOM markers, lines and areas as GeoJSON layers above the roads and below the
 // labels. Everything is loaded from this package, so the map works with no connection.
 //
 // Objects cross to and from .NET as JSON text, serialized there by source-generated metadata, so nothing on the .NET
@@ -37,6 +38,31 @@ export async function create(element, dotnet, optionsJson) {
     const origin = document.baseURI;
     const absolute = url => new URL(url, origin).href.replace(/%7B/g, "{").replace(/%7D/g, "}");
 
+    // A raster basemap goes over the vector tiles. Offline the bridge answers 204 for its images, so downloaded regions show
+    // through where they are missing.
+    const raster = options.basemap?.format === "Raster" ? options.basemap : null;
+    const baseLayers = layers("protomaps", namedFlavor(options.flavor), { lang: options.language });
+    const sources = {
+        protomaps: {
+            type: "vector",
+            tiles: [absolute(options.tilesUrl)],
+            maxzoom: options.maxZoom,
+            attribution: options.attribution
+        }
+    };
+
+    if (raster) {
+        sources["bridge-basemap"] = {
+            type: "raster",
+            tiles: [absolute(raster.tilesUrl)],
+            tileSize: raster.tileSize,
+            minzoom: raster.minZoom,
+            maxzoom: raster.maxZoom,
+            attribution: raster.attribution
+        };
+        baseLayers.push({ id: "bridge-basemap", type: "raster", source: "bridge-basemap" });
+    }
+
     const map = new maplibregl.Map({
         container: element,
         center: [options.longitude, options.latitude],
@@ -46,26 +72,19 @@ export async function create(element, dotnet, optionsJson) {
             version: 8,
             glyphs: absolute(options.glyphsUrl),
             sprite: absolute(options.spritesUrl + "/" + options.flavor),
-            sources: {
-                protomaps: {
-                    type: "vector",
-                    tiles: [absolute(options.tilesUrl)],
-                    maxzoom: options.maxZoom,
-                    attribution: options.attribution
-                }
-            },
-            layers: layers("protomaps", namedFlavor(options.flavor), { lang: options.language })
+            sources,
+            layers: baseLayers
         }
     });
 
     if (options.navigation)
         map.addControl(new maplibregl.NavigationControl(), "top-right");
 
-    const state = { map, dotnet, pins: new Map(), shapes: new Map(), draft: [], mode: "None", ready: false, queue: [], traffic: options.traffic, trafficTimer: null, incidents: options.incidents, incidentsTimer: null };
+    const state = { map, dotnet, pins: new Map(), shapes: new Map(), draft: [], mode: "None", ready: false, queue: [], raster: !!raster, traffic: options.traffic, trafficTimer: null, incidents: options.incidents, incidentsTimer: null };
     maps.set(options.id, state);
 
     map.on("load", () => {
-        addOverlayLayers(map);
+        addOverlayLayers(map, state.raster);
         if (options.showTraffic)
             showTraffic(state, true);
         if (options.showIncidents)
@@ -95,13 +114,14 @@ function whenReady(id, run) {
         state.queue.push(() => run(state));
 }
 
-// The first symbol layer is where labels start; overlays go under it, so street names stay readable over a route.
+// The first symbol layer is where labels start; overlays go under it, so street names stay readable over a route. A raster
+// basemap has its labels drawn into its images, so over one the overlays go on top.
 function firstLabelLayer(map) {
     return map.getStyle().layers.find(l => l.type === "symbol")?.id;
 }
 
-function addOverlayLayers(map) {
-    const before = firstLabelLayer(map);
+function addOverlayLayers(map, raster) {
+    const before = raster ? undefined : firstLabelLayer(map);
     map.addSource("bridge-shapes", { type: "geojson", data: empty() });
     map.addSource("bridge-draft", { type: "geojson", data: empty() });
 

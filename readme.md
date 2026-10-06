@@ -63,7 +63,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Wearables` | the app | `AddWearablesBridge()`: the companion Apple Watch or Wear OS app, through Shiny.Wearables — status, live messages the page or `background.js` answers, shared context, queued transfers and files through the file roots (iOS and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.LiveActivities` | the app | `AddLiveActivitiesBridge()`: iOS Live Activities and Android 16 Live Updates, through Shiny.Mobile.LiveActivities — start, update and end them from the page, with their push tokens handed to the page or `background.js` (iOS and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.InAppPurchases` | the app | `AddInAppPurchasesBridge()`: App Store (StoreKit 2) and Google Play Billing purchases, through Shiny.Mobile.InAppPurchases — products, the store's purchase sheet, entitlements, finishing, restores and subscription management, with purchase updates handed to the page or `background.js` (iOS and Android; `501` elsewhere) |
-| `Shiny.AppDeviceBridge.Maps` | the app | `AddMapsBridge()`: vector map tiles online or from regions the user downloads (verified against a signed catalog), live traffic flow and incidents from pluggable providers (TomTom, HERE and Azure Maps built in), turn-by-turn directions from an online Valhalla router, and addresses turned into stops by a pluggable geocoder (Nominatim built in) (all platforms) |
+| `Shiny.AppDeviceBridge.Maps` | the app | `AddMapsBridge()`: a map online from a pluggable basemap (OpenStreetMap via Protomaps, Azure Maps and Google Maps built in) or offline from regions the user downloads (verified against a signed catalog), live traffic flow and incidents from pluggable providers (TomTom, HERE and Azure Maps built in), turn-by-turn directions from a pluggable online router (Valhalla, Azure Maps and Google Maps built in), and addresses turned into stops by a pluggable geocoder (Nominatim, Azure Maps and Google Maps built in) (all platforms) |
 | `Shiny.AppDeviceBridge.Maps.Valhalla` | the app | `AddOnDeviceDirections()`: directions computed on the phone over a downloaded region's road network (Android and iOS; online elsewhere) |
 | `Shiny.AppDeviceBridge.Maps.Blazor` | the web app | `<BridgeMap>`: MapLibre GL JS bundled for offline use, with pins, lines, areas, circles, click-to-draw, routes and live traffic |
 | `Shiny.AppDeviceBridge.MapPacks` | a tool | `shiny-map-packs`: builds downloadable regions — the map cut from a PMTiles planet, the road network built with Valhalla |
@@ -661,7 +661,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Wearables | `GET wearables`, `POST wearables/messages`, `GET/PUT wearables/context`, `GET/POST wearables/transfers`, `DELETE wearables/transfers/{id}`, `POST wearables/files` | `wearables.status`, `wearables.message`, `wearables.context`, `wearables.transfer`, `wearables.file`, `wearables.completed` |
 | Live activities | `GET liveactivities`, `POST liveactivities/access`, `GET/POST/DELETE liveactivities/activities`, `PUT liveactivities/activities/{id}`, `POST liveactivities/activities/{id}/end` | `liveactivities.started`, `liveactivities.state`, `liveactivities.token`, `liveactivities.starttoken` |
 | In-app purchases | `GET purchases`, `POST purchases/products`, `POST purchases/purchase`, `GET purchases/entitlements`, `GET purchases/unfinished`, `POST purchases/transactions/{transactionId}/finish`, `POST purchases/restore`, `POST purchases/manage` | `purchases.updated` |
-| Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/traffic/{z}/{x}/{y}`, `GET maps/incidents/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
+| Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/basemap/{z}/{x}/{y}`, `GET maps/traffic/{z}/{x}/{y}`, `GET maps/incidents/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
 | Directions | `GET directions`, `POST directions/route`, `GET directions/geocode?query=` | |
 | App links | `GET/DELETE links/pending` | `app.link` |
 | Health | `GET health`, `POST health/access`, `GET/POST health/samples/{type}`, `POST/DELETE health/listeners/{type}` | `health.reading`, `health.stopped` |
@@ -1111,9 +1111,13 @@ the payment — this is not Apple Pay or Google Pay.
 
 **Maps and directions** (`Shiny.AppDeviceBridge.Maps`, `AddMapsBridge()`): online by default, offline where the user
 downloaded a region. Every platform; on-device directions on Android and iOS with `Shiny.AppDeviceBridge.Maps.Valhalla`.
-- **Tiles:** `GET maps` gives the tile, glyph and sprite URL templates a renderer uses. A tile comes from an installed
-  region, then tiles already seen online, then the online source (a PMTiles archive read by Range, or a tile service) —
-  and `204` when none has it. Keys for the online source stay in the app.
+- **Basemap:** `o.Basemap` takes the online map — `ProtomapsBasemapProvider` (OpenStreetMap as vector tiles, from a
+  PMTiles archive read by Range or a `{z}/{x}/{y}` template), `AzureMapsBasemapProvider`, `GoogleMapsBasemapProvider`, or
+  an `IBasemapProvider` of your own — and can be swapped while the app runs. `GET maps` gives the tile, glyph and sprite
+  URL templates a renderer uses, and describes the basemap under `basemap`. A vector tile (`GET maps/tiles/{z}/{x}/{y}`)
+  comes from an installed region, then tiles already seen online, then a vector basemap — and `204` when none has it. A
+  raster basemap's images (`GET maps/basemap/{z}/{x}/{y}`) are laid over the regions, so offline the regions show through;
+  they aren't kept, as Azure Maps' and Google's terms require. Providers' keys stay in the app.
 - **Traffic:** `o.Traffic` takes a flow provider (`TomTomTrafficProvider`, `HereTrafficProvider`,
   `AzureMapsTrafficProvider`, or an `ITrafficProvider` of your own), and `o.TrafficIncidents` an incident provider
   (`TomTomIncidentProvider`, or an `ITrafficIncidentProvider`). `GET maps` describes them under `traffic` and
@@ -1125,10 +1129,15 @@ downloaded a region. Every platform; on-device directions on Android and iOS wit
   a region with nothing newer answers `Installed` at once. Every
   part is checked against its signed hash; downloads resume after an interruption.
 - **Directions:** `POST directions/route` with `{ stops, mode, units, language, source, avoid }`. `source: "Auto"` routes
-  on the device inside a downloaded road network and online otherwise. `404 no_route`, `503 offline_unavailable`.
+  on the device inside a downloaded road network and online otherwise, through `o.Directions.Router`:
+  `ValhallaRouteProvider`, `AzureMapsRouteProvider`, `GoogleMapsRouteProvider`, or an `IRouteProvider` of your own. `GET
+  directions` lists the router's `onlineModes`; another mode is `400 mode_unsupported`. `404 no_route`,
+  `503 offline_unavailable`.
 - **Addresses:** `GET directions/geocode?query=` turns what the user typed into places, best first, through the app's
-  geocoder (`o.Directions.Geocoder`: `NominatimGeocoder`, or an `IGeocoder` of your own). Its address and key stay in the
-  app. `503 geocoder_unavailable` offline; `501` without a geocoder.
+  geocoder (`o.Directions.Geocoder`: `NominatimGeocoder`, `AzureMapsGeocoder`, `GoogleMapsGeocoder`, or an `IGeocoder` of
+  your own). Its address and key stay in the app. `503 geocoder_unavailable` offline; `501` without a geocoder.
+- **Azure Maps:** one `AzureMapsCredential` — the shared key, or Microsoft Entra ID — serves its basemap, traffic, router
+  and geocoder.
 - **The map in Blazor:** `<BridgeMap>` from `Shiny.AppDeviceBridge.Maps.Blazor` — pins, shapes, drawing, routes and live traffic (`ShowTraffic`, `ShowIncidents`).
 
 **Folders:**

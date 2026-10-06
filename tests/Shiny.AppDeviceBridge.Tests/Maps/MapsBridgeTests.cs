@@ -25,8 +25,7 @@ public class MapsBridgeTests
     {
         await using var fixture = await MapsFixture.StartAsync(o =>
         {
-            o.OnlineTiles = "https://tiles.example.com/{z}/{x}/{y}.mvt?key=secret";
-            o.OnlineMaxZoom = 14;
+            o.Basemap = new ProtomapsBasemapProvider("https://tiles.example.com/{z}/{x}/{y}.mvt?key=secret") { MaxZoom = 14 };
         });
 
         var info = await fixture.Maps.GetInfoAsync();
@@ -35,7 +34,7 @@ public class MapsBridgeTests
         Assert.Equal("/_bridge/maps/glyphs/{fontstack}/{range}.pbf", info.GlyphsUrl);
         Assert.Equal("/_bridge/maps/sprites", info.SpritesUrl);
         Assert.Equal(14, info.MaxZoom);
-        Assert.True(info.Online);
+        Assert.Equal(new BasemapInfo("Protomaps", TileFormat.Vector, info.TilesUrl, 0, 14, 256, info.Attribution), info.Basemap);
         Assert.False(info.Catalog);
         Assert.DoesNotContain("secret", await fixture.WebView.GetStringAsync("/_bridge/maps"));
     }
@@ -76,8 +75,10 @@ public class MapsBridgeTests
         var tile = System.Text.Encoding.UTF8.GetBytes("a vector tile");
         await using var fixture = await MapsFixture.StartAsync(o =>
         {
-            o.OnlineTiles = "https://tiles.example.com/v4/{z}/{x}/{y}.mvt";
-            o.ConfigureRequest = r => r.Headers.Add("X-Api-Key", "secret");
+            o.Basemap = new ProtomapsBasemapProvider("https://tiles.example.com/v4/{z}/{x}/{y}.mvt")
+            {
+                ConfigureRequest = r => r.Headers.Add("X-Api-Key", "secret")
+            };
         });
         fixture.Network.Stub("tiles.example.com", r => r.RequestUri!.AbsolutePath == "/v4/12/850/1550.mvt"
             ? Network.Bytes(tile)
@@ -95,7 +96,7 @@ public class MapsBridgeTests
     public async Task An_online_pmtiles_archive_is_read_a_range_at_a_time()
     {
         var bytes = await File.ReadAllBytesAsync(PmTilesTests.Fixture("boulder.pmtiles"));
-        await using var fixture = await MapsFixture.StartAsync(o => o.OnlineTiles = "https://cdn.example.com/planet.pmtiles");
+        await using var fixture = await MapsFixture.StartAsync(o => o.Basemap = new ProtomapsBasemapProvider("https://cdn.example.com/planet.pmtiles"));
         var server = new PmTilesTests.RangeHandler(bytes);
         fixture.Network.Route("cdn.example.com", server);
 
@@ -111,8 +112,7 @@ public class MapsBridgeTests
     {
         await using var fixture = await MapsFixture.StartAsync(o =>
         {
-            o.OnlineTiles = "https://tiles.example.com/{z}/{x}/{y}";
-            o.OnlineMaxZoom = 14;
+            o.Basemap = new ProtomapsBasemapProvider("https://tiles.example.com/{z}/{x}/{y}") { MaxZoom = 14 };
         });
 
         Assert.Equal(HttpStatusCode.NoContent, (await fixture.WebView.GetAsync("/_bridge/maps/tiles/15/6800/12400")).StatusCode);
@@ -466,8 +466,8 @@ public class MapsBridgeTests
         services.AddShinyHttpServer(
             http => http.AddAppDeviceBridge(bridge => bridge
                 .Configure(o => o.AppId = TestApp.AppId)
-                .AddMapsBridge(o => o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route"))
-                .AddMapsBridge(o => o.OnlineMaxZoom = 12)),
+                .AddMapsBridge(o => o.Directions.Router = new ValhallaRouteProvider(new Uri("https://valhalla.example.com/route")))
+                .AddMapsBridge(o => o.Basemap = new GoogleMapsBasemapProvider("google-secret"))),
             autoStart: false
         );
 
@@ -478,7 +478,7 @@ public class MapsBridgeTests
         Assert.Single(server.Bridges, x => x is MapsBridge);
         Assert.Single(server.Bridges, x => x is DirectionsBridge { IsSupported: true });
         var options = provider.GetRequiredService<MapsOptions>();
-        Assert.Equal(12, options.OnlineMaxZoom);
-        Assert.NotNull(options.Directions.OnlineRouteUrl);
+        Assert.IsType<GoogleMapsBasemapProvider>(options.Basemap);
+        Assert.IsType<ValhallaRouteProvider>(options.Directions.Router);
     }
 }

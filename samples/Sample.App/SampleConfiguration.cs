@@ -129,11 +129,10 @@ public static class SampleConfiguration
                         // Nominatim, both for light use such as trying the sample; a real app runs its own or pays for hosted ones.
                         .AddMapsBridge(o =>
                         {
-                            o.OnlineTiles = $"http://{HostMachine}:5199/maps/files/planet.pmtiles";
-                            o.OnlineMaxZoom = 14;
+                            o.Basemap = new ProtomapsBasemapProvider($"http://{HostMachine}:5199/maps/files/planet.pmtiles") { MaxZoom = 14 };
                             o.Catalog = new Uri($"http://{HostMachine}:5199/maps/catalog");
                             o.CatalogPublicKey = ReadResource("Sample.dev-public.pem");
-                            o.Directions.OnlineRouteUrl = new Uri("https://valhalla1.openstreetmap.de/route");
+                            o.Directions.Router = new ValhallaRouteProvider(new Uri("https://valhalla1.openstreetmap.de/route"));
                             o.Directions.Geocoder = new NominatimGeocoder("Shiny.AppDeviceBridge sample (https://shinylib.net/appdevicebridge)");
                         })
 

@@ -6,13 +6,16 @@ namespace Shiny.AppDeviceBridge.Maps.Client;
 /// Everything a map renderer needs to draw from the bridge. The URLs are templates MapLibre (or any vector-tile renderer)
 /// fills in itself, relative to the page's origin and already under the bridge's prefix.
 /// </summary>
-/// <param name="TilesUrl">The vector tiles: <c>…/maps/tiles/{z}/{x}/{y}</c>. Served from a downloaded region when one covers the tile, from the online source otherwise.</param>
+/// <param name="TilesUrl">
+/// The vector tiles, in the Protomaps basemap schema: <c>…/maps/tiles/{z}/{x}/{y}</c>. Served from a downloaded region when one
+/// covers the tile, from tiles already seen online, and from the online basemap when it is a vector one.
+/// </param>
 /// <param name="GlyphsUrl">The label fonts: <c>…/maps/glyphs/{fontstack}/{range}.pbf</c>.</param>
 /// <param name="SpritesUrl">The icon sheets. Append a flavor — <c>light</c>, <c>dark</c>, <c>white</c>, <c>grayscale</c>, <c>black</c> — for MapLibre's <c>sprite</c>.</param>
-/// <param name="MaxZoom">The highest zoom the tiles carry. The renderer draws closer zooms by scaling these, which vector tiles do cleanly.</param>
-/// <param name="Online">Whether the app configured an online tile source. Without one, only downloaded regions draw.</param>
+/// <param name="MaxZoom">The highest zoom <paramref name="TilesUrl"/> carries. The renderer draws closer zooms by scaling these, which vector tiles do cleanly.</param>
 /// <param name="Catalog">Whether the app configured a region catalog to download from.</param>
-/// <param name="Attribution">The credit the map data's licence requires, as HTML.</param>
+/// <param name="Attribution">The credit the vector map data's licence requires, as HTML.</param>
+/// <param name="Basemap">The online basemap, when the app configured one. Null for downloaded regions only.</param>
 /// <param name="Traffic">The live traffic layer, when the app configured a traffic provider. Null otherwise.</param>
 /// <param name="Incidents">Live traffic incidents — accidents, roadworks, closures — when the app configured an incident provider. Null otherwise.</param>
 public sealed record MapsInfo(
@@ -20,22 +23,51 @@ public sealed record MapsInfo(
     string GlyphsUrl,
     string SpritesUrl,
     int MaxZoom,
-    bool Online,
     bool Catalog,
     string Attribution,
+    BasemapInfo? Basemap = null,
     TrafficInfo? Traffic = null,
     TrafficIncidentInfo? Incidents = null
 );
 
-/// <summary>How a traffic provider's tiles are drawn.</summary>
-public enum TrafficTileFormat
+/// <summary>How a provider's tiles are drawn.</summary>
+public enum TileFormat
 {
-    /// <summary>Vector tiles: lines the renderer colours by <see cref="TrafficInfo.SpeedRatioProperty"/>.</summary>
+    /// <summary>Vector tiles the renderer styles itself.</summary>
     Vector,
 
-    /// <summary>Images already coloured by the provider, laid over the map.</summary>
+    /// <summary>Images already drawn by the provider, laid over the map.</summary>
     Raster
 }
+
+/// <summary>
+/// The online basemap, whatever provider is behind it — OpenStreetMap through Protomaps, Azure Maps, Google Maps or the app's
+/// own. Tiles come through the bridge, which holds the provider's key.
+/// <para>
+/// <see cref="TileFormat.Vector"/>: tiles in the Protomaps schema, served through <see cref="MapsInfo.TilesUrl"/> together with
+/// downloaded regions, so <see cref="TilesUrl"/> is that same URL and the page draws one source.
+/// </para>
+/// <para>
+/// <see cref="TileFormat.Raster"/>: images served at <see cref="TilesUrl"/>, which the page lays over the vector tiles. Offline
+/// the bridge answers 204 for them, so downloaded regions still show through where the images are missing.
+/// </para>
+/// </summary>
+/// <param name="Provider">Who draws the map — <c>Protomaps</c>, <c>Azure Maps</c>, <c>Google Maps</c> — for showing the user.</param>
+/// <param name="Format">Whether the page styles the tiles itself or lays the provider's images over the map.</param>
+/// <param name="TilesUrl">The tiles: <c>…/maps/tiles/{z}/{x}/{y}</c> for vector, <c>…/maps/basemap/{z}/{x}/{y}</c> for raster.</param>
+/// <param name="MinZoom">Below this the provider has no tiles, and none are asked for.</param>
+/// <param name="MaxZoom">The highest zoom the provider has. The renderer scales past it.</param>
+/// <param name="TileSize">Raster: the size each tile is drawn at, in CSS pixels. Images may carry more pixels than this, for sharp drawing on high-density screens.</param>
+/// <param name="Attribution">The credit the provider's terms require, as HTML.</param>
+public sealed record BasemapInfo(
+    string Provider,
+    TileFormat Format,
+    string TilesUrl,
+    int MinZoom,
+    int MaxZoom,
+    int TileSize,
+    string Attribution
+);
 
 /// <summary>
 /// A live traffic layer, whatever provider is behind it. Tiles come through the bridge, which holds the provider's key, and
@@ -54,7 +86,7 @@ public enum TrafficTileFormat
 /// <param name="Attribution">The credit the provider's terms require, as HTML.</param>
 public sealed record TrafficInfo(
     string TilesUrl,
-    TrafficTileFormat Format,
+    TileFormat Format,
     int MinZoom,
     int MaxZoom,
     int RefreshSeconds,
@@ -167,6 +199,7 @@ public sealed record TrafficIncidentInfo(
 /// <summary>Serialization for every map contract, shared by the page's client and the native bridge.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true, PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(MapsInfo))]
+[JsonSerializable(typeof(BasemapInfo))]
 [JsonSerializable(typeof(TrafficInfo))]
 [JsonSerializable(typeof(TrafficIncidentInfo))]
 [JsonSerializable(typeof(MapRegion))]

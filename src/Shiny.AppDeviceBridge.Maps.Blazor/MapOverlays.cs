@@ -75,6 +75,7 @@ sealed record MapCreateOptions(
     double Longitude,
     double Zoom,
     bool Navigation,
+    BasemapInfo? Basemap,
     TrafficInfo? Traffic,
     bool ShowTraffic,
     TrafficIncidentInfo? Incidents,

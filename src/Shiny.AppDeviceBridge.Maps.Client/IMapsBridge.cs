@@ -4,8 +4,8 @@ namespace Shiny.AppDeviceBridge.Maps.Client;
 
 /// <summary>
 /// Vector maps the page draws with MapLibre or any other vector-tile renderer. Tiles come from a region the user
-/// downloaded when one covers them, and from the app's online source otherwise, so the page asks for one set of URLs and
-/// never has to know which. Regions are listed from the app's signed catalog and downloaded on request.
+/// downloaded when one covers them, and from the app's online basemap otherwise — OpenStreetMap through Protomaps, Azure
+/// Maps, Google Maps or one of the app's own — so the page asks for one set of URLs and never learns the provider's key. Regions are listed from the app's signed catalog and downloaded on request.
 /// </summary>
 [BridgeClient("maps", typeof(MapsJsonContext))]
 public interface IMapsBridge
@@ -49,6 +49,14 @@ public interface IMapsBridge
     /// </summary>
     [BridgeGet("tiles/{z}/{x}/{y}")]
     Task<Stream> GetTileAsync(int z, int x, int y, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// One image from a raster online basemap, as the renderer asks for it through <see cref="BasemapInfo.TilesUrl"/>. 204 when
+    /// the provider has nothing there or cannot be reached — offline, say, where downloaded regions show through instead; 501
+    /// when the app configured no raster basemap.
+    /// </summary>
+    [BridgeGet("basemap/{z}/{x}/{y}")]
+    Task<Stream> GetBasemapTileAsync(int z, int x, int y, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// One live traffic tile, as the renderer asks for it through <see cref="TrafficInfo.TilesUrl"/>: a vector tile or an

@@ -81,7 +81,7 @@ public class GeocodingTests
     [Fact]
     public async Task Without_a_geocoder_it_is_not_supported()
     {
-        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route"));
+        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.Router = new ValhallaRouteProvider(new Uri("https://valhalla.example.com/route")));
 
         var refused = await Assert.ThrowsAsync<BridgeException>(() => fixture.Directions.GeocodeAsync("Denver"));
 

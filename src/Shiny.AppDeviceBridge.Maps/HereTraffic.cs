@@ -40,18 +40,18 @@ public sealed class HereTrafficProvider(string apiKey) : ITrafficProvider
     /// </summary>
     public string MinTrafficCongestion { get; set; } = "free";
 
-    public TrafficLayer Layer => new(TrafficTileFormat.Raster, this.MinZoom, this.MaxZoom, this.Refresh, "<a href=\"https://www.here.com/\">© HERE</a>")
+    public TrafficLayer Layer => new(TileFormat.Raster, this.MinZoom, this.MaxZoom, this.Refresh, "<a href=\"https://www.here.com/\">© HERE</a>")
     {
         TileSize = this.TileSize
     };
 
-    public Task<TrafficTile?> GetTileAsync(int z, int x, int y, HttpClient http, CancellationToken cancellationToken)
+    public Task<ProviderTile?> GetTileAsync(int z, int x, int y, HttpClient http, CancellationToken cancellationToken)
     {
         // Column then row: x then y.
         var path = String.Create(
             CultureInfo.InvariantCulture,
             $"v3/flow/mc/{z}/{x}/{y}/png?size={this.TileSize}&minTrafficCongestion={Uri.EscapeDataString(this.MinTrafficCongestion)}&apiKey={Uri.EscapeDataString(this.apiKey)}"
         );
-        return TrafficTiles.GetAsync(http, new Uri(this.BaseAddress, path), "image/png", null, cancellationToken);
+        return ProviderTiles.GetAsync(http, new Uri(this.BaseAddress, path), "image/png", null, cancellationToken);
     }
 }
