@@ -4,7 +4,7 @@
         <MauiVersion>10.0.101</MauiVersion>
         <MauiLabsVersion>0.1.0-preview.12.26421.1</MauiLabsVersion>
         <ShinyVersion>5.9.0-beta-0009</ShinyVersion>
-        <DocumentDbVersion>14.1.0-gdd7f615437</DocumentDbVersion>
+        <DocumentDbVersion>14.1.0-beta-0003</DocumentDbVersion>
     </PropertyGroup>
     <ItemGroup>
         <PackageVersion Include="GirCore.Gtk-4.0" Version="0.8.1"/>
