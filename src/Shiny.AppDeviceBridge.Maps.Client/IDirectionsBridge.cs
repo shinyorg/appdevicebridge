@@ -4,9 +4,9 @@ namespace Shiny.AppDeviceBridge.Maps.Client;
 
 /// <summary>
 /// Turn-by-turn directions. A route is computed on the device when the user downloaded the road network of a region
-/// covering every stop and the platform can run the router, and by the app's online router otherwise. Addresses become stops
-/// through the app's geocoder. The router's and the geocoder's addresses and keys stay in the native app; the page never
-/// sees them.
+/// covering every stop and the platform can run the router, and by the app's online router otherwise — Valhalla, Azure Maps,
+/// Google Maps or one of the app's own. Addresses become stops through the app's geocoder. The router's and the geocoder's
+/// addresses and keys stay in the native app; the page never sees them.
 /// </summary>
 [BridgeClient("directions", typeof(DirectionsJsonContext))]
 public interface IDirectionsBridge
@@ -16,7 +16,8 @@ public interface IDirectionsBridge
     Task<DirectionsInfo> GetInfoAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Computes a route through the stops. Fails with 400 for fewer than two stops or a stop off the map, 404 when no
+    /// Computes a route through the stops. Fails with 400 for fewer than two stops or a stop off the map, or
+    /// (<c>mode_unsupported</c>) for a travel mode the online router does not offer when the device cannot route; 404 when no
     /// route connects them, 503 (<c>offline_unavailable</c>) when the device cannot compute it and the online router cannot
     /// be reached, 501 when neither is available on this platform and app.
     /// </summary>

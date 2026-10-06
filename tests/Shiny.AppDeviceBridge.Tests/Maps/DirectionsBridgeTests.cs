@@ -99,8 +99,7 @@ public class DirectionsBridgeTests
     {
         await using var fixture = await MapsFixture.StartAsync(o =>
         {
-            o.Directions.OnlineRouteUrl = new Uri("https://api.valhalla.example.com/route/v1?format=json");
-            o.Directions.ApiKey = "secret key";
+            o.Directions.Router = new ValhallaRouteProvider(new Uri("https://api.valhalla.example.com/route/v1?format=json")) { ApiKey = "secret key" };
         });
         string? sent = null;
         fixture.Network.Stub("api.valhalla.example.com", async r =>
@@ -112,12 +111,15 @@ public class DirectionsBridgeTests
         var route = await fixture.Directions.RouteAsync(new DirectionsRequest([Denver, Boulder]));
 
         Assert.Equal(DirectionsSource.Online, route.Source);
+        Assert.Contains("OpenStreetMap", route.Attribution);
         Assert.Equal(2, route.Legs.Count);
         Assert.Equal("?format=json&api_key=secret%20key", fixture.Network.Requests.Single().RequestUri!.Query);
         Assert.Equal("auto", (string?)JsonNode.Parse(sent!)!["costing"]);
 
         var info = await fixture.Directions.GetInfoAsync();
         Assert.True(info.Online);
+        Assert.Equal("Valhalla", info.Router);
+        Assert.Equal([TravelMode.Car, TravelMode.Bicycle, TravelMode.Walking, TravelMode.Truck], info.OnlineModes);
         Assert.False(info.OnDevice);
         Assert.DoesNotContain("secret", await fixture.WebView.GetStringAsync("/_bridge/directions"));
     }
@@ -126,7 +128,7 @@ public class DirectionsBridgeTests
     public async Task Routes_on_the_device_inside_a_downloaded_road_network()
     {
         var device = new FakeRouterFactory(RealRoute());
-        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route"), device);
+        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.Router = new ValhallaRouteProvider(new Uri("https://valhalla.example.com/route")), device);
         fixture.InstallDirectly("colorado", Colorado, directions: true);
 
         var route = await fixture.Directions.RouteAsync(new DirectionsRequest([Denver, Boulder]));
@@ -144,7 +146,7 @@ public class DirectionsBridgeTests
     public async Task Goes_online_when_a_stop_is_outside_every_downloaded_network()
     {
         var device = new FakeRouterFactory(RealRoute());
-        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route"), device);
+        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.Router = new ValhallaRouteProvider(new Uri("https://valhalla.example.com/route")), device);
         fixture.InstallDirectly("colorado", Colorado, directions: true);
         fixture.Network.Stub("valhalla.example.com", _ => Network.Json(RealRoute()));
 
@@ -158,7 +160,7 @@ public class DirectionsBridgeTests
     public async Task Goes_online_when_the_device_cannot_connect_the_stops()
     {
         var device = new FakeRouterFactory("""{ "code": 442, "message": "No path could be found for input" }""");
-        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route"), device);
+        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.Router = new ValhallaRouteProvider(new Uri("https://valhalla.example.com/route")), device);
         fixture.InstallDirectly("colorado", Colorado, directions: true);
         fixture.Network.Stub("valhalla.example.com", _ => Network.Json(RealRoute()));
 
@@ -173,7 +175,7 @@ public class DirectionsBridgeTests
     [Fact]
     public async Task Device_only_outside_every_downloaded_network_is_unavailable()
     {
-        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route"), new FakeRouterFactory(RealRoute()));
+        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.Router = new ValhallaRouteProvider(new Uri("https://valhalla.example.com/route")), new FakeRouterFactory(RealRoute()));
 
         var refused = await Assert.ThrowsAsync<BridgeException>(() => fixture.Directions.RouteAsync(new DirectionsRequest([Denver, Boulder], Source: DirectionsSource.Device)));
 
@@ -185,7 +187,7 @@ public class DirectionsBridgeTests
     [Fact]
     public async Task Offline_with_no_downloaded_network_is_unavailable()
     {
-        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route"));
+        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.Router = new ValhallaRouteProvider(new Uri("https://valhalla.example.com/route")));
         fixture.Network.Offline = true;
 
         var refused = await Assert.ThrowsAsync<BridgeException>(() => fixture.Directions.RouteAsync(new DirectionsRequest([Denver, Boulder])));
@@ -197,7 +199,7 @@ public class DirectionsBridgeTests
     [Fact]
     public async Task Valhallas_no_route_is_404_and_its_other_errors_400()
     {
-        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route"));
+        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.Router = new ValhallaRouteProvider(new Uri("https://valhalla.example.com/route")));
         var answer = """{ "error_code": 442, "error": "No path could be found for input", "status_code": 400 }""";
         fixture.Network.Stub("valhalla.example.com", _ => Network.Json(answer, HttpStatusCode.BadRequest));
 
@@ -229,7 +231,7 @@ public class DirectionsBridgeTests
     [InlineData("""not json""")]
     public async Task Refuses_a_request_it_cannot_route(string body)
     {
-        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.OnlineRouteUrl = new Uri("https://valhalla.example.com/route"));
+        await using var fixture = await MapsFixture.StartAsync(o => o.Directions.Router = new ValhallaRouteProvider(new Uri("https://valhalla.example.com/route")));
 
         using var response = await fixture.WebView.PostAsync("/_bridge/directions/route", new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
 

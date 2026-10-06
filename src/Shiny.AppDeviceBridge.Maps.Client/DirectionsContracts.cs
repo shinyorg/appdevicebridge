@@ -98,20 +98,31 @@ public sealed record RouteLeg(double Distance, double Duration, IReadOnlyList<Ro
 /// <param name="Duration">Seconds.</param>
 /// <param name="Shape">The line to draw, as <c>[longitude, latitude]</c> pairs — GeoJSON's order, so it drops into a LineString as it is.</param>
 /// <param name="Bounds"><c>[west, south, east, north]</c> around <see cref="Shape"/>, for fitting the map to the route.</param>
+/// <param name="Attribution">The credit the router's terms require, as HTML.</param>
 public sealed record DirectionsRoute(
     DirectionsSource Source,
     double Distance,
     double Duration,
     IReadOnlyList<double[]> Shape,
     double[] Bounds,
-    IReadOnlyList<RouteLeg> Legs
+    IReadOnlyList<RouteLeg> Legs,
+    string Attribution = ""
 );
 
 /// <param name="Online">Whether the app configured an online router.</param>
+/// <param name="OnlineModes">The travel modes the online router computes routes for. Empty without one.</param>
 /// <param name="OnDevice">Whether this platform can compute routes on the device. It still needs a downloaded road network to do so.</param>
 /// <param name="OfflineRegions">The regions whose road network is on the device.</param>
 /// <param name="Geocoding">Whether the app configured a geocoder, so <c>geocode</c> can turn an address into a stop.</param>
-public sealed record DirectionsInfo(bool Online, bool OnDevice, IReadOnlyList<string> OfflineRegions, bool Geocoding);
+/// <param name="Router">Who computes online routes — <c>Valhalla</c>, <c>Azure Maps</c>, <c>Google Maps</c> — for showing the user. Null without an online router.</param>
+public sealed record DirectionsInfo(
+    bool Online,
+    IReadOnlyList<TravelMode> OnlineModes,
+    bool OnDevice,
+    IReadOnlyList<string> OfflineRegions,
+    bool Geocoding,
+    string? Router = null
+);
 
 /// <summary>A place a geocoder found for an address or a name.</summary>
 /// <param name="Name">What the place is called: "Union Station", "1701 Wynkoop Street".</param>

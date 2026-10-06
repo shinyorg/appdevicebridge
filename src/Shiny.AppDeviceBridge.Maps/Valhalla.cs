@@ -4,8 +4,8 @@ using Shiny.AppDeviceBridge.Maps.Client;
 namespace Shiny.AppDeviceBridge.Maps;
 
 /// <summary>
-/// Answers a Valhalla <c>route</c> request. Online and on the device the request and the response are the same JSON,
-/// so everything above this — the contract, source selection, errors — is shared.
+/// Answers a Valhalla <c>route</c> request on the device. The request and the response are the JSON an online Valhalla
+/// takes and gives, so <see cref="ValhallaRouteProvider"/> and on-device directions share one translation.
 /// </summary>
 public interface IValhallaRouter : IDisposable
 {
@@ -21,14 +21,23 @@ public interface IOnDeviceRouterFactory
 }
 
 /// <summary>A failure Valhalla reported: its numeric error code and message.</summary>
-public sealed class ValhallaException(int errorCode, string message, int httpStatus = 400) : Exception(message)
+public sealed class ValhallaException(int errorCode, string message, int httpStatus = 400)
+    : DirectionsException(ToError(errorCode, httpStatus), message)
 {
     public int ErrorCode { get; } = errorCode;
 
     public int HttpStatus { get; } = httpStatus;
 
     /// <summary>Valhalla's codes for "these places are not connected": no path, or no road near a stop.</summary>
-    public bool IsNoRoute => this.ErrorCode is 170 or 171 or 442 or 443;
+    public bool IsNoRoute => IsNoRouteCode(this.ErrorCode);
+
+    static bool IsNoRouteCode(int code) => code is 170 or 171 or 442 or 443;
+
+    static DirectionsError ToError(int code, int httpStatus) => IsNoRouteCode(code)
+        ? DirectionsError.NoRoute
+        : httpStatus >= 500 || code == 0
+            ? DirectionsError.RouterFailed
+            : DirectionsError.InvalidRequest;
 
     /// <summary>
     /// Reads a failure: the Valhalla service's body, <c>{ "error_code": 442, "error": "No path could be found for input" }</c>,
@@ -121,9 +130,7 @@ static class ValhallaTranslation
         foreach (var leg in trip["legs"]?.AsArray() ?? [])
         {
             // Each leg's shape starts where the last one ended; the shared point is kept once.
-            var offset = shape.Count == 0 ? 0 : shape.Count - 1;
-            var points = DecodePolyline6((string?)leg?["shape"] ?? String.Empty);
-            shape.AddRange(offset == 0 ? points : points.Skip(1));
+            var offset = RouteShapes.Append(shape, RouteShapes.DecodePolyline((string?)leg?["shape"] ?? String.Empty, 6));
 
             var maneuvers = new List<RouteManeuver>();
             foreach (var m in leg?["maneuvers"]?.AsArray() ?? [])
@@ -156,7 +163,7 @@ static class ValhallaTranslation
             Math.Round(((double?)summary?["length"] ?? 0) * metres, 1),
             Math.Round((double?)summary?["time"] ?? 0, 1),
             shape,
-            Bounds(shape),
+            RouteShapes.Bounds(shape),
             legs
         );
     }
@@ -188,91 +195,4 @@ static class ValhallaTranslation
         28 or 29 => ManeuverKind.Ferry,
         _ => ManeuverKind.Other
     };
-
-    /// <summary>Google's encoded polyline at six decimal places, as Valhalla writes shapes. Returns <c>[longitude, latitude]</c> pairs.</summary>
-    internal static List<double[]> DecodePolyline6(string encoded)
-    {
-        var points = new List<double[]>();
-        int index = 0, lat = 0, lon = 0;
-
-        while (index < encoded.Length)
-        {
-            lat += Next(encoded, ref index);
-            lon += Next(encoded, ref index);
-            points.Add([lon / 1e6, lat / 1e6]);
-        }
-
-        return points;
-
-        static int Next(string s, ref int i)
-        {
-            int result = 0, shift = 0, b;
-            do
-            {
-                if (i >= s.Length)
-                    throw new FormatException("The route's shape is truncated.");
-
-                b = s[i++] - 63;
-                result |= (b & 0x1F) << shift;
-                shift += 5;
-            } while (b >= 0x20);
-
-            return (result & 1) != 0 ? ~(result >> 1) : result >> 1;
-        }
-    }
-
-    static double[] Bounds(List<double[]> shape)
-    {
-        if (shape.Count == 0)
-            return [0, 0, 0, 0];
-
-        double west = double.MaxValue, south = double.MaxValue, east = double.MinValue, north = double.MinValue;
-        foreach (var p in shape)
-        {
-            west = Math.Min(west, p[0]);
-            east = Math.Max(east, p[0]);
-            south = Math.Min(south, p[1]);
-            north = Math.Max(north, p[1]);
-        }
-
-        return [west, south, east, north];
-    }
-}
-
-/// <summary>An online Valhalla server: your own, or a hosted one such as Stadia Maps.</summary>
-sealed class ValhallaHttpRouter(HttpClient http, DirectionsOptions options) : IValhallaRouter
-{
-    public async Task<string> RouteAsync(string requestJson, CancellationToken cancellationToken)
-    {
-        var url = options.OnlineRouteUrl ?? throw new InvalidOperationException("No online route URL is configured.");
-
-        if (!String.IsNullOrWhiteSpace(options.ApiKey))
-            url = new UriBuilder(url) { Query = AppendQuery(url.Query, "api_key", options.ApiKey) }.Uri;
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, url)
-        {
-            Content = new StringContent(requestJson, System.Text.Encoding.UTF8, "application/json")
-        };
-        options.ConfigureRequest?.Invoke(request);
-
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(options.Timeout);
-
-        using var response = await http.SendAsync(request, timeout.Token).ConfigureAwait(false);
-        var body = await response.Content.ReadAsStringAsync(timeout.Token).ConfigureAwait(false);
-
-        if (response.IsSuccessStatusCode)
-            return body;
-
-        throw (Exception?)ValhallaException.TryParse(body, (int)response.StatusCode)
-              ?? new HttpRequestException($"The online router answered {(int)response.StatusCode}.", null, response.StatusCode);
-    }
-
-    static string AppendQuery(string query, string name, string value)
-    {
-        var pair = $"{name}={Uri.EscapeDataString(value)}";
-        return query.Length <= 1 ? pair : $"{query[1..]}&{pair}";
-    }
-
-    public void Dispose() { }
 }

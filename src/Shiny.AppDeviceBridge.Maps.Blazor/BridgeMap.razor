@@ -26,7 +26,11 @@
 
     [Parameter] public double Zoom { get; set; } = 2;
 
-    /// <summary>The Protomaps style: <c>light</c>, <c>dark</c>, <c>white</c>, <c>grayscale</c> or <c>black</c>. Read when the map is created.</summary>
+    /// <summary>
+    /// The Protomaps style vector tiles are drawn in: <c>light</c>, <c>dark</c>, <c>white</c>, <c>grayscale</c> or <c>black</c>.
+    /// Read when the map is created. A raster basemap — Azure Maps, Google Maps — comes drawn in its provider's style, set on
+    /// the provider in the app; downloaded regions under it, which show offline, use this one.
+    /// </summary>
     [Parameter] public string Flavor { get; set; } = "light";
 
     /// <summary>The language labels are drawn in, where the map data has names in it. Read when the map is created.</summary>
@@ -51,6 +55,9 @@
 
     /// <summary>Whether the app configured an incident provider, so <see cref="ShowIncidents"/> can draw anything. False until the map is created.</summary>
     public bool HasIncidents { get; private set; }
+
+    /// <summary>The online basemap the map draws, and who provides it. Null until the map is created, or when only downloaded regions draw.</summary>
+    public BasemapInfo? Basemap { get; private set; }
 
     /// <summary>Whether to show zoom and compass buttons.</summary>
     [Parameter] public bool Navigation { get; set; } = true;
@@ -129,12 +136,14 @@
             this.Longitude,
             this.Zoom,
             this.Navigation,
+            info.Basemap,
             info.Traffic,
             this.ShowTraffic,
             info.Incidents,
             this.ShowIncidents
         );
 
+        this.Basemap = info.Basemap;
         this.HasTraffic = info.Traffic is not null;
         this.trafficShown = this.ShowTraffic;
         this.HasIncidents = info.Incidents is not null;

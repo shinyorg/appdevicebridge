@@ -7,9 +7,10 @@ namespace Shiny.AppDeviceBridge.Maps;
 
 /// <summary>
 /// <c>/_bridge/directions</c>: routes computed on the device when a downloaded road network covers every stop, and by the
-/// app's online router otherwise; addresses turned into stops by the app's geocoder.
+/// app's online router otherwise — whichever <see cref="IRouteProvider"/> it is; addresses turned into stops by the app's
+/// geocoder.
 /// <code>
-/// GET  /_bridge/directions          { online, onDevice, offlineRegions, geocoding }
+/// GET  /_bridge/directions          { online, onlineModes, onDevice, offlineRegions, geocoding, router }
 /// POST /_bridge/directions/route    { stops: [{ latitude, longitude }, …], mode, units, language, source, avoid }
 ///                                   → { source, distance, duration, shape: [[lon, lat], …], bounds, legs: [{ maneuvers }] }
 /// GET  /_bridge/directions/geocode?query=&amp;limit=5&amp;language=
@@ -22,29 +23,38 @@ sealed class DirectionsBridge(MapsService maps, ILoggerFactory? loggerFactory = 
     const int MaxQueryLength = 200;
     const int MaxPlaces = 20;
 
+    // What on-device routes are computed from: Valhalla over OpenStreetMap's roads.
+    const string DeviceAttribution = "<a href=\"https://www.openstreetmap.org/copyright\">© OpenStreetMap</a>";
+
     readonly ILogger logger = (ILogger?)loggerFactory?.CreateLogger<DirectionsBridge>() ?? NullLogger.Instance;
 
     public string Name => "directions";
 
     public bool IsSupported => this.CanRoute || maps.Options.Directions.Geocoder is not null;
 
-    bool CanRoute => maps.OnlineRouter is not null || maps.OnDeviceDirections;
+    bool CanRoute => maps.Options.Directions.Router is not null || maps.OnDeviceDirections;
 
     public void Map(WebAppBridgeRoutes routes) => routes
         .MapGet("", this.InfoAsync)
         .MapPost("/route", this.RouteAsync)
         .MapGet("/geocode", this.GeocodeAsync);
 
-    ValueTask InfoAsync(HttpContext context) => WebAppBridgeResults.Json(
-        context,
-        new DirectionsInfo(
-            maps.OnlineRouter is not null,
-            maps.OnDeviceDirections,
-            [.. maps.Installed.Where(x => x.DirectionsVersion is not null).Select(x => x.Id)],
-            maps.Options.Directions.Geocoder is not null
-        ),
-        DirectionsJsonContext.Default.DirectionsInfo
-    );
+    ValueTask InfoAsync(HttpContext context)
+    {
+        var router = maps.Options.Directions.Router;
+        return WebAppBridgeResults.Json(
+            context,
+            new DirectionsInfo(
+                router is not null,
+                router is null ? [] : [.. router.Modes.Order()],
+                maps.OnDeviceDirections,
+                [.. maps.Installed.Where(x => x.DirectionsVersion is not null).Select(x => x.Id)],
+                maps.Options.Directions.Geocoder is not null,
+                router?.Name
+            ),
+            DirectionsJsonContext.Default.DirectionsInfo
+        );
+    }
 
     async ValueTask RouteAsync(HttpContext context)
     {
@@ -69,9 +79,11 @@ sealed class DirectionsBridge(MapsService maps, ILoggerFactory? loggerFactory = 
             return;
         }
 
-        var json = ValhallaTranslation.ToRequest(request);
         IValhallaRouter? device = null;
         string? deviceProblem = null;
+
+        // Read per request, so a router the app swaps while it runs answers the next route.
+        var online = maps.Options.Directions.Router;
 
         if (request.Source != DirectionsSource.Online)
         {
@@ -91,16 +103,16 @@ sealed class DirectionsBridge(MapsService maps, ILoggerFactory? loggerFactory = 
         {
             try
             {
-                var answer = await device.RouteAsync(json, context.RequestAborted);
-                await this.RespondAsync(context, answer, DirectionsSource.Device);
+                var answer = await device.RouteAsync(ValhallaTranslation.ToRequest(request), context.RequestAborted);
+                await this.RespondAsync(context, () => ValhallaTranslation.FromResponse(answer, DirectionsSource.Device), DirectionsSource.Device, DeviceAttribution);
                 return;
             }
-            catch (ValhallaException ex) when (request.Source == DirectionsSource.Auto && maps.OnlineRouter is not null)
+            catch (DirectionsException ex) when (request.Source == DirectionsSource.Auto && online is not null && online.Modes.Contains(request.Mode))
             {
                 // Stops near a region's edge can need roads outside it; the online router has them all.
-                this.logger.LogInformation("On-device route failed ({Code}: {Message}); trying online", ex.ErrorCode, ex.Message);
+                this.logger.LogInformation("On-device route failed ({Error}: {Message}); trying online", ex.Error, ex.Message);
             }
-            catch (ValhallaException ex)
+            catch (DirectionsException ex)
             {
                 await Fail(context, ex);
                 return;
@@ -120,7 +132,7 @@ sealed class DirectionsBridge(MapsService maps, ILoggerFactory? loggerFactory = 
             return;
         }
 
-        if (maps.OnlineRouter is not { } online)
+        if (online is null)
         {
             await WebAppBridgeResults.Error(
                 context,
@@ -131,12 +143,26 @@ sealed class DirectionsBridge(MapsService maps, ILoggerFactory? loggerFactory = 
             return;
         }
 
+        if (!online.Modes.Contains(request.Mode))
+        {
+            await WebAppBridgeResults.Error(
+                context,
+                StatusCodes.Status400BadRequest,
+                "mode_unsupported",
+                $"{online.Name} has no {request.Mode.ToString().ToLowerInvariant()} routes."
+            );
+            return;
+        }
+
         try
         {
-            var answer = await online.RouteAsync(json, context.RequestAborted);
-            await this.RespondAsync(context, answer, DirectionsSource.Online);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+            timeout.CancelAfter(maps.Options.Directions.Timeout);
+
+            var route = await online.RouteAsync(request, maps.Http, timeout.Token);
+            await this.RespondAsync(context, () => route, DirectionsSource.Online, online.Attribution);
         }
-        catch (ValhallaException ex)
+        catch (DirectionsException ex)
         {
             await Fail(context, ex);
         }
@@ -149,6 +175,11 @@ sealed class DirectionsBridge(MapsService maps, ILoggerFactory? loggerFactory = 
                 "offline_unavailable",
                 "The online router could not be reached, and no downloaded road network covers every stop."
             );
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or FormatException or InvalidOperationException or KeyNotFoundException or NullReferenceException)
+        {
+            this.logger.LogWarning(ex, "The {Router} router answered with something that is not a route", online.Name);
+            await WebAppBridgeResults.Error(context, StatusCodes.Status502BadGateway, "router_error", "The router answered with something that is not a route.");
         }
     }
 
@@ -214,12 +245,12 @@ sealed class DirectionsBridge(MapsService maps, ILoggerFactory? loggerFactory = 
     static bool IsLanguageTag(string language)
         => language.Length <= 16 && language.All(c => char.IsAsciiLetterOrDigit(c) || c == '-');
 
-    async ValueTask RespondAsync(HttpContext context, string answer, DirectionsSource source)
+    async ValueTask RespondAsync(HttpContext context, Func<DirectionsRoute> read, DirectionsSource source, string attribution)
     {
         DirectionsRoute route;
         try
         {
-            route = ValhallaTranslation.FromResponse(answer, source);
+            route = read() with { Source = source, Attribution = attribution };
         }
         catch (Exception ex) when (ex is System.Text.Json.JsonException or FormatException or InvalidOperationException)
         {
@@ -227,7 +258,7 @@ sealed class DirectionsBridge(MapsService maps, ILoggerFactory? loggerFactory = 
             await WebAppBridgeResults.Error(context, StatusCodes.Status502BadGateway, "router_error", "The router answered with something that is not a route.");
             return;
         }
-        catch (ValhallaException ex)
+        catch (DirectionsException ex)
         {
             await Fail(context, ex);
             return;
@@ -236,9 +267,10 @@ sealed class DirectionsBridge(MapsService maps, ILoggerFactory? loggerFactory = 
         await WebAppBridgeResults.Json(context, route, DirectionsJsonContext.Default.DirectionsRoute);
     }
 
-    static ValueTask Fail(HttpContext context, ValhallaException ex) => ex.IsNoRoute
-        ? WebAppBridgeResults.Error(context, StatusCodes.Status404NotFound, "no_route", ex.Message)
-        : ex.HttpStatus >= 500 || ex.ErrorCode == 0
-            ? WebAppBridgeResults.Error(context, StatusCodes.Status502BadGateway, "router_error", ex.Message)
-            : WebAppBridgeResults.Error(context, StatusCodes.Status400BadRequest, "bad_request", ex.Message);
+    static ValueTask Fail(HttpContext context, DirectionsException ex) => ex.Error switch
+    {
+        DirectionsError.NoRoute => WebAppBridgeResults.Error(context, StatusCodes.Status404NotFound, "no_route", ex.Message),
+        DirectionsError.InvalidRequest => WebAppBridgeResults.Error(context, StatusCodes.Status400BadRequest, "bad_request", ex.Message),
+        _ => WebAppBridgeResults.Error(context, StatusCodes.Status502BadGateway, "router_error", ex.Message)
+    };
 }

@@ -31,17 +31,13 @@ sealed class MapsService : IDisposable
     readonly ConcurrentDictionary<string, DownloadJob> downloads = new();
     IReadOnlyList<InstalledRegion>? installed;
 
-    readonly SemaphoreSlim onlineGate = new(1, 1);
-    PmTilesArchive? onlineArchive;
-    DateTimeOffset onlineRetryAt;
-
     (MapPackCatalog Catalog, DateTimeOffset FetchedAt)? catalog;
 
     // Traffic and incident tiles by provider and position, each kept for its layer's refresh interval. A map on screen asks for
     // a few dozen of each. The provider is part of the key because the app may swap MapsOptions.Traffic or TrafficIncidents
     // while it runs, and the new one must not be answered with the old one's tiles.
     const int TrafficCacheLimit = 1024;
-    readonly ConcurrentDictionary<(object Provider, int Z, int X, int Y), (TrafficTile? Tile, DateTimeOffset Expires)> trafficTiles = new();
+    readonly ConcurrentDictionary<(object Provider, int Z, int X, int Y), (ProviderTile? Tile, DateTimeOffset Expires)> trafficTiles = new();
     readonly SemaphoreSlim catalogGate = new(1, 1);
 
     long tileCacheBytes = -1;
@@ -77,8 +73,6 @@ sealed class MapsService : IDisposable
 
         if (!String.IsNullOrWhiteSpace(options.CatalogPublicKey))
             this.catalogKey = WebAppReleaseSignature.ImportPublicKey(options.CatalogPublicKey);
-
-        this.OnlineRouter = options.Directions.OnlineRouteUrl is null ? null : new ValhallaHttpRouter(this.http, options.Directions);
     }
 
     public MapStorage Storage { get; }
@@ -86,8 +80,6 @@ sealed class MapsService : IDisposable
     public MapsOptions Options => this.options;
 
     public bool OnDeviceDirections => this.onDevice is not null;
-
-    public IValhallaRouter? OnlineRouter { get; }
 
     /// <summary>The client every outgoing request goes through, built from <see cref="MapsOptions.HttpMessageHandlerFactory"/>.</summary>
     public HttpClient Http => this.http;
@@ -135,22 +127,71 @@ sealed class MapsService : IDisposable
         if (this.ReadCachedTile(z, x, y) is { } cached)
             return cached;
 
-        if (this.options.OnlineTiles is null || z > this.options.OnlineMaxZoom)
+        // Read per request, so a basemap the app swaps while it runs answers the next tile.
+        if (this.options.Basemap is not { } basemap || basemap.Layer is not { Format: TileFormat.Vector } layer || z < layer.MinZoom || z > layer.MaxZoom)
             return null;
 
         try
         {
-            var online = await this.GetOnlineTileAsync(z, x, y, cancellationToken).ConfigureAwait(false);
-            if (online is not null)
-                this.WriteCachedTile(z, x, y, online);
+            if (await basemap.GetTileAsync(z, x, y, this.http, cancellationToken).ConfigureAwait(false) is not { } online)
+                return null;
 
-            return online;
+            var tile = new MapTile(online.Data, online.ContentEncoding switch
+            {
+                "gzip" => PmTilesCompression.Gzip,
+                "br" => PmTilesCompression.Brotli,
+                _ => PmTilesCompression.None
+            });
+
+            if (layer.Cacheable)
+                this.WriteCachedTile(z, x, y, tile);
+
+            return tile;
         }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             // Offline, or the source is down: the page gets a gap rather than an error for every tile.
             this.logger.LogDebug(ex, "Online tile {Z}/{X}/{Y} unavailable", z, x, y);
             return null;
+        }
+    }
+
+    /// <summary>
+    /// An image from a raster <see cref="MapsOptions.Basemap"/>, or null: outside its zooms, where it has nothing, or when it
+    /// cannot be reached — where the page shows downloaded regions instead. Not kept: raster providers' terms forbid it.
+    /// </summary>
+    public async Task<ProviderTile?> GetBasemapTileAsync(int z, int x, int y, CancellationToken cancellationToken)
+    {
+        if (this.options.Basemap is not { } basemap || basemap.Layer is not { Format: TileFormat.Raster } layer || z < layer.MinZoom || z > layer.MaxZoom)
+            return null;
+
+        try
+        {
+            return await basemap.GetTileAsync(z, x, y, this.http, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            this.logger.LogDebug(ex, "{Provider} tile {Z}/{X}/{Y} unavailable", layer.Provider, z, x, y);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The highest zoom the vector tiles carry: the vector basemap's, or the installed regions', whichever is higher. 15 —
+    /// what Protomaps builds go to — when there are neither.
+    /// </summary>
+    public int VectorMaxZoom
+    {
+        get
+        {
+            var zoom = this.options.Basemap?.Layer is { Format: TileFormat.Vector } layer ? layer.MaxZoom : 0;
+            foreach (var region in this.Installed)
+            {
+                if (region.MapVersion is not null)
+                    zoom = Math.Max(zoom, region.MaxZoom);
+            }
+
+            return zoom > 0 ? zoom : 15;
         }
     }
 
@@ -187,69 +228,6 @@ sealed class MapsService : IDisposable
         {
             this.logger.LogWarning(ex, "Region {Region}'s map could not be opened", regionId);
             return null;
-        }
-    }
-
-    async Task<MapTile?> GetOnlineTileAsync(int z, int x, int y, CancellationToken cancellationToken)
-    {
-        var source = this.options.OnlineTiles!;
-
-        if (source.Contains("{z}", StringComparison.Ordinal))
-        {
-            var url = source
-                .Replace("{z}", z.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
-                .Replace("{x}", x.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
-                .Replace("{y}", y.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal);
-
-            using var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip"));
-            this.options.ConfigureRequest?.Invoke(request);
-
-            using var response = await this.http.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NoContent)
-                return null;
-
-            response.EnsureSuccessStatusCode();
-            var data = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
-            var gzip = response.Content.Headers.ContentEncoding.Contains("gzip") || IsGzip(data);
-            return new MapTile(data, gzip ? PmTilesCompression.Gzip : PmTilesCompression.None);
-        }
-
-        var archive = await this.GetOnlineArchiveAsync(cancellationToken).ConfigureAwait(false);
-        return archive is null ? null : await archive.GetTileAsync(z, x, y, cancellationToken).ConfigureAwait(false);
-    }
-
-    async Task<PmTilesArchive?> GetOnlineArchiveAsync(CancellationToken cancellationToken)
-    {
-        if (this.onlineArchive is { } open)
-            return open;
-
-        await this.onlineGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            if (this.onlineArchive is { } raced)
-                return raced;
-
-            // Offline, every tile would try the header again; once a minute is enough to notice the network is back.
-            if (DateTimeOffset.UtcNow < this.onlineRetryAt)
-                return null;
-
-            try
-            {
-                this.onlineArchive = await PmTilesArchive
-                    .OpenAsync(new HttpRangeSource(this.http, new Uri(this.options.OnlineTiles!), this.options.ConfigureRequest), cancellationToken)
-                    .ConfigureAwait(false);
-                return this.onlineArchive;
-            }
-            catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidDataException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
-            {
-                this.onlineRetryAt = DateTimeOffset.UtcNow.AddMinutes(1);
-                throw;
-            }
-        }
-        finally
-        {
-            this.onlineGate.Release();
         }
     }
 
@@ -863,18 +841,18 @@ sealed class MapsService : IDisposable
     /// A live traffic tile from <see cref="MapsOptions.Traffic"/>, or null: outside the layer's zooms, where the provider has
     /// nothing, or when it cannot be reached. Failures are not kept, so the next request tries again.
     /// </summary>
-    public Task<TrafficTile?> GetTrafficTileAsync(int z, int x, int y, CancellationToken cancellationToken)
+    public Task<ProviderTile?> GetTrafficTileAsync(int z, int x, int y, CancellationToken cancellationToken)
         => this.options.Traffic is { } provider
             ? this.GetLiveTileAsync(provider, provider.Layer.MinZoom, provider.Layer.MaxZoom, provider.Layer.Refresh, z, x, y, provider.GetTileAsync, cancellationToken)
-            : Task.FromResult<TrafficTile?>(null);
+            : Task.FromResult<ProviderTile?>(null);
 
     /// <summary>A live incident tile from <see cref="MapsOptions.TrafficIncidents"/>, under the same rules as <see cref="GetTrafficTileAsync"/>.</summary>
-    public Task<TrafficTile?> GetIncidentTileAsync(int z, int x, int y, CancellationToken cancellationToken)
+    public Task<ProviderTile?> GetIncidentTileAsync(int z, int x, int y, CancellationToken cancellationToken)
         => this.options.TrafficIncidents is { } provider
             ? this.GetLiveTileAsync(provider, provider.Layer.MinZoom, provider.Layer.MaxZoom, provider.Layer.Refresh, z, x, y, provider.GetTileAsync, cancellationToken)
-            : Task.FromResult<TrafficTile?>(null);
+            : Task.FromResult<ProviderTile?>(null);
 
-    async Task<TrafficTile?> GetLiveTileAsync(
+    async Task<ProviderTile?> GetLiveTileAsync(
         object provider,
         int minZoom,
         int maxZoom,
@@ -882,7 +860,7 @@ sealed class MapsService : IDisposable
         int z,
         int x,
         int y,
-        Func<int, int, int, HttpClient, CancellationToken, Task<TrafficTile?>> fetch,
+        Func<int, int, int, HttpClient, CancellationToken, Task<ProviderTile?>> fetch,
         CancellationToken cancellationToken
     )
     {
@@ -894,7 +872,7 @@ sealed class MapsService : IDisposable
         if (this.trafficTiles.TryGetValue(position, out var cached) && cached.Expires > now)
             return cached.Tile;
 
-        TrafficTile? tile;
+        ProviderTile? tile;
         try
         {
             tile = await fetch(z, x, y, this.http, cancellationToken).ConfigureAwait(false);
@@ -938,7 +916,7 @@ sealed class MapsService : IDisposable
         foreach (var job in this.downloads.Values)
             job.Cancellation.Cancel();
 
-        this.onlineArchive?.Dispose();
+        (this.options.Basemap as IDisposable)?.Dispose();
         this.catalogKey?.Dispose();
         this.http.Dispose();
     }

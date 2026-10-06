@@ -7,13 +7,14 @@ namespace Shiny.AppDeviceBridge.Maps;
 /// <summary>
 /// <c>/_bridge/maps</c>: the tiles, glyphs and sprites a vector map draws with, and the regions the user can download.
 /// <code>
-/// GET    /_bridge/maps                            { tilesUrl, glyphsUrl, spritesUrl, maxZoom, online, catalog, attribution, traffic }
+/// GET    /_bridge/maps                            { tilesUrl, glyphsUrl, spritesUrl, maxZoom, catalog, attribution, basemap, traffic, incidents }
 /// GET    /_bridge/maps/regions?refresh=true       { regions: [ … ], catalogReachable, installedBytes }
 /// POST   /_bridge/maps/regions/{id}               { "directions": true }        202, progress as maps.download
 /// DELETE /_bridge/maps/regions/{id}
 /// DELETE /_bridge/maps/regions/{id}/directions
 /// DELETE /_bridge/maps/regions/{id}/download
 /// GET    /_bridge/maps/tiles/{z}/{x}/{y}          a vector tile, or 204
+/// GET    /_bridge/maps/basemap/{z}/{x}/{y}        a raster basemap image, or 204; 501 with no raster basemap
 /// GET    /_bridge/maps/traffic/{z}/{x}/{y}        a live traffic tile, or 204; 501 with no traffic provider
 /// GET    /_bridge/maps/incidents/{z}/{x}/{y}      a live incident tile, or 204; 501 with no incident provider
 /// GET    /_bridge/maps/glyphs/{fontstack}/{range}.pbf
@@ -42,6 +43,7 @@ sealed partial class MapsBridge(MapsService maps) : IWebAppBridge
             .MapDelete("/regions/{id}/directions", ctx => this.WithRegion(ctx, this.RemoveDirectionsAsync))
             .MapDelete("/regions/{id}/download", ctx => this.WithRegion(ctx, this.CancelAsync))
             .MapGet("/tiles/{z}/{x}/{y}", this.TileAsync)
+            .MapGet("/basemap/{z}/{x}/{y}", this.BasemapAsync)
             .MapGet("/traffic/{z}/{x}/{y}", this.TrafficAsync)
             .MapGet("/incidents/{z}/{x}/{y}", this.IncidentsAsync)
             .MapGet("/glyphs/{fontstack}/{range}", this.GlyphsAsync)
@@ -51,16 +53,28 @@ sealed partial class MapsBridge(MapsService maps) : IWebAppBridge
     ValueTask InfoAsync(HttpContext context)
     {
         var options = maps.Options;
+        var tiles = $"{this.prefix}/tiles/{{z}}/{{x}}/{{y}}";
+
         return WebAppBridgeResults.Json(
             context,
             new MapsInfo(
-                $"{this.prefix}/tiles/{{z}}/{{x}}/{{y}}",
+                tiles,
                 $"{this.prefix}/glyphs/{{fontstack}}/{{range}}.pbf",
                 $"{this.prefix}/sprites",
-                options.OnlineMaxZoom,
-                options.OnlineTiles is not null,
+                maps.VectorMaxZoom,
                 options.Catalog is not null,
                 options.Attribution,
+                options.Basemap?.Layer is { } basemap
+                    ? new BasemapInfo(
+                        basemap.Provider,
+                        basemap.Format,
+                        basemap.Format == TileFormat.Vector ? tiles : $"{this.prefix}/basemap/{{z}}/{{x}}/{{y}}",
+                        basemap.MinZoom,
+                        basemap.MaxZoom,
+                        basemap.TileSize,
+                        basemap.Attribution
+                    )
+                    : null,
                 options.Traffic?.Layer is { } traffic
                     ? new TrafficInfo(
                         $"{this.prefix}/traffic/{{z}}/{{x}}/{{y}}",
@@ -241,15 +255,20 @@ sealed partial class MapsBridge(MapsService maps) : IWebAppBridge
         await WriteAsync(context, tile.Data);
     }
 
+    ValueTask BasemapAsync(HttpContext context) => maps.Options.Basemap?.Layer is { Format: TileFormat.Raster }
+        ? this.ProviderTileAsync(context, null, maps.GetBasemapTileAsync)
+        : WebAppBridgeResults.NotSupported(context, "A raster basemap");
+
     ValueTask TrafficAsync(HttpContext context) => maps.Options.Traffic is { } provider
-        ? this.LiveTileAsync(context, provider.Layer.Refresh, maps.GetTrafficTileAsync)
+        ? this.ProviderTileAsync(context, provider.Layer.Refresh, maps.GetTrafficTileAsync)
         : WebAppBridgeResults.NotSupported(context, "Traffic");
 
     ValueTask IncidentsAsync(HttpContext context) => maps.Options.TrafficIncidents is { } provider
-        ? this.LiveTileAsync(context, provider.Layer.Refresh, maps.GetIncidentTileAsync)
+        ? this.ProviderTileAsync(context, provider.Layer.Refresh, maps.GetIncidentTileAsync)
         : WebAppBridgeResults.NotSupported(context, "Traffic incidents");
 
-    async ValueTask LiveTileAsync(HttpContext context, TimeSpan refresh, Func<int, int, int, CancellationToken, Task<TrafficTile?>> get)
+    /// <param name="refresh">For a live layer, how long the WebView may keep the tile. Null leaves caching to the WebView.</param>
+    async ValueTask ProviderTileAsync(HttpContext context, TimeSpan? refresh, Func<int, int, int, CancellationToken, Task<ProviderTile?>> get)
     {
         var values = context.Request.RouteValues;
         if (!int.TryParse(values["z"], out var z) || !int.TryParse(values["x"], out var x)
@@ -271,7 +290,8 @@ sealed partial class MapsBridge(MapsService maps) : IWebAppBridge
             context.Response.Headers["Content-Encoding"] = encoding;
 
         // The page asks again after the refresh interval with a new query string; until then the WebView may keep it.
-        context.Response.Headers["Cache-Control"] = $"max-age={(int)Math.Max(1, refresh.TotalSeconds)}";
+        if (refresh is { } keep)
+            context.Response.Headers["Cache-Control"] = $"max-age={(int)Math.Max(1, keep.TotalSeconds)}";
         await WriteAsync(context, tile.Data);
     }
 

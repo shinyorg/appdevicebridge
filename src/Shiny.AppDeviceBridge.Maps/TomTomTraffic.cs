@@ -27,7 +27,7 @@ public sealed class TomTomTrafficProvider(string apiKey) : ITrafficProvider
     /// <summary>TomTom's flow data changes about once a minute. Two minutes by default, to halve the quota spent.</summary>
     public TimeSpan Refresh { get; set; } = TimeSpan.FromMinutes(2);
 
-    public TrafficLayer Layer => new(TrafficTileFormat.Vector, this.MinZoom, 22, this.Refresh, TomTom.Attribution)
+    public TrafficLayer Layer => new(TileFormat.Vector, this.MinZoom, 22, this.Refresh, TomTom.Attribution)
     {
         SourceLayer = "Traffic flow",
         SpeedRatioProperty = "traffic_level",
@@ -35,8 +35,8 @@ public sealed class TomTomTrafficProvider(string apiKey) : ITrafficProvider
     };
 
     // The "relative" style: traffic_level is current speed over free-flow speed, which is what the layer colours by.
-    public Task<TrafficTile?> GetTileAsync(int z, int x, int y, HttpClient http, CancellationToken cancellationToken)
-        => TrafficTiles.GetAsync(http, TomTom.TileUri(this.BaseAddress, "flow/relative", z, x, y, this.apiKey), TrafficTiles.VectorTile, null, cancellationToken);
+    public Task<ProviderTile?> GetTileAsync(int z, int x, int y, HttpClient http, CancellationToken cancellationToken)
+        => ProviderTiles.GetAsync(http, TomTom.TileUri(this.BaseAddress, "flow/relative", z, x, y, this.apiKey), ProviderTiles.VectorTile, null, cancellationToken);
 }
 
 /// <summary>
@@ -89,10 +89,10 @@ public sealed class TomTomIncidentProvider(string apiKey) : ITrafficIncidentProv
         ClusterSizeProperty = "cluster_size"
     };
 
-    public Task<TrafficTile?> GetTileAsync(int z, int x, int y, HttpClient http, CancellationToken cancellationToken)
+    public Task<ProviderTile?> GetTileAsync(int z, int x, int y, HttpClient http, CancellationToken cancellationToken)
     {
         var uri = TomTom.TileUri(this.BaseAddress, "incidents", z, x, y, this.apiKey);
-        return TrafficTiles.GetAsync(http, new Uri($"{uri}&language={Uri.EscapeDataString(this.Language)}"), TrafficTiles.VectorTile, null, cancellationToken);
+        return ProviderTiles.GetAsync(http, new Uri($"{uri}&language={Uri.EscapeDataString(this.Language)}"), ProviderTiles.VectorTile, null, cancellationToken);
     }
 }
 

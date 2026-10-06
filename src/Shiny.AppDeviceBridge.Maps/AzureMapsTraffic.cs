@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Net.Http.Headers;
 using Shiny.AppDeviceBridge.Maps.Client;
 
 namespace Shiny.AppDeviceBridge.Maps;
@@ -25,8 +24,8 @@ public enum AzureMapsTrafficStyle
 
 /// <summary>
 /// Azure Maps traffic flow, from the Render service's <c>Get Map Tile</c> — the replacement for the Traffic v1 tiles Microsoft
-/// retires in March 2028. Raster images drawn over the map as they are. Authenticates with the account's shared key, or with
-/// Microsoft Entra ID through <see cref="ClientId"/> and <see cref="GetAccessToken"/>; either stays in the app.
+/// retires in March 2028. Raster images drawn over the map as they are. Authenticates with an
+/// <see cref="AzureMapsCredential"/> — the account's shared key, or Microsoft Entra ID — which stays in the app.
 /// <code>
 /// bridge.AddMapsBridge(o => o.Traffic = new AzureMapsTrafficProvider(azureMapsKey));
 /// </code>
@@ -36,35 +35,16 @@ public enum AzureMapsTrafficStyle
 /// </summary>
 public sealed class AzureMapsTrafficProvider : ITrafficProvider
 {
-    readonly string? subscriptionKey;
-
     /// <summary>Authenticates with the Azure Maps account's shared key.</summary>
-    public AzureMapsTrafficProvider(string subscriptionKey)
+    public AzureMapsTrafficProvider(string subscriptionKey) : this(new AzureMapsCredential(subscriptionKey))
     {
-        if (String.IsNullOrWhiteSpace(subscriptionKey))
-            throw new ArgumentException("An Azure Maps key is required.", nameof(subscriptionKey));
-
-        this.subscriptionKey = subscriptionKey;
     }
 
-    /// <summary>
-    /// Authenticates with Microsoft Entra ID: <paramref name="clientId"/> is the Azure Maps account's client id, and
-    /// <paramref name="getAccessToken"/> returns a token for <c>https://atlas.microsoft.com/.default</c>, cached as the app sees fit.
-    /// </summary>
-    public AzureMapsTrafficProvider(string clientId, Func<CancellationToken, Task<string>> getAccessToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
-        ArgumentNullException.ThrowIfNull(getAccessToken);
+    /// <summary>Authenticates with a shared key or Microsoft Entra ID, as <paramref name="credential"/> says.</summary>
+    public AzureMapsTrafficProvider(AzureMapsCredential credential)
+        => this.Credential = credential ?? throw new ArgumentNullException(nameof(credential));
 
-        this.ClientId = clientId;
-        this.GetAccessToken = getAccessToken;
-    }
-
-    /// <summary>The Azure Maps account's client id, for Entra ID authentication.</summary>
-    public string? ClientId { get; }
-
-    /// <summary>Returns an Entra ID access token for each request.</summary>
-    public Func<CancellationToken, Task<string>>? GetAccessToken { get; }
+    public AzureMapsCredential Credential { get; }
 
     /// <summary><c>https://atlas.microsoft.com/</c>, or a geography's own host such as <c>https://us.atlas.microsoft.com/</c>.</summary>
     public Uri BaseAddress { get; set; } = new("https://atlas.microsoft.com/");
@@ -83,7 +63,7 @@ public sealed class AzureMapsTrafficProvider : ITrafficProvider
     /// <summary>Image size, 256 or 512 pixels. 512 by default, which draws sharply on high-density screens.</summary>
     public int TileSize { get; set; } = 512;
 
-    public TrafficLayer Layer => new(TrafficTileFormat.Raster, this.MinZoom, this.MaxZoom, this.Refresh, "© Microsoft Azure Maps, © TomTom")
+    public TrafficLayer Layer => new(TileFormat.Raster, this.MinZoom, this.MaxZoom, this.Refresh, "© Microsoft Azure Maps, © TomTom")
     {
         TileSize = this.TileSize
     };
@@ -97,28 +77,14 @@ public sealed class AzureMapsTrafficProvider : ITrafficProvider
         _ => "microsoft.traffic.relative.main"
     };
 
-    public async Task<TrafficTile?> GetTileAsync(int z, int x, int y, HttpClient http, CancellationToken cancellationToken)
+    public async Task<ProviderTile?> GetTileAsync(int z, int x, int y, HttpClient http, CancellationToken cancellationToken)
     {
         var path = String.Create(
             CultureInfo.InvariantCulture,
             $"map/tile?api-version=2024-04-01&tilesetId={this.TilesetId}&zoom={z}&x={x}&y={y}&tileSize={this.TileSize}"
         );
 
-        string? token = null;
-        if (this.GetAccessToken is { } getToken)
-            token = await getToken(cancellationToken).ConfigureAwait(false);
-
-        return await TrafficTiles.GetAsync(http, new Uri(this.BaseAddress, path), "image/png", request =>
-        {
-            if (token is null)
-            {
-                request.Headers.Add("subscription-key", this.subscriptionKey);
-            }
-            else
-            {
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-                request.Headers.Add("x-ms-client-id", this.ClientId);
-            }
-        }, cancellationToken).ConfigureAwait(false);
+        var authorize = await this.Credential.AuthorizeAsync(cancellationToken).ConfigureAwait(false);
+        return await ProviderTiles.GetAsync(http, new Uri(this.BaseAddress, path), "image/png", authorize, cancellationToken).ConfigureAwait(false);
     }
 }
