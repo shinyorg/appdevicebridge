@@ -24,7 +24,7 @@
         <PackageVersion Include="Shiny.Notifications" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Wearables" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Mobile.LiveActivities" Version="$(ShinyVersion)"/>
-        <PackageVersion Include="Shiny.Mobile.InAppPurchases" Version="5.9.0-beta-0009-ge190c6820f"/>
+        <PackageVersion Include="Shiny.Mobile.InAppPurchases" Version="5.9.0-beta-0010"/>
         <PackageVersion Include="Shiny.Notifications.Linux" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Net.Wifi" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Net.Wifi.Linux" Version="$(ShinyVersion)"/>
