@@ -7,6 +7,7 @@ using Shiny.AppDeviceBridge.Camera.Client;
 using Shiny.AppDeviceBridge.Photos.Client;
 using Shiny.AppDeviceBridge.RpiCamera.Client;
 using Shiny.AppDeviceBridge.Folders.Client;
+using Shiny.AppDeviceBridge.Database.Client;
 using Shiny.AppDeviceBridge.Obd.Client;
 using Shiny.AppDeviceBridge.Printers.Client;
 using Shiny.AppDeviceBridge.Printing.Client;
@@ -42,6 +43,7 @@ builder.Services
     .AddPhotosBridgeClient()
     .AddRpiCameraBridgeClient()
     .AddFoldersBridgeClient()
+    .AddDatabaseBridgeClient()
     .AddObdBridgeClient()
     .AddPrintersBridgeClient()
     .AddPrintingBridgeClient()

@@ -8,6 +8,7 @@ using BleClient = Shiny.AppDeviceBridge.BluetoothLE.Client;
 using CalendarClient = Shiny.AppDeviceBridge.Calendar.Client;
 using CameraClient = Shiny.AppDeviceBridge.Camera.Client;
 using ContactsClient = Shiny.AppDeviceBridge.Contacts.Client;
+using DatabaseClient = Shiny.AppDeviceBridge.Database.Client;
 using DesktopClient = Shiny.AppDeviceBridge.Desktop.Client;
 using DiscoveryClient = Shiny.AppDeviceBridge.Discovery.Client;
 using DocumentGeofencingClient = Shiny.AppDeviceBridge.DocumentGeofencing.Client;
@@ -111,6 +112,7 @@ public static class BridgeCatalog
             Describe(typeof(CalendarClient.ICalendarBridge), CalendarClient.CalendarJsonContext.Default),
             Describe(typeof(CameraClient.ICameraBridge), CameraClient.CameraJsonContext.Default),
             Describe(typeof(ContactsClient.IContactsBridge), ContactsClient.ContactsJsonContext.Default),
+            Describe(typeof(DatabaseClient.IDatabaseBridge), DatabaseClient.DatabaseJsonContext.Default),
             Describe(typeof(DesktopClient.IQuickEntryBridge), DesktopClient.QuickEntryJsonContext.Default),
             Describe(typeof(DesktopClient.ITrayBridge), DesktopClient.TrayJsonContext.Default),
             Describe(typeof(DiscoveryClient.IDiscoveryBridge), DiscoveryClient.DiscoveryJsonContext.Default),

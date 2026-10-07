@@ -78,12 +78,13 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Camera` | the app | `AddCameraBridge()`: this device's own camera driven from a page anywhere — a live MJPEG viewfinder, photos and video filed into a file root, lens, zoom, torch and effects; `CameraBridgeView` for a camera screen of your own |
 | `Shiny.AppDeviceBridge.Photos` | the app | `AddPhotosBridge()`: the system photo picker, and the photo library — pages, thumbnails and full-size exports — as files in a file root |
 | `Shiny.AppDeviceBridge.Folders` | the app | `AddFoldersBridge()`: the platform's folder picker, and `FolderRoots` for folders the app adds by path — each remembered as a file root across launches |
+| `Shiny.AppDeviceBridge.Database` | the app | `AddDatabaseBridge()`: a database client over SQLite files in the file roots — schema, scripts with cancel and query plans, an editable datasheet, table design, CSV import and export, and query history; other engines plug in as `IDatabaseDriver`s (all platforms) |
 | `Shiny.AppDeviceBridge.Desktop` | the app | `AddTrayIconBridge()`: system tray / menu bar icons, menus, badges, notifications and animation. `AddQuickEntryBridge()`: a prompt window that opens over other applications from a global hotkey. Both hand what the user does back to the web app |
 | `Shiny.AppDeviceBridge.RpiCamera` | the app, or a headless Pi | `bridge.AddRpiCameraBridge()`, on a MAUI or headless bridge builder: Raspberry Pi cameras through libcamera — snapshots, captures into a file root, sensor controls and a shared live MJPEG stream; `camera.StreamToAsync(stream)` streams framed JPEGs into any `Stream`, such as a Bluetooth LE L2CAP channel, for `ReadFramesAsync` to read |
 
 AppSupport, AppSupport.Linux, AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
 `Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi,
-HttpTransfers, Jobs, Gps, Geofencing, DocumentGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
+HttpTransfers, Database, Jobs, Gps, Geofencing, DocumentGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
 ## The app
@@ -671,6 +672,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Calendar | `GET calendar`, `POST calendar/access`, `GET calendar/calendars`, `GET/POST calendar/events`, `GET/PUT/DELETE calendar/events/{id}` | |
 | Photos | `GET photos`, `POST photos/access`, `POST photos/pick`, `GET photos/library`, `GET photos/library/{id}/thumbnail`, `POST photos/library/{id}/export` | |
 | Folders | `GET folders`, `POST folders/pick`, `DELETE folders/{root}` | |
+| Database | `GET database/connections`, `POST database/{create,schema,query,query/cancel,value,object}`, `POST database/rows{,/count,/totals,/insert,/update,/delete}`, `POST database/design/preview`, `POST database/import{,/preview}`, `POST database/export`, `POST database/{history,history/clear,saved,saved/save}`, `DELETE database/saved/{id}` | |
 | Tray icon | `GET/POST/DELETE tray`, `GET/PUT/DELETE tray/{id}`, `PUT/DELETE tray/{id}/menu`, `POST tray/{id}/menu/show`, `POST tray/{id}/notification`, `PUT/DELETE tray/{id}/animation` | `tray.click`, `tray.menu` |
 | Quick entry | `GET quickentry`, `PUT quickentry/options`, `POST quickentry/{show,hide,toggle}`, `GET/PUT quickentry/prompt`, `POST quickentry/prompt/reset`, `POST quickentry/glow/{show,hide,pulse}` | `quickentry.submitted`, `quickentry.suggestion`, `quickentry.cancelled`, `quickentry.microphone`, `quickentry.opened`, `quickentry.closed` |
 | Device camera | `GET camera`, `POST camera/access`, `POST camera/open`, `POST camera/close`, `POST camera/photo`, `POST/DELETE camera/recording`, `PUT camera/settings`, `GET camera/preview` (MJPEG) | `camera.status` |
@@ -1139,6 +1141,28 @@ downloaded a region. Every platform; on-device directions on Android and iOS wit
 - **Azure Maps:** one `AzureMapsCredential` — the shared key, or Microsoft Entra ID — serves its basemap, traffic, router
   and geocoder.
 - **The map in Blazor:** `<BridgeMap>` from `Shiny.AppDeviceBridge.Maps.Blazor` — pins, shapes, drawing, routes and live traffic (`ShowTraffic`, `ShowIncidents`).
+
+**Database:**
+- **Naming a database:** every request names it by `root` and `path` — a SQLite file in a file root, resolved by the
+  files bridge's rules — or by `connection` and `database`, served by a driver the app registered
+  (`GET database/connections`). Neither or both is `400`; an unknown root or a connection no driver serves is `404`.
+  `POST database/create` makes an empty database (`409 exists` when something is at the path).
+- **Errors are answers:** a statement that won't parse, a constraint, a file that isn't a database come back in the
+  response's `error`, with a `200`.
+- **Scripts:** `query` runs a script and keeps every result set, each statement's row count and the line an error is on;
+  `explain: true` answers with the plan as a tree and runs nothing. A `runId` lets `query/cancel` stop it, and a
+  statement past `DatabaseBridgeOptions.StatementTimeout` (30 s) is interrupted.
+- **The datasheet:** `rows`, `rows/count` and `rows/totals` page, sort, filter and search on the device, with every
+  column checked against the schema and every value a parameter. Rows carry their key (`rowid`); `rows/insert`,
+  `rows/update` and `rows/delete` write by it. `value` reads a BLOB whole.
+- **Design, CSV, history:** `design/preview` writes the DDL (SQLite's rebuild included) for the page to run through
+  `query`; `object` drops or renames. `import` reads a CSV in one transaction; `export` writes a table view or a
+  statement's answer to a file in a root. History and saved queries are kept per database in the data directory,
+  outside every root.
+- **The fence:** SQLite's authorizer refuses `ATTACH` (and so `VACUUM INTO`) and `load_extension`, so a query can't
+  reach a file outside the file roots or load native code.
+- **Other engines:** implement `IDatabaseDriver` and register it with `services.AddDatabaseDriver<T>()`. Only the SQLite
+  driver ships. All platforms.
 
 **Folders:**
 - **Picking:** `POST folders/pick` with `{ "root": "documents" }` shows the platform's folder picker. The folder

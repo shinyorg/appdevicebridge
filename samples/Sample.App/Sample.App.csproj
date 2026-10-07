@@ -28,6 +28,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Contacts/Shiny.AppDeviceBridge.Contacts.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Discovery/Shiny.AppDeviceBridge.Discovery.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Folders/Shiny.AppDeviceBridge.Folders.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Database/Shiny.AppDeviceBridge.Database.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Health/Shiny.AppDeviceBridge.Health.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.HttpTransfers/Shiny.AppDeviceBridge.HttpTransfers.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Jobs/Shiny.AppDeviceBridge.Jobs.csproj" />

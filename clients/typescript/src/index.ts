@@ -7,6 +7,7 @@ export * from "./bluetooth-le.js";
 export * from "./calendar.js";
 export * from "./camera.js";
 export * from "./contacts.js";
+export * from "./database.js";
 export * from "./desktop.js";
 export * from "./discovery.js";
 export * from "./document-geofencing.js";

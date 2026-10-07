@@ -1,17 +1,17 @@
 @page "/purchases"
 @inherits BridgePage
-@inject IInAppPurchasesBridge Purchases
+@inject IInAppPurchasesBridge PurchasesBridge
 
 <h1>Purchases</h1>
 <p class="muted">App Store and Google Play purchases through the store's own sheet. Products load only in a build signed for an app that has them configured — App Store Connect or the Play Console — with a sandbox account or license tester signed in.</p>
 
 <div class="actions">
-    <button @onclick="@(() => Run(() => Purchases.GetStatusAsync(), Json.PurchasesStatus))">Status</button>
+    <button @onclick="@(() => Run(() => PurchasesBridge.GetStatusAsync(), Json.PurchasesStatus))">Status</button>
     <button @onclick="LoadAsync">Products</button>
-    <button @onclick="@(() => Run(() => Purchases.GetEntitlementsAsync(), Json.IReadOnlyListPurchase))">Entitlements</button>
-    <button @onclick="@(() => Run(() => Purchases.GetUnfinishedAsync(), Json.IReadOnlyListPurchase))">Unfinished</button>
-    <button @onclick="@(() => Run(() => Purchases.RestoreAsync(), Json.IReadOnlyListPurchase))">Restore</button>
-    <button @onclick="@(() => Run(() => Purchases.ShowManageSubscriptionsAsync(new ManageSubscriptionsRequest()), "Opened."))">Manage subscriptions</button>
+    <button @onclick="@(() => Run(() => PurchasesBridge.GetEntitlementsAsync(), Json.IReadOnlyListPurchase))">Entitlements</button>
+    <button @onclick="@(() => Run(() => PurchasesBridge.GetUnfinishedAsync(), Json.IReadOnlyListPurchase))">Unfinished</button>
+    <button @onclick="@(() => Run(() => PurchasesBridge.RestoreAsync(), Json.IReadOnlyListPurchase))">Restore</button>
+    <button @onclick="@(() => Run(() => PurchasesBridge.ShowManageSubscriptionsAsync(new ManageSubscriptionsRequest()), "Opened."))">Manage subscriptions</button>
 </div>
 
 @if (products.Count > 0)
@@ -41,7 +41,7 @@
     string log = String.Empty;
 
     protected override async Task OnInitializedAsync()
-        => await Listen<Purchase>(Purchases.OnUpdatedAsync, e =>
+        => await Listen<Purchase>(PurchasesBridge.OnUpdatedAsync, e =>
         {
             Log("purchases.updated", Compact(e, Json.Purchase));
 
@@ -50,11 +50,11 @@
                 _ = InvokeAsync(() => Run(() => GrantAndFinishAsync(e), $"Finished {e.ProductId}."));
         });
 
-    Task LoadAsync() => Run(async () => products = await Purchases.GetProductsAsync(new ProductsRequest(ProductIds)), Json.IReadOnlyListStoreProduct);
+    Task LoadAsync() => Run(async () => products = await PurchasesBridge.GetProductsAsync(new ProductsRequest(ProductIds)), Json.IReadOnlyListStoreProduct);
 
     Task BuyAsync(StoreProduct product) => Run(async () =>
     {
-        var result = await Purchases.PurchaseAsync(new PurchaseRequest(product.Id, Account));
+        var result = await PurchasesBridge.PurchaseAsync(new PurchaseRequest(product.Id, Account));
 
         // Pending (Ask to Buy, a slow payment) is never granted; purchases.updated follows when it resolves.
         if (result is { Status: PurchaseResultStatus.Success, Purchase: { } purchase })
@@ -66,7 +66,7 @@
     async Task GrantAndFinishAsync(Purchase purchase)
     {
         // A real app sends purchase.VerificationData to its server here, and stores the entitlement, before finishing.
-        await Purchases.FinishAsync(purchase.TransactionId, new FinishPurchaseRequest(Consume: purchase.ProductId == Coins));
+        await PurchasesBridge.FinishAsync(purchase.TransactionId, new FinishPurchaseRequest(Consume: purchase.ProductId == Coins));
         Log("finished", $"{purchase.ProductId} {purchase.TransactionId}");
     }
 

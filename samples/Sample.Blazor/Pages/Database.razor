@@ -1,0 +1,102 @@
+@page "/database"
+@inherits BridgePage
+@inject IDatabaseBridge DatabaseBridge
+
+<h1>Database</h1>
+<p class="muted">A SQLite file in the data root, opened on the device: make one, read its schema, run SQL against it and stop what runs too long.</p>
+
+<div class="form">
+    <input @bind="path" placeholder="sample.db" />
+</div>
+<div class="actions">
+    <button @onclick="Create">Create</button>
+    <button @onclick="Seed">Add sample rows</button>
+    <button @onclick="Schema">Schema</button>
+    <button @onclick="History">History</button>
+</div>
+
+<div class="form">
+    <textarea rows="5" @bind="sql"></textarea>
+</div>
+<div class="actions">
+    <button disabled="@(runId is not null)" @onclick="Query">Run</button>
+    <button disabled="@(runId is not null)" @onclick="Explain">Explain</button>
+    <button disabled="@(runId is null)" @onclick="Stop">Stop</button>
+</div>
+
+@if (result is { } r)
+{
+    foreach (var set in r.Results)
+    {
+        <table>
+            <tr>
+                @foreach (var column in set.Columns)
+                {
+                    <th>@column</th>
+                }
+            </tr>
+            @foreach (var row in set.Rows)
+            {
+                <tr>
+                    @foreach (var value in row)
+                    {
+                        <td><code>@(value ?? "NULL")</code></td>
+                    }
+                </tr>
+            }
+        </table>
+    }
+
+    <pre class="log">@String.Join("\n", r.Messages.Select(x => x.Line is { } line ? $"line {line}: {x.Text}" : x.Text))</pre>
+}
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    static DatabaseJsonContext Json => DatabaseJsonContext.Default;
+
+    string path = "sample.db";
+    string sql = "SELECT city, count(*) AS people FROM people GROUP BY city ORDER BY people DESC";
+    Guid? runId;
+    DatabaseScriptResult? result;
+
+    Task Create() => Run(() => DatabaseBridge.CreateAsync(new CreateDatabase("data", path)), $"Created data/{path}.");
+
+    Task Seed() => this.Execute(
+        """
+        CREATE TABLE IF NOT EXISTS people (id INTEGER PRIMARY KEY, name TEXT NOT NULL, city TEXT);
+        WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 500)
+            INSERT INTO people (name, city) SELECT 'person ' || i, 'city ' || (i % 7) FROM n;
+        """,
+        explain: false
+    );
+
+    Task Schema() => Run(() => DatabaseBridge.GetSchemaAsync(new GetDatabaseSchema("data", path)), Json.DatabaseSchema);
+
+    Task History() => Run(() => DatabaseBridge.GetHistoryAsync(new GetDatabaseHistory(Root: "data", Path: path)), Json.IReadOnlyListDatabaseHistoryEntry);
+
+    Task Query() => this.Execute(sql, explain: false);
+
+    Task Explain() => this.Execute(sql, explain: true);
+
+    // A recursive CTE with no end runs until Stop, or until the bridge's statement timeout interrupts it.
+    Task Stop() => runId is { } id ? Run(() => DatabaseBridge.CancelAsync(new CancelDatabaseQuery(id)), "Stopped.") : Task.CompletedTask;
+
+    async Task Execute(string text, bool explain)
+    {
+        runId = Guid.NewGuid();
+
+        try
+        {
+            await Run(async () =>
+            {
+                result = await DatabaseBridge.QueryAsync(new RunDatabaseQuery(text, Explain: explain, RunId: runId, Root: "data", Path: path));
+                return result;
+            }, Json.DatabaseScriptResult);
+        }
+        finally
+        {
+            runId = null;
+        }
+    }
+}

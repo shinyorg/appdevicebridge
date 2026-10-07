@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net10.0 only: Microsoft.Data.Sqlite carries SQLite's native library for every head, and nothing here is platform
+         UI. A database server is a driver an app registers; this package ships only SQLite's. -->
+    <RootNamespace>Shiny.AppDeviceBridge.Database</RootNamespace>
+    <Description>A database client for a Shiny.AppDeviceBridge web app: schemas, SQL scripts with cancel and query plans, a paged, filtered and editable datasheet, table design, CSV import and export, and query history — over SQLite files in the app's file roots, opened where they lie, with ATTACH and extensions refused. Other engines plug in as drivers. One call: bridge.AddDatabaseBridge().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Database.Client/Shiny.AppDeviceBridge.Database.Client.csproj" />
+  </ItemGroup>
+
+</Project>

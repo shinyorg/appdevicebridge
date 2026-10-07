@@ -47,7 +47,8 @@ public static class SampleNav
             new NavItem("health", "Health", "heart", "health"),
             new NavItem("purchases", "Purchases", "cart", "purchases"),
             new NavItem("storage", "Storage", "database", "settings", "files"),
-            new NavItem("folders", "Folders", "folder", "folders"))
+            new NavItem("folders", "Folders", "folder", "folders"),
+            new NavItem("database", "Database", "database", "database"))
     ];
 
     /// <summary>The page that shows <paramref name="bridge"/>, if any.</summary>

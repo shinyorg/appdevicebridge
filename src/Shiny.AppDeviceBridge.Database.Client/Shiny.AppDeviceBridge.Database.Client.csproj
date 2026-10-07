@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Database.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge database bridge — schemas, SQL scripts with cancel and query plans, a paged, filtered and editable datasheet, table design, CSV import and export, and query history — over SQLite files in the app's file roots, or a database server a driver serves, for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddDatabaseBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

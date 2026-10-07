@@ -39,6 +39,8 @@
         <PackageVersion Include="Shiny.DocumentDb.Geo" Version="$(DocumentDbVersion)"/>
         <!-- Lifts Microsoft.Data.Sqlite's 2.1.11 (GHSA-2m69-gcr7-jv3q) in the sample's geo store. -->
         <PackageVersion Include="SQLitePCLRaw.lib.e_sqlite3" Version="2.1.13"/>
+        <!-- The database bridge's SQLite driver. -->
+        <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.11"/>
         <PackageVersion Include="Shiny.BluetoothLE" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Beacons" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Health" Version="2.0.1"/>

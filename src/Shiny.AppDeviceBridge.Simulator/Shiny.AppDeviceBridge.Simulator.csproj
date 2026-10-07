@@ -38,6 +38,7 @@
         <ProjectReference Include="../Shiny.AppDeviceBridge.Camera.Client/Shiny.AppDeviceBridge.Camera.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Contacts.Client/Shiny.AppDeviceBridge.Contacts.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Desktop.Client/Shiny.AppDeviceBridge.Desktop.Client.csproj"/>
+        <ProjectReference Include="../Shiny.AppDeviceBridge.Database.Client/Shiny.AppDeviceBridge.Database.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Discovery.Client/Shiny.AppDeviceBridge.Discovery.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Folders.Client/Shiny.AppDeviceBridge.Folders.Client.csproj"/>
         <ProjectReference Include="../Shiny.AppDeviceBridge.Health.Client/Shiny.AppDeviceBridge.Health.Client.csproj"/>

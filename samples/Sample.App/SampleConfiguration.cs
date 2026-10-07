@@ -7,6 +7,7 @@ using Shiny.AppDeviceBridge.BluetoothLE;
 using Shiny.AppDeviceBridge.Calendar;
 using Shiny.AppDeviceBridge.Camera;
 using Shiny.AppDeviceBridge.Contacts;
+using Shiny.AppDeviceBridge.Database;
 using Shiny.AppDeviceBridge.Discovery;
 using Shiny.AppDeviceBridge.DocumentGeofencing;
 using Shiny.DocumentDb.Geo;
@@ -118,6 +119,9 @@ public static class SampleConfiguration
                         // over the web app.
                         .AddCameraBridge()
                         .AddFoldersBridge()
+
+                        // A SQLite client over files in the file roots: the Database page opens data/sample.db.
+                        .AddDatabaseBridge()
 
                         // A Raspberry Pi camera through libcamera is as much for a headless Pi as for an app; everywhere
                         // but a Pi with the native shim, the page is told why there is no camera.
