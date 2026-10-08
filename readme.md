@@ -672,7 +672,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Calendar | `GET calendar`, `POST calendar/access`, `GET calendar/calendars`, `GET/POST calendar/events`, `GET/PUT/DELETE calendar/events/{id}` | |
 | Photos | `GET photos`, `POST photos/access`, `POST photos/pick`, `GET photos/library`, `GET photos/library/{id}/thumbnail`, `POST photos/library/{id}/export` | |
 | Folders | `GET folders`, `POST folders/pick`, `DELETE folders/{root}` | |
-| Database | `GET database/connections`, `POST database/{create,schema,query,query/cancel,value,object}`, `POST database/rows{,/count,/totals,/insert,/update,/delete}`, `POST database/design/preview`, `POST database/import{,/preview}`, `POST database/export`, `POST database/{history,history/clear,saved,saved/save}`, `DELETE database/saved/{id}` | |
+| Database | `GET database/connections`, `POST database/databases`, `POST database/{create,schema,query,query/cancel,value,object}`, `POST database/rows{,/count,/totals,/insert,/update,/delete}`, `POST database/design/preview`, `POST database/import{,/preview}`, `POST database/export`, `POST database/{history,history/clear,saved,saved/save}`, `DELETE database/saved/{id}` | |
 | Tray icon | `GET/POST/DELETE tray`, `GET/PUT/DELETE tray/{id}`, `PUT/DELETE tray/{id}/menu`, `POST tray/{id}/menu/show`, `POST tray/{id}/notification`, `PUT/DELETE tray/{id}/animation` | `tray.click`, `tray.menu` |
 | Quick entry | `GET quickentry`, `PUT quickentry/options`, `POST quickentry/{show,hide,toggle}`, `GET/PUT quickentry/prompt`, `POST quickentry/prompt/reset`, `POST quickentry/glow/{show,hide,pulse}` | `quickentry.submitted`, `quickentry.suggestion`, `quickentry.cancelled`, `quickentry.microphone`, `quickentry.opened`, `quickentry.closed` |
 | Device camera | `GET camera`, `POST camera/access`, `POST camera/open`, `POST camera/close`, `POST camera/photo`, `POST/DELETE camera/recording`, `PUT camera/settings`, `GET camera/preview` (MJPEG) | `camera.status` |
@@ -1162,7 +1162,7 @@ downloaded a region. Every platform; on-device directions on Android and iOS wit
 - **The fence:** SQLite's authorizer refuses `ATTACH` (and so `VACUUM INTO`) and `load_extension`, so a query can't
   reach a file outside the file roots or load native code.
 - **Other engines:** implement `IDatabaseDriver` and register it with `services.AddDatabaseDriver<T>()`. Only the SQLite
-  driver ships. All platforms.
+  driver ships. A driver for a server lists its databases for `POST database/databases`. All platforms.
 
 **Folders:**
 - **Picking:** `POST folders/pick` with `{ "root": "documents" }` shows the platform's folder picker. The folder
@@ -1493,7 +1493,9 @@ kept as a bookmark. Failures are `WebAppFileException`, with the code the folder
 
 Lower down, `WebAppFileRoots` holds every root and raises `Changed`. `WebAppFileRoot` is a directory on disk (an absolute
 path); a store that isn't one — an Android Storage Access Framework tree — implements `WebAppFileStore`, and
-`GetLocalPath` returns null so path-only bridges refuse its files.
+`GetLocalPath` returns null so path-only bridges refuse its files. An app whose storage is only such a store sets
+`DefaultFileRoots = false`: with `FileRoots` empty the page then starts with no roots instead of `data` and `cache`, and
+the app adds its own with `WebAppFileRoots.Add`. Configured `FileRoots` are used whatever the flag says.
 
 ### Writing a bridge
 

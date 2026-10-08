@@ -68,6 +68,28 @@ public class DatabaseSqlTests
         Assert.Throws<DatabaseRefusal>(() => RowView.Build(SqliteSpelling.Instance, Columns, [new DatabaseRowFilter("nope", DatabaseFilterOperator.IsNull)], null, null, []));
     }
 
+    [Fact]
+    public void Sqlite_pages_with_limit_and_offset()
+        => Assert.Equal("SELECT * FROM \"t\" WHERE x ORDER BY y LIMIT @take OFFSET @skip", SqliteSpelling.Instance.Page("*", "\"t\"", "x", "y", "@skip", "@take"));
+
+    [Theory]
+    [InlineData("BOOLEAN", DatabaseValueKind.Boolean)]
+    [InlineData("VARCHAR(20)", DatabaseValueKind.Text)]
+    [InlineData("BIGINT", DatabaseValueKind.Integer)]
+    [InlineData("DATETIME", DatabaseValueKind.DateTime)]
+    [InlineData("any", DatabaseValueKind.Other)]
+    public void Sqlites_type_names_mean_one_kind(string type, DatabaseValueKind kind)
+        => Assert.Equal(kind, DatabaseValueKinds.Sqlite(type));
+
+    [Fact]
+    public async Task A_new_sqlite_table_from_a_csv_gets_sqlites_type_names()
+    {
+        var driver = new SqliteDatabaseDriver(new DatabaseBridgeOptions());
+        var target = new DatabaseConnectionTarget("unused", null);
+
+        Assert.Equal("INTEGER", await driver.GetColumnTypeAsync(target, DatabaseValueKind.Integer, TestContext.Current.CancellationToken));
+    }
+
     // ---- plans ----
 
     [Fact]

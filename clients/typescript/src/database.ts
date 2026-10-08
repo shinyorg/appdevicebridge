@@ -222,6 +222,12 @@ export interface DatabaseMessage {
 
 export type DatabaseMessageKind = "Info" | "Rows" | "Error" | "Notice";
 
+export interface DatabaseNames {
+    names: string[];
+    /** Why the server could not be asked — it is off, the password is wrong. */
+    error: string | null;
+}
+
 export type DatabaseObjectAction = "Drop" | "Rename";
 
 export interface DatabaseObjectResult {
@@ -418,6 +424,11 @@ export interface GetDatabaseHistory {
     database?: string | null;
 }
 
+/** The databases on a connection's server that its login may open, for a picker. */
+export interface GetDatabaseNames {
+    connection: string;
+}
+
 /** The tables and views in a database, and the columns, indexes, keys, checks and triggers of each. No row counts: a count is a full scan on a table without a narrow index, so it is asked separately (`CountDatabaseTableRows`). */
 export interface GetDatabaseSchema {
     root?: string | null;
@@ -599,6 +610,11 @@ export class DatabaseBridge {
     /** The database server connections the app's drivers serve. Empty when it registered none. */
     getConnections(options?: { signal?: AbortSignal }): Promise<DatabaseConnection[]> {
         return call<DatabaseConnection[]>(this.transport, "GET", `database/connections`, { signal: options?.signal });
+    }
+
+    /** The databases on a connection's server that its login may open, or why the server could not be asked. */
+    getDatabaseNames(request: GetDatabaseNames, options?: { signal?: AbortSignal }): Promise<DatabaseNames> {
+        return call<DatabaseNames>(this.transport, "POST", `database/databases`, { json: request, signal: options?.signal });
     }
 
     /** Makes a new, empty SQLite database. 409 when something is already at the path. */

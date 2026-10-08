@@ -45,6 +45,12 @@ public enum DatabaseValueKind
 /// <param name="Database">The database it opens on when a request names none.</param>
 public sealed record DatabaseConnection(string Id, string Name, DatabaseEngineKind Engine, string? Database = null);
 
+/// <summary>The databases on a connection's server that its login may open, for a picker.</summary>
+public sealed record GetDatabaseNames(string Connection);
+
+/// <param name="Error">Why the server could not be asked — it is off, the password is wrong.</param>
+public sealed record DatabaseNames(string[] Names, string? Error);
+
 /// <summary>
 /// Writes a new, empty SQLite database — with the header a file needs before other tools will admit it is a database — at
 /// a path in a file root. Refused when something is already there.
@@ -608,6 +614,8 @@ public sealed record SavedDatabaseQueryResult(SavedDatabaseQuery? Query, string?
 /// <summary>Serialization for every database contract, shared by the page's client and the native bridge.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true, PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(IReadOnlyList<DatabaseConnection>))]
+[JsonSerializable(typeof(GetDatabaseNames))]
+[JsonSerializable(typeof(DatabaseNames))]
 [JsonSerializable(typeof(CreateDatabase))]
 [JsonSerializable(typeof(GetDatabaseSchema))]
 [JsonSerializable(typeof(DatabaseSchema))]

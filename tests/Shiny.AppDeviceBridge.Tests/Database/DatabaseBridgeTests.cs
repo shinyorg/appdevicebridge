@@ -661,6 +661,24 @@ public class DatabaseBridgeTests
         ));
     }
 
+    // ---- listing a server's databases ----
+
+    [Fact]
+    public async Task Listing_databases_needs_a_connection_and_a_file_is_one_database()
+    {
+        await using var db = await DatabaseFixture.StartAsync();
+
+        // with no server driver nothing serves a connection
+        Assert.Equal(HttpStatusCode.NotFound, (await Assert.ThrowsAsync<BridgeException>(() => db.Client.GetDatabaseNamesAsync(new GetDatabaseNames("pg"), Ct))).StatusCode);
+
+        var empty = await db.WebView.PostAsJsonAsync("/_bridge/database/databases", new { connection = " " }, Ct);
+        Assert.Equal(HttpStatusCode.BadRequest, empty.StatusCode);
+
+        var sqlite = await new SqliteDatabaseDriver(new DatabaseBridgeOptions()).GetDatabaseNamesAsync(new DatabaseConnectionTarget("x", null), Ct);
+        Assert.Empty(sqlite.Names);
+        Assert.Equal("A SQLite file is one database.", sqlite.Error);
+    }
+
     // ---- the fixture ----
 
     sealed class DatabaseFixture : IAsyncDisposable
@@ -726,6 +744,9 @@ public class DatabaseBridgeTests
 
         public Task<IReadOnlyList<DatabaseConnection>> GetConnectionsAsync(CancellationToken cancellationToken)
             => Task.FromResult<IReadOnlyList<DatabaseConnection>>([new DatabaseConnection("pg", "Warehouse", DatabaseEngineKind.PostgreSql, "postgres")]);
+
+        public Task<DatabaseNames> GetDatabaseNamesAsync(DatabaseTarget target, CancellationToken cancellationToken)
+            => Task.FromResult(new DatabaseNames(["postgres", "sales"], null));
 
         public Task<DatabaseSchema> GetSchemaAsync(DatabaseTarget target, CancellationToken cancellationToken)
         {

@@ -68,6 +68,7 @@ public static class DatabaseBridgeExtensions
 /// <c>root</c> and <c>path</c>, or by <c>connection</c> and <c>database</c>.
 /// <code>
 /// GET  /_bridge/database/connections
+/// POST /_bridge/database/databases        { "connection": "…" }
 /// POST /_bridge/database/create           { "root": "data", "path": "app.db" }
 /// POST /_bridge/database/schema           { "root": "data", "path": "app.db" }
 /// POST /_bridge/database/query            { "root": "data", "path": "app.db", "sql": "SELECT …", "runId": "…" }
@@ -135,6 +136,9 @@ public sealed class DatabaseBridge : IWebAppBridge
 
     public void Map(WebAppBridgeRoutes routes) => routes
         .MapGet("/connections", this.GetConnectionsAsync)
+        .MapPost("/databases", ctx => this.HandleAsync(ctx, Json.GetDatabaseNames, Json.DatabaseNames,
+            r => new(null, null, r.Connection, null), r => String.IsNullOrWhiteSpace(r.Connection) ? "Expected { \"connection\": \"…\" }." : null,
+            (d, t, _, ct) => d.GetDatabaseNamesAsync(t, ct)))
         .MapPost("/create", this.CreateAsync)
         .MapPost("/schema", ctx => this.HandleAsync(ctx, Json.GetDatabaseSchema, Json.DatabaseSchema,
             r => new(r.Root, r.Path, r.Connection, r.Database), null,

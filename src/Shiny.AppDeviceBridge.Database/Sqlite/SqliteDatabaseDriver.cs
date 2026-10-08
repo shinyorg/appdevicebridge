@@ -114,6 +114,9 @@ public sealed class SqliteDatabaseDriver(DatabaseBridgeOptions options) : IDatab
     // Off the request's thread: the engine blocks while a statement runs, and a thirty-second statement should not hold a
     // server thread doing nothing but wait. The request's token still reaches the statement, through the interrupt.
 
+    public Task<DatabaseNames> GetDatabaseNamesAsync(DatabaseTarget target, CancellationToken cancellationToken)
+        => Task.FromResult(new DatabaseNames([], "A SQLite file is one database."));
+
     public Task<DatabaseSchema> GetSchemaAsync(DatabaseTarget target, CancellationToken cancellationToken)
         => Run(() => this.GetSchema(FileOf(target)));
 

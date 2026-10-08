@@ -18,6 +18,10 @@ public interface IDatabaseBridge
     [BridgeGet("connections")]
     Task<IReadOnlyList<DatabaseConnection>> GetConnectionsAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>The databases on a connection's server that its login may open, or why the server could not be asked.</summary>
+    [BridgePost("databases")]
+    Task<DatabaseNames> GetDatabaseNamesAsync(GetDatabaseNames request, CancellationToken cancellationToken = default);
+
     /// <summary>Makes a new, empty SQLite database. 409 when something is already at the path.</summary>
     [BridgePost("create")]
     Task CreateAsync(CreateDatabase request, CancellationToken cancellationToken = default);

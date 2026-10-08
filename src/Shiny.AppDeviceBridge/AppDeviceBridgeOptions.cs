@@ -76,9 +76,18 @@ public sealed class AppDeviceBridgeOptions
 
     /// <summary>
     /// The directories the page can use, by the name it uses for them. Left empty, the page gets <c>data</c> (persistent)
-    /// and <c>cache</c> (temporary, which the OS may clear). Adding any entry replaces both defaults.
+    /// and <c>cache</c> (temporary, which the OS may clear) unless <see cref="DefaultFileRoots"/> is off. Adding any entry
+    /// replaces both defaults.
     /// </summary>
     public IDictionary<string, string> FileRoots { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether an empty <see cref="FileRoots"/> means <c>data</c> and <c>cache</c>. On by default. Off, an app with no
+    /// configured roots starts with none, and adds its own while it runs with <see cref="WebAppFileRoots.Add"/> - a
+    /// <see cref="WebAppFileStore"/> over storage of its own, which is not a directory and so cannot be configured here -
+    /// without two directories nobody asked for appearing beside it.
+    /// </summary>
+    public bool DefaultFileRoots { get; set; } = true;
 
     /// <summary>
     /// The largest file the page can write in one request, through the files bridge or any other bridge that takes a file.
@@ -136,10 +145,15 @@ public sealed class AppDeviceBridgeOptions
         => this.DataDirectory
            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "appdevicebridge", this.AppId);
 
-    /// <summary>The roots the page's paths are confined to: <see cref="FileRoots"/>, or the <c>data</c> and <c>cache</c> defaults.</summary>
+    /// <summary>
+    /// The roots the page's paths are confined to: <see cref="FileRoots"/>, or the <c>data</c> and <c>cache</c> defaults, or
+    /// none when <see cref="DefaultFileRoots"/> is off.
+    /// </summary>
     public IReadOnlyList<WebAppFileRoot> ResolveFileRoots()
         => this.FileRoots.Count > 0
             ? [.. this.FileRoots.Select(x => new WebAppFileRoot(x.Key, x.Value))]
+            : !this.DefaultFileRoots
+            ? []
             :
             [
                 new WebAppFileRoot("data", Path.Combine(this.ResolveDataDirectory(), "files")),

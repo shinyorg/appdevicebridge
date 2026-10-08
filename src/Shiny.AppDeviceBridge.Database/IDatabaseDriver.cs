@@ -54,6 +54,9 @@ public interface IDatabaseDriver
     /// <summary>The connections a page can name. A driver for files has none.</summary>
     Task<IReadOnlyList<DatabaseConnection>> GetConnectionsAsync(CancellationToken cancellationToken);
 
+    /// <summary>The databases on a connection's server that its login may open. A file is one database and has no list.</summary>
+    Task<DatabaseNames> GetDatabaseNamesAsync(DatabaseTarget target, CancellationToken cancellationToken);
+
     Task<DatabaseSchema> GetSchemaAsync(DatabaseTarget target, CancellationToken cancellationToken);
 
     /// <summary>
