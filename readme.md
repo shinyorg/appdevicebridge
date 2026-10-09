@@ -1046,10 +1046,11 @@ bridge.AddAppSupportBridge(startup: o => o.Arguments.Add("--autostart"));
   `READ_MEDIA_IMAGES` on Android 13 and later, `READ_EXTERNAL_STORAGE` before.
 
 **Wearables** (`Shiny.AppDeviceBridge.Wearables`, `AddWearablesBridge()`): the companion app on a paired Apple Watch
-(WatchConnectivity) or Wear OS device (the Data Layer), through Shiny.Wearables 5.8. iOS and Android only; every
+(WatchConnectivity) or Wear OS device (the Data Layer), through Shiny.Wearables 5.9. iOS and Android only; every
 other platform answers `501`.
 - **JSON on the wire:** what the page sends reaches the watch as its UTF-8 JSON text. What the watch sends reaches the
-  page as JSON, or, when it isn't JSON, as a base64 string with `binary: true`.
+  page as JSON; as a string when it is plain UTF-8 text (what Shiny.Wearables' string overloads and a Swift or Kotlin
+  companion's `String` send); or otherwise as a base64 string with `binary: true`.
 - **Messages:** `POST wearables/messages` with `{ path, data, nodeId? }` waits for the companion app's reply. A message
   never queues: with no reachable watch it fails with `409` `not_reachable`. Keep it small (about 64 KB on iOS,
   100 KB on Wear OS).

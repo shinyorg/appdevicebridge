@@ -27,20 +27,20 @@ public sealed record WearableMessageRequest(string Path, JsonElement? Data = nul
 
 /// <summary>The companion app's reply to a message.</summary>
 /// <param name="Data">The reply; JSON null when the companion app replied with nothing.</param>
-/// <param name="Binary">The reply was not JSON: <paramref name="Data"/> is its bytes as a base64 string.</param>
+/// <param name="Binary">The reply was neither JSON nor UTF-8 text: <paramref name="Data"/> is its bytes as a base64 string.</param>
 public sealed record WearableReply(JsonElement Data, bool Binary);
 
 /// <summary>A live message from the wearable.</summary>
 /// <param name="Path">What it is about.</param>
 /// <param name="Data">The body.</param>
-/// <param name="Binary">The body was not JSON: <paramref name="Data"/> is its bytes as a base64 string.</param>
+/// <param name="Binary">The body was neither JSON nor UTF-8 text: <paramref name="Data"/> is its bytes as a base64 string.</param>
 /// <param name="NodeId">The node that sent it.</param>
 /// <param name="ExpectsReply">The sender waits on a reply — what a <c>wearables.message</c> handler returns.</param>
 public sealed record WearableMessage(string Path, JsonElement Data, bool Binary, string? NodeId, bool ExpectsReply);
 
 /// <summary>Shared context.</summary>
 /// <param name="Data">The context.</param>
-/// <param name="Binary">It was not JSON: <paramref name="Data"/> is its bytes as a base64 string.</param>
+/// <param name="Binary">It was neither JSON nor UTF-8 text: <paramref name="Data"/> is its bytes as a base64 string.</param>
 /// <param name="NodeId">The node that shared it; null for this app's own.</param>
 public sealed record WearableContext(JsonElement Data, bool Binary, string? NodeId);
 
@@ -81,6 +81,11 @@ public enum WearableTransferKind
 public sealed record WearablePendingTransfer(string Id, string Path, WearableTransferKind Kind, double? Progress);
 
 /// <summary>A queued transfer from the wearable.</summary>
+/// <param name="Id">The transfer's id.</param>
+/// <param name="Path">What it is about.</param>
+/// <param name="Data">The body.</param>
+/// <param name="Binary">The body was neither JSON nor UTF-8 text: <paramref name="Data"/> is its bytes as a base64 string.</param>
+/// <param name="NodeId">The node that sent it.</param>
 public sealed record WearableTransfer(string Id, string Path, JsonElement Data, bool Binary, string? NodeId);
 
 /// <summary>A file from the wearable, filed into a file root.</summary>

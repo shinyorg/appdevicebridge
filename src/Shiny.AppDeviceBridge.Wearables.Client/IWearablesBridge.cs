@@ -4,8 +4,8 @@ namespace Shiny.AppDeviceBridge.Wearables.Client;
 
 /// <summary>
 /// The companion app on a paired Apple Watch or Wear OS device. Bodies are JSON: what the page sends reaches the watch
-/// as UTF-8 JSON, and what the watch sends reaches the page as JSON — or, when it is not JSON, as a base64 string with
-/// <c>binary</c> set. Files are <see cref="BridgeFile"/>s, so they move through the files bridge's roots.
+/// as UTF-8 JSON, and what the watch sends reaches the page as JSON, as a string when it is UTF-8 text, or otherwise as a
+/// base64 string with <c>binary</c> set. Files are <see cref="BridgeFile"/>s, so they move through the files bridge's roots.
 /// </summary>
 [BridgeClient("wearables", typeof(WearablesJsonContext))]
 public interface IWearablesBridge

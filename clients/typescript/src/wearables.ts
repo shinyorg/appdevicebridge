@@ -7,7 +7,7 @@ import type { BridgeFile } from "./shared.js";
 export interface WearableContext {
     /** The context. */
     data: unknown;
-    /** It was not JSON: `data` is its bytes as a base64 string. */
+    /** It was neither JSON nor UTF-8 text: `data` is its bytes as a base64 string. */
     binary: boolean;
     /** The node that shared it; null for this app's own. */
     nodeId: string | null;
@@ -42,7 +42,7 @@ export interface WearableMessage {
     path: string;
     /** The body. */
     data: unknown;
-    /** The body was not JSON: `data` is its bytes as a base64 string. */
+    /** The body was neither JSON nor UTF-8 text: `data` is its bytes as a base64 string. */
     binary: boolean;
     /** The node that sent it. */
     nodeId: string | null;
@@ -106,7 +106,7 @@ export interface WearableReceivedFile {
 export interface WearableReply {
     /** The reply; JSON null when the companion app replied with nothing. */
     data: unknown;
-    /** The reply was not JSON: `data` is its bytes as a base64 string. */
+    /** The reply was neither JSON nor UTF-8 text: `data` is its bytes as a base64 string. */
     binary: boolean;
 }
 
@@ -126,10 +126,15 @@ export interface WearableStatus {
 
 /** A queued transfer from the wearable. */
 export interface WearableTransfer {
+    /** The transfer's id. */
     id: string;
+    /** What it is about. */
     path: string;
+    /** The body. */
     data: unknown;
+    /** The body was neither JSON nor UTF-8 text: `data` is its bytes as a base64 string. */
     binary: boolean;
+    /** The node that sent it. */
     nodeId: string | null;
 }
 
@@ -163,7 +168,7 @@ export interface WearableTransferTicket {
     id: string;
 }
 
-/** The companion app on a paired Apple Watch or Wear OS device. Bodies are JSON: what the page sends reaches the watch as UTF-8 JSON, and what the watch sends reaches the page as JSON — or, when it is not JSON, as a base64 string with `binary` set. Files are `BridgeFile`s, so they move through the files bridge's roots. */
+/** The companion app on a paired Apple Watch or Wear OS device. Bodies are JSON: what the page sends reaches the watch as UTF-8 JSON, and what the watch sends reaches the page as JSON, as a string when it is UTF-8 text, or otherwise as a base64 string with `binary` set. Files are `BridgeFile`s, so they move through the files bridge's roots. */
 export class WearablesBridge {
     constructor(private readonly transport: BridgeTransport = browserTransport()) {}
 

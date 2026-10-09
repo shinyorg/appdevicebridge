@@ -92,6 +92,34 @@ public class WearablesBridgeTests
     }
 
     [Theory]
+    [InlineData("ok")]
+    [InlineData("8421 steps\ntoday ✓")]
+    public async Task A_text_reply_arrives_as_a_string(string text)
+    {
+        // What Shiny.Wearables' string overloads and a Swift or Kotlin companion send: plain UTF-8, not JSON.
+        var manager = new FakeWearableManager { Reply = Native.WearableData.FromString(text) };
+        await using var fixture = await WearablesFixture.StartAsync(manager);
+
+        var reply = await fixture.Client.SendMessageAsync(new WearableMessageRequest("steps"));
+
+        Assert.False(reply.Binary);
+        Assert.Equal(text, reply.Data.GetString());
+    }
+
+    [Fact]
+    public async Task Bytes_that_decode_as_utf8_but_carry_control_characters_stay_binary()
+    {
+        byte[] bytes = [0x01, 0x02, 0x41, 0x00];
+        var manager = new FakeWearableManager { Reply = bytes };
+        await using var fixture = await WearablesFixture.StartAsync(manager);
+
+        var reply = await fixture.Client.SendMessageAsync(new WearableMessageRequest("raw"));
+
+        Assert.True(reply.Binary);
+        Assert.Equal(bytes, Convert.FromBase64String(reply.Data.GetString()!));
+    }
+
+    [Theory]
     [InlineData(Native.WearableErrorCode.NotReachable, HttpStatusCode.Conflict, "not_reachable")]
     [InlineData(Native.WearableErrorCode.NotSupported, HttpStatusCode.NotImplemented, "not_supported")]
     [InlineData(Native.WearableErrorCode.Failed, HttpStatusCode.BadGateway, "wearable_failed")]
@@ -231,6 +259,25 @@ public class WearablesBridgeTests
         Assert.Equal("workout/start", doc.RootElement.GetProperty("path").GetString());
         Assert.Equal("run", doc.RootElement.GetProperty("echo").GetProperty("kind").GetString());
         Assert.True(doc.RootElement.GetProperty("expectsReply").GetBoolean());
+    }
+
+    [Fact]
+    public async Task A_watch_message_sent_as_text_reaches_the_handler_as_a_string()
+    {
+        await using var app = new TestApp();
+        var (host, invoker) = await BackgroundHostAsync(app, """
+            appdevicebridge.on("wearables.message", ({ data, binary }) => ({ type: typeof data, data, binary }));
+            """);
+        await using var _ = host;
+
+        var d = CreateDelegate(new WebAppEventHub(), invoker, new WebAppFileRoots(app.BridgeOptions()));
+
+        var reply = await d.OnMessageReceived(new Native.WearableMessage("note", Native.WearableData.FromString("hello watch"), "n1", true));
+
+        using var doc = JsonDocument.Parse(reply!);
+        Assert.Equal("string", doc.RootElement.GetProperty("type").GetString());
+        Assert.Equal("hello watch", doc.RootElement.GetProperty("data").GetString());
+        Assert.False(doc.RootElement.GetProperty("binary").GetBoolean());
     }
 
     [Fact]
