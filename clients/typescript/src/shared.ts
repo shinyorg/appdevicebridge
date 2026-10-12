@@ -5,6 +5,27 @@ import { type BridgeTransport, browserTransport, call, callBlob, callVoid, query
 /** Where a permission stands. Reported by every bridge that needs one; the names match Shiny's own. */
 export type AccessState = "Unknown" | "NotSupported" | "NotSetup" | "Disabled" | "Restricted" | "Denied" | "Available";
 
+export interface AppActionResult {
+    /** False when the platform could not do it. */
+    success: boolean;
+}
+
+export interface AppInfo {
+    appVersion: string;
+    deviceManufacturer: string;
+    deviceModel: string;
+    platformVersion: string | null;
+    /** Android, iOS, MacCatalyst, macOS, Windows or Linux. */
+    platform: string;
+    /** Unknown, Phone, Tablet, Desktop, TV, Watch or Car. */
+    deviceIdiom: string;
+    orientation: DisplayOrientation;
+    /** A culture name such as `en-US`. */
+    culture: string;
+    /** A time zone id. */
+    timeZone: string;
+}
+
 /** A link the app was opened with. */
 export interface AppLink {
     /** The link as the OS delivered it. */
@@ -15,6 +36,18 @@ export interface AppLink {
     receivedAt: string;
 }
 
+export interface AppStoreListing {
+    storeVersion: string;
+    currentVersion: string;
+    needsUpdate: boolean;
+    storeUrl: string;
+    releaseNotes: string | null;
+    releasedAt: string | null;
+    averageRating: number | null;
+    ratingCount: number | null;
+    minimumOsVersion: string | null;
+}
+
 /** The outcome of applying an update. */
 export interface ApplyUpdateResult {
     /** False when nothing was waiting. */
@@ -22,6 +55,23 @@ export interface ApplyUpdateResult {
     /** The version now being served, when one was applied. */
     version: string | null;
 }
+
+export interface BarometerReading {
+    pressureHPa: number;
+    timestamp: string;
+}
+
+export interface BatteryInfo {
+    /** 0–1. */
+    chargeLevel: number;
+    state: BatteryState;
+    powerSource: BatteryPowerSource;
+    energySaverStatus: EnergySaverStatus;
+}
+
+export type BatteryPowerSource = "Unknown" | "Battery" | "AC" | "Usb" | "Wireless";
+
+export type BatteryState = "Unknown" | "Charging" | "Discharging" | "Full" | "NotCharging" | "NotPresent";
 
 /** A registered bridge. */
 export interface BridgeCapability {
@@ -36,6 +86,38 @@ export interface BridgeFile {
     root: string;
     path: string;
 }
+
+export type BrowserLaunchMode = "SystemPreferred" | "External";
+
+export interface ClipboardText {
+    text: string | null;
+}
+
+export interface CompassReading {
+    /** Degrees clockwise from magnetic north, 0 to 360. */
+    heading: number;
+    timestamp: string;
+}
+
+export type ConnectionProfile = "Unknown" | "Bluetooth" | "Cellular" | "Ethernet" | "WiFi";
+
+export interface ConnectivityInfo {
+    networkAccess: NetworkAccess;
+    connectionProfiles: ConnectionProfile[];
+}
+
+export interface CultureChanged {
+    culture: string;
+}
+
+export interface DeviceActionResult {
+    /** False when the platform could not do it. */
+    success: boolean;
+}
+
+export type DisplayOrientation = "Unknown" | "Portrait" | "Landscape";
+
+export type EnergySaverStatus = "Unknown" | "On" | "Off";
 
 /** A file or directory. */
 export interface FileEntry {
@@ -71,6 +153,12 @@ export interface FileTransfer {
     overwrite?: boolean;
 }
 
+export type HapticFeedbackType = "Click" | "LongPress";
+
+export interface HapticsRequest {
+    type: HapticFeedbackType;
+}
+
 /** What is serving the page. */
 export interface HostInfo {
     /** The app's id, as the update server knows it. */
@@ -91,6 +179,84 @@ export interface HostInfo {
     devServer: string | null;
 }
 
+export interface KeepAwakeStatus {
+    keepAwake: boolean;
+}
+
+export type NavigationMode = "None" | "Default" | "Bicycling" | "Driving" | "Transit" | "Walking";
+
+export type NetworkAccess = "Unknown" | "None" | "Local" | "ConstrainedInternet" | "Internet";
+
+export interface OpenBrowserRequest {
+    /** An http, https, mailto or tel URI. */
+    uri: string;
+    showTitle?: boolean;
+    launchMode?: BrowserLaunchMode;
+}
+
+export interface OpenMapRequest {
+    latitude: number;
+    longitude: number;
+    navigationMode?: NavigationMode;
+}
+
+export interface OrientationChanged {
+    orientation: DisplayOrientation;
+}
+
+/** The rotation from the reference frame to the device, as a unit quaternion. */
+export interface OrientationReading {
+    x: number;
+    y: number;
+    z: number;
+    w: number;
+    timestamp: string;
+}
+
+export interface OrientationRequest {
+    orientation: DisplayOrientation;
+}
+
+export interface ScreenInfo {
+    /** Physical pixels, as currently oriented. */
+    width: number;
+    /** Physical pixels, as currently oriented. */
+    height: number;
+    /** Physical pixels per device-independent unit. */
+    density: number;
+    orientation: DisplayOrientation;
+    /** Hertz, or 0 where the platform does not report it. */
+    refreshRate: number;
+}
+
+export type Sensor = "Accelerometer" | "Gyroscope" | "Magnetometer" | "Compass" | "Barometer" | "Orientation";
+
+export interface SensorInfo {
+    sensor: Sensor;
+    /** False when the device has no such sensor, or the platform offers none; starting it fails with 501. */
+    supported: boolean;
+    /** True while it is started and reporting. */
+    running: boolean;
+    speed: SensorSpeed | null;
+    /** The least time between readings the page is sent, while running. */
+    minIntervalMs: number | null;
+}
+
+/** How often the platform delivers readings. `Fastest` can be hundreds a second; see `minIntervalMs`. */
+export type SensorSpeed = "Default" | "UI" | "Game" | "Fastest";
+
+export interface SensorStartRequest {
+    /** How often the platform samples. */
+    speed?: SensorSpeed;
+    /** Readings closer together than this are dropped before they reach the page, which is what keeps a fast sensor from flooding the event stream. 16 (about 60 a second) by default; never less than 5. */
+    minIntervalMs?: number;
+}
+
+/** Every sensor and what it is doing. */
+export interface SensorStatus {
+    sensors: SensorInfo[];
+}
+
 /** The keys in a scope. */
 export interface SettingsList {
     /** The scope listed. */
@@ -104,8 +270,228 @@ export interface SettingsList {
 /** Which store a setting lives in. */
 export type SettingsScope = "Local" | "Secure";
 
+/** The device was shaken, while the accelerometer is running. */
+export interface ShakeDetected {
+    timestamp: string;
+}
+
+/** What to share: `text` and `uri`, or `files` from the page's file roots — at most 20. */
+export interface ShareRequest {
+    text?: string | null;
+    /** An absolute http or https URI. */
+    uri?: string | null;
+    title?: string | null;
+    subject?: string | null;
+    files?: BridgeFile[] | null;
+}
+
+export interface StartupSettingsResult {
+    opened: boolean;
+}
+
+export type StartupState = "NotSupported" | "NotRegistered" | "Enabled" | "DisabledByUser" | "DisabledByPolicy" | "RequiresApproval";
+
+export interface StartupStatus {
+    /** Whether this platform has a launch-at-login list. */
+    supported: boolean;
+    /** Read back from the OS every time: the user can turn it off there. */
+    state: StartupState;
+}
+
+export interface TimeZoneChanged {
+    timeZone: string;
+}
+
+/** An accelerometer, gyroscope or magnetometer reading. */
+export interface VectorReading {
+    x: number;
+    y: number;
+    z: number;
+    timestamp: string;
+}
+
+export interface VibrateRequest {
+    /** Half a second when null; at most 5,000. */
+    durationMs?: number | null;
+}
+
 /** Where the web app being served came from. */
 export type WebAppOrigin = "Baseline" | "Installed";
+
+/** The app and the device it runs on, over Shiny.Core: information, orientation, the screen, settings, the app store, launch at login, battery and connectivity. Each feature fails with 501 on its own where the platform lacks it. */
+export class AppBridge {
+    constructor(private readonly transport: BridgeTransport = browserTransport()) {}
+
+    /** The app's version and the device, platform, orientation, culture and time zone. */
+    getInfo(options?: { signal?: AbortSignal }): Promise<AppInfo> {
+        return call<AppInfo>(this.transport, "GET", `app/info`, { signal: options?.signal });
+    }
+
+    /** Turns the app to an orientation and holds it there. False where the platform cannot. */
+    setOrientation(request: OrientationRequest, options?: { signal?: AbortSignal }): Promise<AppActionResult> {
+        return call<AppActionResult>(this.transport, "POST", `app/orientation`, { json: request, signal: options?.signal });
+    }
+
+    /** Unlocks the orientation. */
+    resetOrientation(options?: { signal?: AbortSignal }): Promise<AppActionResult> {
+        return call<AppActionResult>(this.transport, "DELETE", `app/orientation`, { signal: options?.signal });
+    }
+
+    /** The main display. */
+    getScreen(options?: { signal?: AbortSignal }): Promise<ScreenInfo> {
+        return call<ScreenInfo>(this.transport, "GET", `app/screen`, { signal: options?.signal });
+    }
+
+    /** Opens the app's page in the OS settings, or the system settings where there is no such page. */
+    openSettings(options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "POST", `app/settings`, { signal: options?.signal });
+    }
+
+    /** The app's store listing. Fails with 501 unless the app registered the store, 404 when it is not listed. */
+    getStoreListing(options?: { signal?: AbortSignal }): Promise<AppStoreListing> {
+        return call<AppStoreListing>(this.transport, "GET", `app/store`, { signal: options?.signal });
+    }
+
+    /** Opens the app's store listing. */
+    openStore(options?: { signal?: AbortSignal }): Promise<AppActionResult> {
+        return call<AppActionResult>(this.transport, "POST", `app/store/open`, { signal: options?.signal });
+    }
+
+    /** Asks the OS to show its review prompt, which it may decline to do. */
+    requestReview(options?: { signal?: AbortSignal }): Promise<AppActionResult> {
+        return call<AppActionResult>(this.transport, "POST", `app/store/review`, { signal: options?.signal });
+    }
+
+    /** Opens the store listing on its reviews, where the store has such a page. */
+    openReviewPage(options?: { signal?: AbortSignal }): Promise<AppActionResult> {
+        return call<AppActionResult>(this.transport, "POST", `app/store/review-page`, { signal: options?.signal });
+    }
+
+    /** Whether the app launches at login. Always answers, so a page can decide whether to show the option. */
+    getStartup(options?: { signal?: AbortSignal }): Promise<StartupStatus> {
+        return call<StartupStatus>(this.transport, "GET", `app/startup`, { signal: options?.signal });
+    }
+
+    /** Launches the app at login. A state of `RequiresApproval` or disabled did not fail: the user finishes it in the OS, which `openStartupSettings` opens. Fails with 409 when the OS refuses. */
+    registerStartup(options?: { signal?: AbortSignal }): Promise<StartupStatus> {
+        return call<StartupStatus>(this.transport, "POST", `app/startup/registration`, { signal: options?.signal });
+    }
+
+    /** Stops launching the app at login. */
+    unregisterStartup(options?: { signal?: AbortSignal }): Promise<StartupStatus> {
+        return call<StartupStatus>(this.transport, "DELETE", `app/startup/registration`, { signal: options?.signal });
+    }
+
+    /** Opens the OS's login items screen. `opened` is false where there is none. */
+    openStartupSettings(options?: { signal?: AbortSignal }): Promise<StartupSettingsResult> {
+        return call<StartupSettingsResult>(this.transport, "POST", `app/startup/settings`, { signal: options?.signal });
+    }
+
+    /** Charge, charging state, power source and energy saver. */
+    getBattery(options?: { signal?: AbortSignal }): Promise<BatteryInfo> {
+        return call<BatteryInfo>(this.transport, "GET", `app/battery`, { signal: options?.signal });
+    }
+
+    /** Network access and the kinds of connection in use. */
+    getConnectivity(options?: { signal?: AbortSignal }): Promise<ConnectivityInfo> {
+        return call<ConnectivityInfo>(this.transport, "GET", `app/connectivity`, { signal: options?.signal });
+    }
+
+    /** The app turned between portrait and landscape. */
+    onOrientationChanged(handler: (payload: OrientationChanged) => void): Promise<() => void> {
+        return this.transport.subscribe("app.orientation", json => handler(JSON.parse(json) as OrientationChanged));
+    }
+
+    /** The main display changed: a rotation, a resolution or scale change, or another display. */
+    onScreenChanged(handler: (payload: ScreenInfo) => void): Promise<() => void> {
+        return this.transport.subscribe("app.screen", json => handler(JSON.parse(json) as ScreenInfo));
+    }
+
+    /** The device's culture changed. */
+    onCultureChanged(handler: (payload: CultureChanged) => void): Promise<() => void> {
+        return this.transport.subscribe("app.culture", json => handler(JSON.parse(json) as CultureChanged));
+    }
+
+    /** The device's time zone changed. */
+    onTimeZoneChanged(handler: (payload: TimeZoneChanged) => void): Promise<() => void> {
+        return this.transport.subscribe("app.timezone", json => handler(JSON.parse(json) as TimeZoneChanged));
+    }
+
+    /** The charge, charging state, power source or energy saver changed. */
+    onBatteryChanged(handler: (payload: BatteryInfo) => void): Promise<() => void> {
+        return this.transport.subscribe("app.battery", json => handler(JSON.parse(json) as BatteryInfo));
+    }
+
+    /** Network access or the connections in use changed. */
+    onConnectivityChanged(handler: (payload: ConnectivityInfo) => void): Promise<() => void> {
+        return this.transport.subscribe("app.connectivity", json => handler(JSON.parse(json) as ConnectivityInfo));
+    }
+}
+
+/** The device's apps and feedback, over .NET MAUI Essentials: the browser, maps, the share sheet, haptics, vibration, keeping the screen awake and the clipboard. Each feature fails with 501 on its own where the platform lacks it. */
+export class DeviceBridge {
+    constructor(private readonly transport: BridgeTransport = browserTransport()) {}
+
+    /** Opens an http, https, mailto or tel URI — in an in-app browser sheet, or the default browser with `External`. */
+    openBrowser(request: OpenBrowserRequest, options?: { signal?: AbortSignal }): Promise<DeviceActionResult> {
+        return call<DeviceActionResult>(this.transport, "POST", `device/browser`, { json: request, signal: options?.signal });
+    }
+
+    /** Opens the maps app at a location, optionally with directions. */
+    openMap(request: OpenMapRequest, options?: { signal?: AbortSignal }): Promise<DeviceActionResult> {
+        return call<DeviceActionResult>(this.transport, "POST", `device/map`, { json: request, signal: options?.signal });
+    }
+
+    /** Opens the share sheet for text and a link, or for files in the page's file roots. */
+    share(request: ShareRequest, options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "POST", `device/share`, { json: request, signal: options?.signal });
+    }
+
+    /** Performs haptic feedback. */
+    performHaptics(request: HapticsRequest, options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "POST", `device/haptics`, { json: request, signal: options?.signal });
+    }
+
+    /** Vibrates, for at most 5 seconds. */
+    vibrate(request: VibrateRequest, options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "POST", `device/vibrate`, { json: request, signal: options?.signal });
+    }
+
+    /** Stops vibrating. */
+    cancelVibration(options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "DELETE", `device/vibrate`, { signal: options?.signal });
+    }
+
+    /** Whether the screen is being kept on. */
+    getKeepAwake(options?: { signal?: AbortSignal }): Promise<KeepAwakeStatus> {
+        return call<KeepAwakeStatus>(this.transport, "GET", `device/keep-awake`, { signal: options?.signal });
+    }
+
+    /** Keeps the screen on. */
+    keepScreenAwake(options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "PUT", `device/keep-awake`, { signal: options?.signal });
+    }
+
+    /** Lets the screen sleep again. */
+    allowScreenSleep(options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "DELETE", `device/keep-awake`, { signal: options?.signal });
+    }
+
+    /** The clipboard's text, or null text when it holds none. */
+    getClipboard(options?: { signal?: AbortSignal }): Promise<ClipboardText> {
+        return call<ClipboardText>(this.transport, "GET", `device/clipboard`, { signal: options?.signal });
+    }
+
+    /** Puts text on the clipboard, at most 1 MB. */
+    setClipboard(text: ClipboardText, options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "PUT", `device/clipboard`, { json: text, signal: options?.signal });
+    }
+
+    /** Clears the clipboard. */
+    clearClipboard(options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "DELETE", `device/clipboard`, { signal: options?.signal });
+    }
+}
 
 /** The page's own files, confined to named roots the app configured — `data` and `cache` by default. Paths are relative to the root and use `/`. Parent directories are created as needed, and a write that fails leaves no partial file behind. */
 export class FilesBridge {
@@ -219,6 +605,60 @@ export class LinksBridge {
     /** A link arrived while the page is open. It is also left pending until consumed. */
     onLink(handler: (payload: AppLink) => void): Promise<() => void> {
         return this.transport.subscribe("app.link", json => handler(JSON.parse(json) as AppLink));
+    }
+}
+
+/** Motion and environment sensors — accelerometer, gyroscope, magnetometer, compass, barometer and orientation — as live events. Start a sensor, listen for its event, stop it when done. A sensor stops on its own once nothing listens to its event any more — the accelerometer while shakes are listened to counts — so a closed page never keeps one running. A sensor the device lacks fails with 501. */
+export class SensorsBridge {
+    constructor(private readonly transport: BridgeTransport = browserTransport()) {}
+
+    /** Every sensor: whether the device has it, and whether it is running. */
+    getStatus(options?: { signal?: AbortSignal }): Promise<SensorStatus> {
+        return call<SensorStatus>(this.transport, "GET", `sensors`, { signal: options?.signal });
+    }
+
+    /** Starts a sensor, or changes the speed of a running one. */
+    start(sensor: Sensor, request: SensorStartRequest, options?: { signal?: AbortSignal }): Promise<SensorInfo> {
+        return call<SensorInfo>(this.transport, "POST", `sensors/${segment(sensor)}`, { json: request, signal: options?.signal });
+    }
+
+    /** Stops a sensor. Stopping one that is not running is not an error. */
+    stop(sensor: Sensor, options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "DELETE", `sensors/${segment(sensor)}`, { signal: options?.signal });
+    }
+
+    /** Stops every sensor. */
+    stopAll(options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "DELETE", `sensors`, { signal: options?.signal });
+    }
+
+    onAccelerometer(handler: (payload: VectorReading) => void): Promise<() => void> {
+        return this.transport.subscribe("sensors.accelerometer", json => handler(JSON.parse(json) as VectorReading));
+    }
+
+    onGyroscope(handler: (payload: VectorReading) => void): Promise<() => void> {
+        return this.transport.subscribe("sensors.gyroscope", json => handler(JSON.parse(json) as VectorReading));
+    }
+
+    onMagnetometer(handler: (payload: VectorReading) => void): Promise<() => void> {
+        return this.transport.subscribe("sensors.magnetometer", json => handler(JSON.parse(json) as VectorReading));
+    }
+
+    onCompass(handler: (payload: CompassReading) => void): Promise<() => void> {
+        return this.transport.subscribe("sensors.compass", json => handler(JSON.parse(json) as CompassReading));
+    }
+
+    onBarometer(handler: (payload: BarometerReading) => void): Promise<() => void> {
+        return this.transport.subscribe("sensors.barometer", json => handler(JSON.parse(json) as BarometerReading));
+    }
+
+    onOrientation(handler: (payload: OrientationReading) => void): Promise<() => void> {
+        return this.transport.subscribe("sensors.orientation", json => handler(JSON.parse(json) as OrientationReading));
+    }
+
+    /** The device was shaken. Raised only while the accelerometer is running. */
+    onShake(handler: (payload: ShakeDetected) => void): Promise<() => void> {
+        return this.transport.subscribe("sensors.shake", json => handler(JSON.parse(json) as ShakeDetected));
     }
 }
 

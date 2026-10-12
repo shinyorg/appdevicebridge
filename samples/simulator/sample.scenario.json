@@ -26,7 +26,7 @@
         }
       },
       "events": {
-        "app.battery": { "chargeLevel": 0.81, "state": "Discharging", "powerSource": "Battery" }
+        "app.battery": { "chargeLevel": 0.81, "state": "Discharging", "powerSource": "Battery", "energySaverStatus": "Off" }
       }
     },
     "wifi": {

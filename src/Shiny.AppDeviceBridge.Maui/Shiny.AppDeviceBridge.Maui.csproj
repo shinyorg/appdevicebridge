@@ -13,7 +13,7 @@
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.Maui</RootNamespace>
-    <Description>Runs the Shiny.AppDeviceBridge server in a .NET MAUI app: starts it with the app, restarts it on resume when the OS took its socket, and fills in the host version. Works on Android, iOS, Mac Catalyst, Windows, and the maui-labs macOS (AppKit) and Linux (GTK4) backends. Add Shiny.AppDeviceBridge.WebView to show a web app.</Description>
+    <Description>Runs the Shiny.AppDeviceBridge server in a .NET MAUI app: starts it with the app, restarts it on resume when the OS took its socket, and fills in the host version. Adds the device bridge (browser, maps, share, haptics, vibration, keep-awake, clipboard) and the sensors bridge over .NET MAUI Essentials. Works on Android, iOS, Mac Catalyst, Windows, and the maui-labs macOS (AppKit) and Linux (GTK4) backends. Add Shiny.AppDeviceBridge.WebView to show a web app.</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -26,11 +26,10 @@
     <PackageReference Include="Microsoft.Maui.Controls" />
   </ItemGroup>
 
-  <!-- Shiny's host, which the bridges' Shiny services need, is started here once rather than by each bridge. No build of it
-       exists for macOS or plain net10.0; the bridges register Shiny's core services themselves there. -->
-  <ItemGroup Condition="$(TargetFramework.Contains('-android')) OR $(TargetFramework.Contains('-ios')) OR $(TargetFramework.Contains('-maccatalyst')) OR $(TargetFramework.Contains('-windows'))">
+  <!-- Shiny's host, which the bridges' Shiny services need, is started here once rather than by each bridge — on every
+       target, the maui-labs heads included. -->
+  <ItemGroup>
     <PackageReference Include="Shiny.Hosting.Maui" />
-    <Compile Include="../Shared/ShinyMauiHosting.cs" Link="ShinyMauiHosting.cs" />
   </ItemGroup>
 
   <ItemGroup>

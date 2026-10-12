@@ -1,7 +1,7 @@
 using System.Reflection;
 using Shiny.Jobs;
+using Shiny.AppDeviceBridge;
 using Shiny.AppDeviceBridge.AppLinks;
-using Shiny.AppDeviceBridge.AppSupport;
 using Shiny.AppDeviceBridge.Beacons;
 using Shiny.AppDeviceBridge.BluetoothLE;
 using Shiny.AppDeviceBridge.Calendar;
@@ -70,9 +70,11 @@ public static class SampleConfiguration
 #endif
                         })
 
-                        // Launch at login rides along with the app bridge: same package behind it, and desktop-only in the
-                        // sense that mobile answers { "supported": false } rather than the endpoints going missing.
-                        .AddAppSupportBridge(startup: o => o.Arguments.Add("--autostart"))
+                        // Launch at login rides along with the app bridge: desktop-only in the sense that mobile answers
+                        // { "supported": false } rather than the endpoints going missing.
+                        .AddAppBridge(startup: o => o.Arguments.Add("--autostart"))
+                        .AddDeviceBridge()
+                        .AddSensorsBridge()
                         .AddGpsBridge()
                         .AddGeofenceBridge()
 

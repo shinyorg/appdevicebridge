@@ -1,12 +1,11 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Text.Json.Serialization.Metadata;
-using Shiny.AppDeviceBridge.Client;
 using Shiny.Net.HttpServer;
-using Contracts = Shiny.AppDeviceBridge.AppSupport.Client;
+using Contracts = Shiny.AppDeviceBridge.Client;
 using EssentialsSpeed = Microsoft.Maui.Devices.Sensors.SensorSpeed;
 
-namespace Shiny.AppDeviceBridge.AppSupport;
+namespace Shiny.AppDeviceBridge.Maui;
 
 /// <summary>
 /// <c>/_bridge/sensors</c> over the .NET MAUI Essentials sensors.
@@ -115,7 +114,7 @@ public sealed class SensorsBridge : IWebAppBridge, IDisposable
                         source.Stop();
 
                     if (!source.IsMonitoring)
-                        source.Start(BridgeEnum.Convert<Contracts.SensorSpeed, EssentialsSpeed>(body.Speed));
+                        source.Start(Contracts.BridgeEnum.Convert<Contracts.SensorSpeed, EssentialsSpeed>(body.Speed));
 
                     this.running[source.Sensor] = new Running(body.Speed, body.MinIntervalMs);
                 }

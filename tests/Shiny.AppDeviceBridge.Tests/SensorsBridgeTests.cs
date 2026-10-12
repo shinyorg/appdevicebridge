@@ -1,8 +1,7 @@
 using System.Net;
-using Shiny.AppDeviceBridge.AppSupport;
-using Shiny.AppDeviceBridge.AppSupport.Client;
+using Shiny.AppDeviceBridge.Maui;
 using Shiny.AppDeviceBridge.Client;
-using Contracts = Shiny.AppDeviceBridge.AppSupport.Client;
+using Contracts = Shiny.AppDeviceBridge.Client;
 using EssentialsSpeed = Microsoft.Maui.Devices.Sensors.SensorSpeed;
 
 namespace Shiny.AppDeviceBridge.Tests;

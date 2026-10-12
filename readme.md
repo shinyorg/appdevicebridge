@@ -35,19 +35,17 @@ app, served from the device itself, updated from your own server, and able to ca
 
 | Package | Use it in | What it does |
 | --- | --- | --- |
-| `Shiny.AppDeviceBridge.Maui` | the app | `UseAppDeviceBridge(bridge => …)`: `AddShinyHttpServer` with the bridges on it, started with the app and restarted on resume; `MauiAppDeviceBridgeBuilder`, which the MAUI bridges extend; it also calls `UseShiny()` and supplies the app's UI thread; `UseTrafficMonitor` and `TrafficMonitorPage` for debugging |
+| `Shiny.AppDeviceBridge.Maui` | the app | `UseAppDeviceBridge(bridge => …)`: `AddShinyHttpServer` with the bridges on it, started with the app and restarted on resume; `MauiAppDeviceBridgeBuilder`, which the MAUI bridges extend; it also calls `UseShiny()`, registers Shiny's battery and connectivity, and supplies the app's UI thread; `AddDeviceBridge()` — browser, maps, share, haptics and vibration, keep-awake and clipboard — and `AddSensorsBridge()` — accelerometer, gyroscope, magnetometer, compass, barometer and orientation — over .NET MAUI Essentials; `UseTrafficMonitor` and `TrafficMonitorPage` for debugging |
 | `Shiny.AppDeviceBridge.WebView` | the app | `UseAppDeviceBridge(bridge => …, webApp => …)`, `WebAppHostView`, `WebAppHostPage`, `AllowWebPermissions`: the web app in a WebView, over-the-air updates, the dev server proxy, the launch session and `background.js` |
 | `Shiny.AppDeviceBridge.Blazor` | the Blazor WebAssembly app | `AddWebAppHostClient()`: the page's transport, typed clients for the built-in bridges (`IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge`), `WebAppEvents`, `WebAppNativeCalls` (typed C# handlers for jobs, GPS, geofences and push), and `WebAppBridge` for endpoints of your own |
 | `Shiny.AppDeviceBridge.Client` | (dependency) | the typed-client foundation: `IBridgeTransport`, `BridgeException`, the `[BridgeClient]` attributes and the generator that implements them, and the built-in bridges' contracts |
 | `Shiny.AppDeviceBridge.{Bridge}.Client` | the web app | one per bridge: its contracts and typed client — `ICalendarBridge`, `IWifiBridge`, … — registered with `Add{Bridge}BridgeClient()` |
 | `@shinyorg/appdevicebridge` | a JavaScript or TypeScript web app | the same typed clients in TypeScript, generated from the same declarations (`clients/typescript`) |
-| `Shiny.AppDeviceBridge` | (dependency) | the bridge server: `http.AddAppDeviceBridge(bridge => …)` on Shiny.Net.HttpServer's `ShinyHttpServerBuilder`, `AppDeviceBridgeBuilder` (`Configure`, `AddBridge<T>()`), `AppDeviceBridgeOptions` (mount points, allowed hosts, the bridge policy), bridge contracts, built-in settings, files and native-call endpoints; no MAUI dependency |
+| `Shiny.AppDeviceBridge` | (dependency) | the bridge server: `http.AddAppDeviceBridge(bridge => …)` on Shiny.Net.HttpServer's `ShinyHttpServerBuilder`, `AppDeviceBridgeBuilder` (`Configure`, `AddBridge<T>()`), `AppDeviceBridgeOptions` (mount points, allowed hosts, the bridge policy), bridge contracts, built-in settings, files and native-call endpoints; `AddAppBridge()` — device info, orientation, the screen, settings, app store, launch at login, battery and connectivity, over Shiny.Core and Shiny.AppStore; no MAUI dependency |
 | `Shiny.AppDeviceBridge.Tunnel` | the app, or a headless device | `bridge.AddTunnel()`: a public HTTPS address for the server, opened and closed while the app runs; everything through it is treated as a remote caller |
 | `Shiny.AppDeviceBridge.Simulator` | a .NET tool | `shiny-bridge-sim`: a terminal UI (or, with `--web`, a browser panel) that serves every bridge with answers you set, events you fire and trails you play (GPX walks included), with a traffic monitor, and an MCP endpoint an AI agent can drive it through — test a page without a device. See [Simulator](#simulator) |
 | `Shiny.AppDeviceBridge.Core` | (dependency) | protocol contracts, version ordering, release signatures |
 | `Shiny.AppDeviceBridge.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
-| `Shiny.AppDeviceBridge.AppSupport` | the app | `AddAppSupportBridge()` — device info, orientation, browser, maps, settings, app store, launch at login, share, haptics and vibration, connectivity, battery, screen and clipboard; and `/_bridge/sensors` — accelerometer, gyroscope, magnetometer, compass, barometer and orientation |
-| `Shiny.AppDeviceBridge.AppSupport.Linux` | the Linux (GTK4) head | `AddAppSupportLinux()`: battery and energy saver for `AddAppSupportBridge()` from UPower and power-profiles-daemon over D-Bus, with change events |
 | `Shiny.AppDeviceBridge.Gps` | the app | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()`: GPS, motion activity and reverse geocoding, backed by Shiny.Gps |
 | `Shiny.AppDeviceBridge.Geofencing` | the app | `AddGeofenceBridge()`: geofence regions and transitions, backed by Shiny.Geofencing |
 | `Shiny.AppDeviceBridge.DocumentGeofencing` | the app | `AddDocumentGeofenceBridge(cfg => cfg.AddRegionSet<T>(…))`: unlimited polygon and proximity regions stored as Shiny.DocumentDb documents, monitored by background GPS, backed by Shiny.DocumentDb.Geofencing (Android, iOS, Mac Catalyst) |
@@ -82,7 +80,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Desktop` | the app | `AddTrayIconBridge()`: system tray / menu bar icons, menus, badges, notifications and animation. `AddQuickEntryBridge()`: a prompt window that opens over other applications from a global hotkey. Both hand what the user does back to the web app |
 | `Shiny.AppDeviceBridge.RpiCamera` | the app, or a headless Pi | `bridge.AddRpiCameraBridge()`, on a MAUI or headless bridge builder: Raspberry Pi cameras through libcamera — snapshots, captures into a file root, sensor controls and a shared live MJPEG stream; `camera.StreamToAsync(stream)` streams framed JPEGs into any `Stream`, such as a Bluetooth LE L2CAP channel, for `ReadFramesAsync` to read |
 
-AppSupport, AppSupport.Linux, AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
+AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
 `Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi,
 HttpTransfers, Database, Jobs, Gps, Geofencing, DocumentGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
@@ -95,7 +93,8 @@ builder
     .UseAppDeviceBridge(
         bridge => bridge
             .Configure(o => o.AppId = "field-app")
-            .AddAppSupportBridge()
+            .AddAppBridge()
+            .AddDeviceBridge()
             .AddGpsBridge()
             .AddGeofenceBridge()
             .AddBluetoothLEBridge(),
@@ -109,7 +108,7 @@ builder
 
 With a second delegate for the web app's options, `UseAppDeviceBridge` serves the web app too. Its first delegate gets the bridge builder: `Configure` sets the
 bridge server's options, and each bridge package adds one extension to it. Host, settings, files and native calls are
-built in; everything else — `AddAppSupportBridge()` included — is a package you add.
+built in; `AddAppBridge()` comes with the server and `AddDeviceBridge()` with `Shiny.AppDeviceBridge.Maui`; everything else is a package you add.
 
 ```csharp
 public class App : Application
@@ -643,7 +642,8 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | host (built in) | `GET /_bridge/host`, `POST /_bridge/host/apply-update` | |
 | settings (built in) | `GET/DELETE settings/{local\|secure}`, `GET/PUT/DELETE settings/{scope}/{key}` | |
 | files (built in) | `GET files`, `GET files/{root}/list`, `GET files/{root}/info`, `GET/PUT files/{root}/content`, `POST files/{root}/append`, `POST files/{root}/directory`, `DELETE files/{root}/entry`, `POST files/{root}/move`, `POST files/{root}/copy`, with paths in `?path=` | |
-| AppSupport | `GET app/info`, `POST/DELETE app/orientation`, `POST app/browser`, `POST app/map`, `POST app/settings`, `GET app/store`, `POST app/store/open`, `POST app/store/review`, `POST app/share`, `POST app/haptics`, `POST/DELETE app/vibrate`, `GET app/connectivity`, `GET app/battery`, `GET app/screen`, `PUT/DELETE app/screen/keep-awake`, `GET/PUT/DELETE app/clipboard`, `GET app/startup`, `POST/DELETE app/startup/registration`, `POST app/startup/settings` | `app.orientation`, `app.culture`, `app.timezone`, `app.connectivity`, `app.battery`, `app.energysaver` |
+| App | `GET app/info`, `POST/DELETE app/orientation`, `GET app/screen`, `POST app/settings`, `GET app/store`, `POST app/store/open`, `POST app/store/review`, `POST app/store/review-page`, `GET app/startup`, `POST/DELETE app/startup/registration`, `POST app/startup/settings`, `GET app/battery`, `GET app/connectivity` | `app.orientation`, `app.screen`, `app.culture`, `app.timezone`, `app.battery`, `app.connectivity` |
+| Device | `POST device/browser`, `POST device/map`, `POST device/share`, `POST device/haptics`, `POST/DELETE device/vibrate`, `GET/PUT/DELETE device/keep-awake`, `GET/PUT/DELETE device/clipboard` | |
 | Sensors | `GET sensors`, `POST/DELETE sensors/{sensor}`, `DELETE sensors` | `sensors.accelerometer`, `sensors.gyroscope`, `sensors.magnetometer`, `sensors.compass`, `sensors.barometer`, `sensors.orientation`, `sensors.shake` |
 | GPS | `GET gps/status`, `POST gps/access`, `GET gps/last`, `GET gps/current`, `GET/POST/DELETE gps/listener` | `gps.reading` |
 | Geofences | `GET geofences/status`, `POST geofences/access`, `GET/POST/DELETE geofences/regions`, `DELETE geofences/regions/{id}`, `GET geofences/regions/{id}/state` | `geofence.status` |
@@ -752,21 +752,26 @@ Android; the Access Wi-Fi Information and Hotspot Configuration entitlements on 
   and set `NSLocalNetworkUsageDescription`. On Android, SSDP and WS-Discovery need
   `CHANGE_WIFI_MULTICAST_STATE`.
 
-**Device:** sharing, haptics, connectivity, battery, the screen and the clipboard come from .NET MAUI
-Essentials, so each head's own build decides what works. A feature a backend lacks returns `501` on its
-own, and the rest keep working. Files are shared by the same `{ root, path }` as the files bridge:
+**App** (`Shiny.AppDeviceBridge`, added by `AddAppBridge(store, startup)`): device info, culture and time zone from
+Shiny.Core's `IPlatform`; the screen and orientation from `IScreenInfo`; the store from Shiny.AppStore's `IAppStore`, whose
+endpoints answer `501` until `AddAppBridge` is given its `AppStoreOptions`; battery and connectivity from Shiny.Core's
+`IBattery` and `IConnectivity`, which `UseAppDeviceBridge` registers (a host without MAUI calls `services.AddBattery()` and
+`services.AddConnectivity()` itself). No MAUI, so it runs headless too. `app.battery` carries energy saver along with the
+charge, and the Linux (GTK4) head reads the battery from sysfs. The change events only run while a page listens to them,
+and a host without the service answers the subscription with `bridge.error`. `POST app/orientation` answers
+`{ "success": false }` where the platform cannot lock it (iOS before 16, Mac Catalyst, macOS, Linux).
+
+**Device** (`Shiny.AppDeviceBridge.Maui`, added by `AddDeviceBridge()`): the browser, maps, sharing, haptics, vibration,
+keep-awake and the clipboard come from .NET MAUI Essentials, so each head's own build decides what works. A feature a
+backend lacks returns `501` on its own, and the rest keep working — `PUT device/keep-awake` included, which reads the value
+back rather than succeeding where the screen was not kept on. `device/browser` takes `http`, `https`, `mailto` and `tel`
+links only. Files are shared by the same `{ root, path }` as the files bridge:
 
 ```ts
-await new AppBridge().share({ files: [{ root: "data", path: "photos/cat.jpg" }] });
+await new DeviceBridge().share({ files: [{ root: "data", path: "photos/cat.jpg" }] });
 ```
 
-`app.connectivity`, `app.battery` and `app.energysaver` only run while a page listens to them, and a head without the
-feature answers the subscription with `bridge.error`. Battery comes from the `IBattery` registered in the container when there is one, else `Battery.Default`. The
-macOS (AppKit) head gets it from `AddMacOSEssentials()`, without energy saver. The Linux (GTK4) head needs
-`Shiny.AppDeviceBridge.AppSupport.Linux`'s `bridge.AddAppSupportLinux()`: UPower for charge, state and power source,
-power-profiles-daemon for energy saver, with change events. The maui-labs GTK4 battery never raises its events. On Android,
-vibration needs `VIBRATE`, and battery needs `BATTERY_STATS` in the manifest (without it, `GET app/battery`
-returns `403`). `vibrate` is capped at 5 seconds.
+On Android, vibration needs `VIBRATE` in the manifest. `vibrate` is capped at 5 seconds.
 
 **Motion activity:** walking, running, cycling, driving or stationary, from the OS's activity recognition.
 There's no history, only the latest reading and live ones. It ships in `Shiny.AppDeviceBridge.Gps`, but `AddGpsBridge()` doesn't include it,
@@ -1016,7 +1021,7 @@ screen: in a browser that is `getDisplayMedia`, which the WebViews on iOS and An
 
 Both bridges return `403 access_denied` until access has been granted.
 
-**Startup:** part of the app bridge, because the same package is behind it. `GET /_bridge/app/startup` says
+**Startup:** part of the app bridge, over Shiny.Core's `IAppStartupInstaller`. `GET /_bridge/app/startup` says
 whether the app launches when the user logs in. Windows writes it under `HKCU\…\CurrentVersion\Run`
 (unpackaged apps only — the OS virtualizes that key for MSIX), macOS 13+ submits the running bundle to
 `SMAppService`, and Linux writes `~/.config/autostart/{Identifier}.desktop`. Mobile has no such list, so it
@@ -1028,7 +1033,7 @@ OS, and `POST app/startup/settings` opens the screen where they do. Pass argumen
 OS-started launch:
 
 ```csharp
-bridge.AddAppSupportBridge(startup: o => o.Arguments.Add("--autostart"));
+bridge.AddAppBridge(startup: o => o.Arguments.Add("--autostart"));
 ```
 
 **Photos:**
@@ -1305,7 +1310,7 @@ const photo = await camera.takePhoto();              // { file: { root: "data", 
 await camera.updateSettings({ videoMode: true, zoom: 2 });
 ```
 
-**Sensors** (`Shiny.AppDeviceBridge.AppSupport`, added by `AddAppSupportBridge()`): the accelerometer (g), gyroscope
+**Sensors** (`Shiny.AppDeviceBridge.Maui`, added by `AddSensorsBridge()`): the accelerometer (g), gyroscope
 (rad/s), magnetometer (µT), compass (degrees from magnetic north), barometer (hPa) and orientation (a quaternion), over
 .NET MAUI Essentials.
 - **Start, then listen.** `POST sensors/compass` with `{ "speed": "UI", "minIntervalMs": 16 }` starts the sensor; readings

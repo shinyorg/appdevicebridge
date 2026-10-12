@@ -24,7 +24,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
-    <!-- AppSupport bridge: vibration, and battery status (Essentials checks the manifest entry) -->
+    <!-- Device bridge: vibration (Essentials checks the manifest entry); app bridge: battery status -->
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.BATTERY_STATS" />
 

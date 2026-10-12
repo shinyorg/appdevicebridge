@@ -82,9 +82,6 @@ public static class NotificationsBridgeExtensions
         configure?.Invoke(options);
         bridge.Services.TryAddSingleton(options);
 
-#if MACOS
-        bridge.Services.EnsureShinyCore();
-#endif
 
         // Shiny registers its manager as every interface it implements — on Apple platforms, one of them is the
         // lifecycle notification handler — so a second registration would answer every notification twice.
@@ -312,8 +309,8 @@ sealed class WebAppNotificationPresenter(IServiceProvider services, ILogger<WebA
 
 #if !(ANDROID || IOS || MACCATALYST || MACOS || WINDOWS)
 /// <summary>
-/// The Linux manager schedules from a startup task, and no Shiny host runs startup tasks on Linux — under the GTK4 backend
-/// or headless. Started with the bridge server instead.
+/// The Linux manager schedules from a startup task. Under the GTK4 backend Shiny's MAUI host runs it; headless, nothing
+/// does, so the bridge server starts it — unless a host already has.
 /// </summary>
 sealed class LinuxNotificationStarter : IAppDeviceBridgeServerExtension
 {

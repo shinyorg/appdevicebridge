@@ -1,6 +1,7 @@
 @page "/device"
 @inherits BridgePage
 @inject IAppBridge AppBridge
+@inject IDeviceBridge DeviceBridge
 @inject IFilesBridge FilesBridge
 
 <h1>Device</h1>
@@ -9,25 +10,29 @@
     <button @onclick="@(() => Run(() => AppBridge.GetInfoAsync(), Json.AppInfo))">Info</button>
     <button @onclick="@(() => Run(() => AppBridge.SetOrientationAsync(new OrientationRequest(DisplayOrientation.Portrait)), Json.AppActionResult))">Lock portrait</button>
     <button @onclick="@(() => Run(() => AppBridge.ResetOrientationAsync(), Json.AppActionResult))">Unlock</button>
-    <button @onclick="@(() => Run(() => AppBridge.OpenBrowserAsync(new OpenBrowserRequest("https://shinylib.net")), Json.AppActionResult))">Open shinylib.net</button>
-    <button @onclick="@(() => Run(() => AppBridge.OpenBrowserAsync(new OpenBrowserRequest("https://shinylib.net", LaunchMode: BrowserLaunchMode.External)), Json.AppActionResult))">In the system browser</button>
-    <button @onclick="@(() => Run(() => AppBridge.OpenMapAsync(new OpenMapRequest(43.6532, -79.3832)), Json.AppActionResult))">Open a map</button>
     <button @onclick="@(() => Run(() => AppBridge.OpenSettingsAsync(), "Opened."))">App settings</button>
     <button @onclick="@(() => Run(() => AppBridge.GetStoreListingAsync(), Json.AppStoreListing))">Store listing</button>
 </div>
 
+<h2>Open</h2>
+<div class="actions">
+    <button @onclick="@(() => Run(() => DeviceBridge.OpenBrowserAsync(new OpenBrowserRequest("https://shinylib.net")), DeviceJson.DeviceActionResult))">Open shinylib.net</button>
+    <button @onclick="@(() => Run(() => DeviceBridge.OpenBrowserAsync(new OpenBrowserRequest("https://shinylib.net", LaunchMode: BrowserLaunchMode.External)), DeviceJson.DeviceActionResult))">In the system browser</button>
+    <button @onclick="@(() => Run(() => DeviceBridge.OpenMapAsync(new OpenMapRequest(43.6532, -79.3832)), DeviceJson.DeviceActionResult))">Open a map</button>
+</div>
+
 <h2>Share</h2>
 <div class="actions">
-    <button @onclick="@(() => Run(() => AppBridge.ShareAsync(new ShareRequest("Served from the device", "https://shinylib.net", "AppDeviceBridge")), "Shared."))">Share a link</button>
+    <button @onclick="@(() => Run(() => DeviceBridge.ShareAsync(new ShareRequest("Served from the device", "https://shinylib.net", "AppDeviceBridge")), "Shared."))">Share a link</button>
     <button @onclick="ShareFile">Share a file</button>
 </div>
 
 <h2>Feedback</h2>
 <div class="actions">
-    <button @onclick="@(() => Run(() => AppBridge.PerformHapticsAsync(new HapticsRequest(HapticFeedbackType.Click)), "Done."))">Click</button>
-    <button @onclick="@(() => Run(() => AppBridge.PerformHapticsAsync(new HapticsRequest(HapticFeedbackType.LongPress)), "Done."))">Long press</button>
-    <button @onclick="@(() => Run(() => AppBridge.VibrateAsync(new VibrateRequest(400)), "Vibrating."))">Vibrate</button>
-    <button @onclick="@(() => Run(() => AppBridge.CancelVibrationAsync(), "Stopped."))">Stop vibrating</button>
+    <button @onclick="@(() => Run(() => DeviceBridge.PerformHapticsAsync(new HapticsRequest(HapticFeedbackType.Click)), "Done."))">Click</button>
+    <button @onclick="@(() => Run(() => DeviceBridge.PerformHapticsAsync(new HapticsRequest(HapticFeedbackType.LongPress)), "Done."))">Long press</button>
+    <button @onclick="@(() => Run(() => DeviceBridge.VibrateAsync(new VibrateRequest(400)), "Vibrating."))">Vibrate</button>
+    <button @onclick="@(() => Run(() => DeviceBridge.CancelVibrationAsync(), "Stopped."))">Stop vibrating</button>
 </div>
 
 <h2>Status</h2>
@@ -35,15 +40,15 @@
     <button @onclick="@(() => Run(() => AppBridge.GetConnectivityAsync(), Json.ConnectivityInfo))">Connectivity</button>
     <button @onclick="@(() => Run(() => AppBridge.GetBatteryAsync(), Json.BatteryInfo))">Battery</button>
     <button @onclick="@(() => Run(() => AppBridge.GetScreenAsync(), Json.ScreenInfo))">Screen</button>
-    <button @onclick="@(() => Run(() => AppBridge.KeepScreenAwakeAsync(), "Keeping awake."))">Keep awake</button>
-    <button @onclick="@(() => Run(() => AppBridge.AllowScreenSleepAsync(), "Sleep allowed."))">Allow sleep</button>
+    <button @onclick="@(() => Run(() => DeviceBridge.KeepScreenAwakeAsync(), "Keeping awake."))">Keep awake</button>
+    <button @onclick="@(() => Run(() => DeviceBridge.AllowScreenSleepAsync(), "Sleep allowed."))">Allow sleep</button>
 </div>
 
 <h2>Clipboard</h2>
 <div class="actions">
-    <button @onclick="@(() => Run(() => AppBridge.SetClipboardAsync(new ClipboardText($"Copied at {DateTime.Now:T}")), "Copied."))">Copy</button>
-    <button @onclick="@(() => Run(() => AppBridge.GetClipboardAsync(), Json.ClipboardText))">Paste</button>
-    <button @onclick="@(() => Run(() => AppBridge.ClearClipboardAsync(), "Cleared."))">Clear</button>
+    <button @onclick="@(() => Run(() => DeviceBridge.SetClipboardAsync(new ClipboardText($"Copied at {DateTime.Now:T}")), "Copied."))">Copy</button>
+    <button @onclick="@(() => Run(() => DeviceBridge.GetClipboardAsync(), DeviceJson.ClipboardText))">Paste</button>
+    <button @onclick="@(() => Run(() => DeviceBridge.ClearClipboardAsync(), "Cleared."))">Clear</button>
 </div>
 
 <Output Value="@Output" Error="@Error" />
@@ -51,15 +56,16 @@
 
 @code {
     static AppJsonContext Json => AppJsonContext.Default;
+    static DeviceJsonContext DeviceJson => DeviceJsonContext.Default;
 
     string log = String.Empty;
 
     protected override async Task OnInitializedAsync()
     {
         await Listen<OrientationChanged>(AppBridge.OnOrientationChangedAsync, e => Log("app.orientation", Compact(e, Json.OrientationChanged)));
+        await Listen<ScreenInfo>(AppBridge.OnScreenChangedAsync, e => Log("app.screen", Compact(e, Json.ScreenInfo)));
         await Listen<ConnectivityInfo>(AppBridge.OnConnectivityChangedAsync, e => Log("app.connectivity", Compact(e, Json.ConnectivityInfo)));
-        await Listen<BatteryChanged>(AppBridge.OnBatteryChangedAsync, e => Log("app.battery", Compact(e, Json.BatteryChanged)));
-        await Listen<EnergySaverChanged>(AppBridge.OnEnergySaverChangedAsync, e => Log("app.energysaver", Compact(e, Json.EnergySaverChanged)));
+        await Listen<BatteryInfo>(AppBridge.OnBatteryChangedAsync, e => Log("app.battery", Compact(e, Json.BatteryInfo)));
     }
 
     void Log(string name, string payload) => log = Prepend(log, $"{DateTime.Now:T}  {name}  {payload}");
@@ -68,6 +74,6 @@
     Task ShareFile() => Run(async () =>
     {
         await FilesBridge.WriteTextAsync("cache", "share/hello.txt", $"Hello from the web app, {DateTime.Now:T}");
-        await AppBridge.ShareAsync(new ShareRequest(Title: "hello.txt", Files: [new BridgeFile("cache", "share/hello.txt")]));
+        await DeviceBridge.ShareAsync(new ShareRequest(Title: "hello.txt", Files: [new BridgeFile("cache", "share/hello.txt")]));
     }, "Shared.");
 }

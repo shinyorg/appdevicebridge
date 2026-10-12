@@ -73,8 +73,6 @@ public static class HttpTransfersBridgeExtensions
             AddDelegate(bridge.Services);
 #elif MACOS
         // Shiny.Net.Http has no macOS build, so the net10.0 one's managed loop runs over Shiny.Core's connectivity.
-        bridge.Services.EnsureShinyCore();
-
         if (options.RegisterTransferService)
         {
             bridge.Services.AddConnectivity();
@@ -89,7 +87,7 @@ public static class HttpTransfersBridgeExtensions
         {
             if (options.RegisterTransferService)
             {
-                global::Shiny.LinuxHttpServiceCollectionExtensions.AddConnectivity(bridge.Services);
+                bridge.Services.AddConnectivity();
                 bridge.Services.AddHttpClientTransfers<WebAppTransferDelegate>();
             }
             else

@@ -27,9 +27,6 @@ public static class WifiBridgeExtensions
         ArgumentNullException.ThrowIfNull(bridge);
 
 #if ANDROID || IOS || MACCATALYST || WINDOWS || MACOS
-#if MACOS
-        bridge.Services.EnsureShinyCore();
-#endif
         bridge.Services.AddWifi();
 
         if (hotspot)

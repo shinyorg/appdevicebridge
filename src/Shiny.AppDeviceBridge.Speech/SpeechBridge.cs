@@ -41,9 +41,6 @@ public static class SpeechBridgeExtensions
         var options = new WebAppSpeechOptions();
         configure?.Invoke(options);
 
-#if MACOS
-        bridge.Services.EnsureShinyCore();
-#endif
 
 #if ANDROID || IOS || MACCATALYST || MACOS || WINDOWS
         if (options.RegisterSpeechServices)

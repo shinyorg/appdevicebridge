@@ -24,11 +24,6 @@
     <PackageReference Include="Shiny.Beacons" />
   </ItemGroup>
 
-  <!-- On macOS no Shiny host is started for the app, so the bridge registers Shiny's core services itself. -->
-  <ItemGroup Condition="$(TargetFramework.Contains('-macos'))">
-    <Compile Include="../Shared/ShinyCoreHosting.cs" Link="ShinyCoreHosting.cs" />
-  </ItemGroup>
-
   <ItemGroup>
     <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
     <ProjectReference Include="../Shiny.AppDeviceBridge.Beacons.Client/Shiny.AppDeviceBridge.Beacons.Client.csproj" />

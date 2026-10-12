@@ -25,20 +25,11 @@
     <PackageReference Include="Shiny.Net.Http" />
   </ItemGroup>
 
-  <!-- Linux connectivity, which the managed loop waits on. Only the net10.0 build references it, and it is only
+  <!-- The managed loop waits on Shiny.Core's connectivity, which its net10.0 build implements for Linux. It is only
        registered when the process is actually on Linux. -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-    <PackageReference Include="Shiny.Core.Linux" />
-  </ItemGroup>
-
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
     <DefineConstants>$(DefineConstants);TRANSFERS_LINUX</DefineConstants>
   </PropertyGroup>
-
-  <!-- On macOS no Shiny host is started for the app, so the bridge registers Shiny's core services itself. -->
-  <ItemGroup Condition="$(TargetFramework.Contains('-macos'))">
-    <Compile Include="../Shared/ShinyCoreHosting.cs" Link="ShinyCoreHosting.cs" />
-  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />

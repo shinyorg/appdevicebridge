@@ -48,9 +48,6 @@ public static class PushBridgeExtensions
         configure?.Invoke(options);
         bridge.Services.TryAddSingleton(options);
 
-#if MACOS
-        bridge.Services.EnsureShinyCore();
-#endif
 
 #if ANDROID || IOS || MACCATALYST || MACOS || WINDOWS
         // The delegate is registered either way: token changes reach the page as events even when the app

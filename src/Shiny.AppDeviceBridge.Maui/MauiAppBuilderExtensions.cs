@@ -13,8 +13,8 @@ public static class AppDeviceBridgeMauiExtensions
     /// <summary>
     /// Registers Shiny.Net.HttpServer with the bridges on it — <c>AddShinyHttpServer</c> and <c>AddAppDeviceBridge</c> in one
     /// call — and hands <paramref name="bridge"/> the <see cref="MauiAppDeviceBridgeBuilder"/> the bridges are registered on.
-    /// It does the host work every MAUI app needs once, so no bridge has to: Shiny's host (<c>UseShiny</c>) on Android, iOS,
-    /// Mac Catalyst and Windows, and the app's dispatcher as <see cref="IWebAppMainThread"/> for permission prompts.
+    /// It does the host work every MAUI app needs once, so no bridge has to: Shiny's host (<c>UseShiny</c>) with its battery
+    /// and connectivity monitors, and the app's dispatcher as <see cref="IWebAppMainThread"/> for permission prompts.
     /// The host version defaults to the app's display version. Call it as often as you like; every call configures the same
     /// options. Bridges come from their own packages, one extension each on the builder. An app with a web app calls the
     /// overload that also takes the web app's options (<c>Shiny.AppDeviceBridge.WebView</c>), with the same builder:
@@ -74,10 +74,11 @@ public static class AppDeviceBridgeMauiExtensions
 
         if (first)
         {
-#if ANDROID || IOS || MACCATALYST || WINDOWS
-            // The bridges' Shiny services — GPS, BLE, notifications, jobs — need Shiny's host on these platforms.
+            // The bridges' Shiny services — GPS, BLE, notifications, jobs — need Shiny's host. Battery and connectivity are
+            // registered here rather than by the app bridge, because their registration differs by target.
             builder.EnsureShiny();
-#endif
+            builder.Services.AddBattery();
+            builder.Services.AddConnectivity();
             builder.Services.Replace(ServiceDescriptor.Singleton<IWebAppMainThread, MauiWebAppMainThread>());
         }
 

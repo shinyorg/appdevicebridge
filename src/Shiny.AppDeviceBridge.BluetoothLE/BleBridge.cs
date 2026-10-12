@@ -417,9 +417,6 @@ public static class BleBridgeExtensions
     {
         ArgumentNullException.ThrowIfNull(bridge);
 
-#if MACOS
-        bridge.Services.EnsureShinyCore();
-#endif
 
 #if ANDROID || IOS || MACCATALYST || MACOS || WINDOWS
         bridge.Services.AddBluetoothLE();

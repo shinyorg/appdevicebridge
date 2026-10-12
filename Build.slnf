@@ -3,9 +3,6 @@
         "path": "Shiny.AppDeviceBridge.slnx",
         "projects": [
             "src/Shiny.AppDeviceBridge.AppLinks/Shiny.AppDeviceBridge.AppLinks.csproj",
-            "src/Shiny.AppDeviceBridge.AppSupport.Client/Shiny.AppDeviceBridge.AppSupport.Client.csproj",
-            "src/Shiny.AppDeviceBridge.AppSupport.Linux/Shiny.AppDeviceBridge.AppSupport.Linux.csproj",
-            "src/Shiny.AppDeviceBridge.AppSupport/Shiny.AppDeviceBridge.AppSupport.csproj",
             "src/Shiny.AppDeviceBridge.AspNetCore/Shiny.AppDeviceBridge.AspNetCore.csproj",
             "src/Shiny.AppDeviceBridge.Blazor/Shiny.AppDeviceBridge.Blazor.csproj",
             "src/Shiny.AppDeviceBridge.Beacons.Client/Shiny.AppDeviceBridge.Beacons.Client.csproj",

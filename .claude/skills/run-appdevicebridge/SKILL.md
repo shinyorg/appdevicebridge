@@ -129,5 +129,8 @@ dev server.
   from `Loaded`, which the maui-labs AppKit backend never raises. It now also starts from `OnHandlerChanged`; if the
   spinner is back, that has regressed.
 - **The window says `The web app host could not be created: InvalidOperationException: Unable to resolve service for
-  type 'Shiny.IPlatform' while attempting to activate 'Shiny.Push.PushManager'`.** A bridge registered a Shiny
-  service on macOS without `EnsureShinyCore()` (`src/Shared/ShinyCoreHosting.cs`).
+  type 'Shiny.IPlatform' while attempting to activate 'Shiny.Push.PushManager'`.** Shiny's MAUI host was not started:
+  `UseAppDeviceBridge` calls `UseShiny()` on every head, including AppKit, so check it still does.
+- **`MAUI STARTUP EXCEPTION: MissingMethodException: … Shiny.DeviceMonitoringExtensions.AddConnectivity`.** A Shiny
+  package with no macOS build (Shiny.Jobs, Shiny.Net.Http in 6.0.0) loads its `net10.0` build, which calls Shiny.Core's
+  `net10.0` `AddConnectivity` signature; Shiny.Core's macOS build returns `void` there. Fixed in Shiny.Core, not here.

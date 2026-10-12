@@ -2,7 +2,6 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using Shiny.AppDeviceBridge.Client;
-using AppSupportClient = Shiny.AppDeviceBridge.AppSupport.Client;
 using BeaconsClient = Shiny.AppDeviceBridge.Beacons.Client;
 using BleClient = Shiny.AppDeviceBridge.BluetoothLE.Client;
 using CalendarClient = Shiny.AppDeviceBridge.Calendar.Client;
@@ -105,8 +104,9 @@ public static class BridgeCatalog
         .. new[]
         {
             Describe(typeof(ILinksBridge), AppDeviceBridgeJsonContext.Default),
-            Describe(typeof(AppSupportClient.IAppBridge), AppSupportClient.AppJsonContext.Default),
-            Describe(typeof(AppSupportClient.ISensorsBridge), AppSupportClient.SensorsJsonContext.Default),
+            Describe(typeof(IAppBridge), AppJsonContext.Default),
+            Describe(typeof(IDeviceBridge), DeviceJsonContext.Default),
+            Describe(typeof(ISensorsBridge), SensorsJsonContext.Default),
             Describe(typeof(BeaconsClient.IBeaconsBridge), BeaconsClient.BeaconsJsonContext.Default),
             Describe(typeof(BleClient.IBluetoothLEBridge), BleClient.BleJsonContext.Default),
             Describe(typeof(CalendarClient.ICalendarBridge), CalendarClient.CalendarJsonContext.Default),

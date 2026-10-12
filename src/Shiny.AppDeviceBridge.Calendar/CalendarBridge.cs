@@ -30,9 +30,6 @@ public static class CalendarBridgeExtensions
     {
         ArgumentNullException.ThrowIfNull(bridge);
 
-#if MACOS
-        bridge.Services.EnsureShinyCore();
-#endif
 
 #if ANDROID || IOS || MACCATALYST || MACOS || WINDOWS
         if (!bridge.Services.Any(x => x.ServiceType == typeof(ICalendarStore)))

@@ -3,7 +3,7 @@ using Microsoft.Maui.Hosting;
 
 namespace Shiny.AppDeviceBridge;
 
-/// <summary>Compiled into Shiny.AppDeviceBridge.Maui for its platform targets, where Shiny's MAUI host exists.</summary>
+/// <summary>Starts Shiny's MAUI host once, whoever else asks for it.</summary>
 static class ShinyMauiHosting
 {
     /// <summary>

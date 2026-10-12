@@ -39,9 +39,6 @@ triggers:
   - WebAppBridgeResults
   - WebAppEventHub
   - WebAppEventSource
-  - AddAppSupportLinux
-  - UPowerBattery
-  - Shiny.AppDeviceBridge.AppSupport.Linux
   - WebAppEventStream
   - MapEvent
   - EventStreamHeartbeat
@@ -88,7 +85,20 @@ triggers:
   - IFilesBridge
   - ILinksBridge
   - IAppBridge
+  - AddAppBridge
+  - AppBridge
+  - IDeviceBridge
+  - AddDeviceBridge
+  - DeviceBridge
+  - AddDeviceBridgeClient
   - ISensorsBridge
+  - AddSensorsBridge
+  - IAppStore
+  - AppStoreOptions
+  - IAppStartupInstaller
+  - AppStartupOptions
+  - IScreenInfo
+  - keep-awake
   - SensorsBridge
   - accelerometer
   - gyroscope
@@ -374,16 +384,17 @@ calls device features from that web app, updates it over the air, or writes a br
   `AppDeviceBridgeBuilder` has `Http`, `Services`, `Options`, `Configure(Action<AppDeviceBridgeOptions>)` and
   `AddBridge<TBridge>()`; creating one registers the bridge server with the built-in host, settings, files and invoke
   bridges. In MAUI, both `UseAppDeviceBridge` overloads — `(bridge => …, webApp => …)` with a web app, `(bridge => …)` without — hand out a
-  `MauiAppDeviceBridgeBuilder` (adds `Maui`, the `MauiAppBuilder`) and do the host work once: `UseShiny()` (guarded, so an
-  app that already calls it is fine) and the app's dispatcher registered as `IWebAppMainThread`. **Never generate
+  `MauiAppDeviceBridgeBuilder` (adds `Maui`, the `MauiAppBuilder`) and do the host work once: `UseShiny()` on every head (guarded, so an
+  app that already calls it is fine), Shiny.Core's `IBattery` and `IConnectivity`, and the app's dispatcher registered as `IWebAppMainThread`. **Never generate
   `UseShiny()` for the bridges.** Calling `UseAppDeviceBridge` again adds to the same server.
 - **Two kinds of bridge package.**
   - **No MAUI** — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi, HttpTransfers, Database, Jobs (plain `net10.0`), Gps
     (GPS/motion), Geofencing, DocumentGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera, Tunnel. They reference
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
-    run headless (on macOS they register Shiny's core services themselves).
-  - **MAUI** — AppSupport, AppSupport.Linux, AppLinks, Camera, Photos, Folders, Desktop (tray, quick entry). They reference
+    run headless.
+  - **MAUI** — AppLinks, Camera, Photos, Folders, Desktop (tray, quick entry), and the device and sensors bridges inside
+    `Shiny.AppDeviceBridge.Maui` itself. They reference
     `Shiny.AppDeviceBridge.Maui`, extend `MauiAppDeviceBridgeBuilder`, and do their own MAUI registration through
     `bridge.Maui` (camera control, tray icon, controls, Essentials, lifecycle events). The app calls none of that.
 - `AllowWebPermissions` and `UseTrafficMonitor` stay on `MauiAppBuilder`; `AddTrafficRecorder` stays on
@@ -415,7 +426,8 @@ calls device features from that web app, updates it over the air, or writes a br
   tunnel follow on their own; never re-register the bridges or rebuild the host to change the port.
 - **Bridges** are HTTP endpoints under `/_bridge/{name}` (the prefix is configurable) plus one Server-Sent
   Events stream. One package per bridge, one extension method each on the bridge builder. Host, settings, files and
-  invoke are built in; AppSupport (`app/…`, `/_bridge/sensors`) is its own package, added with `AddAppSupportBridge()`.
+  invoke are built in. `AddAppBridge()` (`app/…`, over Shiny.Core) ships with `Shiny.AppDeviceBridge`; `AddDeviceBridge()`
+  (`device/…`, over MAUI Essentials) and `AddSensorsBridge()` (`/_bridge/sensors`) ship with `Shiny.AppDeviceBridge.Maui`.
 - **The event stream carries only named topics.** `GET /_bridge/events?topics=a,b` opens it; the first event,
   `bridge.stream`, carries the id for `PUT /_bridge/events/{id}` `{ "topics": [...] }`. The host runs each topic's
   native source only while a stream names it, and unhooks it when the page drops it, disconnects, or the source throws
@@ -436,7 +448,8 @@ builder
     .UseAppDeviceBridge(
         bridge => bridge
             .Configure(o => o.AppId = "field-app")   // AppId, BasePath, AllowedHosts, AuthorizeBridges
-            .AddAppSupportBridge()
+            .AddAppBridge()
+            .AddDeviceBridge()
             .AddGpsBridge()
             .AddGeofenceBridge()
             .AddCalendarBridge()
@@ -498,8 +511,8 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | Package | Registration (on the bridge builder) | Client package / interface |
 | --- | --- | --- |
 | built in | (always) | `Shiny.AppDeviceBridge.Client`: `IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge` |
-| `.AppSupport` | `AddAppSupportBridge()` | `IAppBridge` — info, orientation, browser, maps, store, launch at login, share, haptics, connectivity, battery, screen, clipboard; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), each stopped once nothing listens to its event |
-| `.AppSupport.Linux` | `AddAppSupportLinux()` on the GTK4 head, after `AddAppSupportBridge()` | battery and energy saver from UPower and power-profiles-daemon, with change events. The maui-labs GTK4 battery never raises them, so a Linux head without this gets no `app.battery` events |
+| `Shiny.AppDeviceBridge` (the server) | `AddAppBridge(store => store.AppleAppId = …, startup => startup.Arguments.Add(…))` | `Shiny.AppDeviceBridge.Client`: `IAppBridge` (`AppJsonContext`) — info, orientation, screen (`app.screen`), settings, store (Shiny.AppStore's `IAppStore`; 501 unless `store` is passed; `OpenReviewPageAsync`), launch at login (Shiny.Core's `IAppStartupInstaller`; 409 `startup_failed`), battery (`app.battery` carries `BatteryInfo` with energy saver) and connectivity, from Shiny.Core's `IPlatform`, `IScreenInfo`, `IBattery` and `IConnectivity`. No MAUI; a host without MAUI calls `services.AddBattery()` / `AddConnectivity()` itself |
+| `Shiny.AppDeviceBridge.Maui` | `AddDeviceBridge()`, `AddSensorsBridge()` | `Shiny.AppDeviceBridge.Client`: `IDeviceBridge` (`DeviceJsonContext`) — browser (`http`/`https`/`mailto`/`tel` only), map, share (text or file roots, ≤ 20), haptics, vibrate (≤ 5 s), keep-awake (`PUT` 501 where it does not hold), clipboard (≤ 1 MB), over MAUI Essentials, each 501 alone where missing; `ISensorsBridge` — start a sensor with a speed and `MinIntervalMs`, readings only as events (`OnCompassAsync`, …), each stopped once nothing listens to its event |
 | `.Gps` | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()` | `IGpsBridge`, `IMotionBridge`, `IGeocodingBridge` (`GpsJsonContext`): `ReverseGeocodeAsync(latitude, longitude)` returns `Placemark`s from the platform geocoder (MapKit on iOS/Mac Catalyst, Android's Geocoder) or OpenStreetMap's Nominatim everywhere else, so it works on every platform; `services.AddGeocoding(o => o.BaseUri = …)` before the bridge points Nominatim at your own server. It needs network but no location permission, and fails with 503 `geocoder_unavailable` when offline. Address → position is the Maps package's `IDirectionsBridge.GeocodeAsync`, not this |
 | `.Geofencing` | `AddGeofenceBridge()` | `IGeofencesBridge` (`GeofencingJsonContext`) |
 | `.DocumentGeofencing` | `AddDocumentGeofenceBridge(cfg => cfg.AddRegionSet<T>(name, idSelector, nameSelector, withinMeters:, filter:), o => { o.UseDelegate<T>(); o.RegionSerializerOptions; })` | `IDocumentGeofencesBridge` (`DocumentGeofencingJsonContext`): `GetStatusAsync`, `RequestAccessAsync`, `StartAsync`, `StopAsync`, `GetCurrentAsync`, `OnChangeAsync` (`documentgeofence.change`; background.js `documentgeofence`). Regions are Shiny.DocumentDb documents, registered in C# only — the app registers the store (spatial provider, `MapSpatialProperty`) itself and must not also call `AddDocumentGeofencing`. `region` is the document via the store's `JsonSerializerOptions` (null without metadata). `start`: 409 `geofence_refused`, 501 `spatial_not_supported`. Shares Shiny.Gps' listener with the GPS bridge. Android, iOS, Mac Catalyst; 501 elsewhere |

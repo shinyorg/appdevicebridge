@@ -675,9 +675,6 @@ public static class PrintersBridgeExtensions
         configure?.Invoke(options);
         options.Validate();
 
-#if MACOS
-        services.EnsureShinyCore();
-#endif
 
 #if ANDROID || IOS || MACCATALYST || MACOS || WINDOWS
         // Registers once however many bridges call it: Shiny checks for an existing BleManager first.
