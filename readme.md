@@ -48,7 +48,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
 | `Shiny.AppDeviceBridge.Gps` | the app | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()`: GPS, motion activity and reverse geocoding, backed by Shiny.Gps |
 | `Shiny.AppDeviceBridge.Geofencing` | the app | `AddGeofenceBridge()`: geofence regions and transitions, backed by Shiny.Geofencing |
-| `Shiny.AppDeviceBridge.DocumentGeofencing` | the app | `AddDocumentGeofenceBridge(cfg => cfg.AddRegionSet<T>(…))`: unlimited polygon and proximity regions stored as Shiny.DocumentDb documents, monitored by background GPS, backed by Shiny.DocumentDb.Geofencing (Android, iOS, Mac Catalyst) |
+| `Shiny.AppDeviceBridge.RegionGeofencing` | the app | `AddRegionGeofenceBridge(cfg => cfg.AddRegionSet(…))`: unlimited polygon, proximity and reverse-geocoded regions, monitored by background GPS, backed by Shiny.Geofencing.Regions (Android, iOS, Mac Catalyst) |
 | `Shiny.AppDeviceBridge.BluetoothLE` | the app | `AddBluetoothLEBridge()` |
 | `Shiny.AppDeviceBridge.Beacons` | the app | `AddBeaconsBridge(BeaconFeatures.All)`: iBeacon ranging and background region monitoring, Eddystone scanning, and broadcasting as a beacon, backed by Shiny.Beacons |
 | `Shiny.AppDeviceBridge.Obd` | the app | `AddObdBridge()`: OBD-II over Bluetooth LE or Wi-Fi adapters — decoded PIDs, VIN, trouble codes, live readings |
@@ -82,7 +82,7 @@ app, served from the device itself, updated from your own server, and able to ca
 
 AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
 `Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi,
-HttpTransfers, Database, Jobs, Gps, Geofencing, DocumentGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
+HttpTransfers, Database, Jobs, Gps, Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
 ## The app
@@ -647,7 +647,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Sensors | `GET sensors`, `POST/DELETE sensors/{sensor}`, `DELETE sensors` | `sensors.accelerometer`, `sensors.gyroscope`, `sensors.magnetometer`, `sensors.compass`, `sensors.barometer`, `sensors.orientation`, `sensors.shake` |
 | GPS | `GET gps/status`, `POST gps/access`, `GET gps/last`, `GET gps/current`, `GET/POST/DELETE gps/listener` | `gps.reading` |
 | Geofences | `GET geofences/status`, `POST geofences/access`, `GET/POST/DELETE geofences/regions`, `DELETE geofences/regions/{id}`, `GET geofences/regions/{id}/state` | `geofence.status` |
-| Document geofences | `GET documentgeofences/status`, `POST documentgeofences/access`, `POST documentgeofences/start`, `POST documentgeofences/stop`, `GET documentgeofences/current` | `documentgeofence.change` |
+| Region geofences | `GET regiongeofences/status`, `POST regiongeofences/access`, `POST regiongeofences/start`, `POST regiongeofences/stop`, `GET regiongeofences/current` | `regiongeofence.change` |
 | Motion activity | `GET motion/status`, `POST motion/access`, `GET motion/current`, `GET/POST/DELETE motion/listener` | `motion.activity` |
 | Geocoding | `GET geocoding/reverse?latitude=&longitude=` | |
 | Beacons | `GET beacons/status`, `POST beacons/access`, `GET/POST/DELETE beacons/ranging`, `DELETE beacons/ranging/{id}`, `GET/POST/DELETE beacons/regions`, `DELETE beacons/regions/{id}`, `GET beacons/regions/{id}/state`, `POST/DELETE beacons/eddystone`, `GET/DELETE beacons/broadcast`, `POST beacons/broadcast/{ibeacon,eddystone-uid,eddystone-url}` | `beacons.ranged`, `beacons.region`, `beacons.eddystone` |
@@ -790,15 +790,18 @@ Nominatim server allows one request a second; to use your own, call `services.Ad
 the bridge, which keeps the geocoder registered first. For the other direction, address to position, see the Maps
 package's `directions/geocode`.
 
-**Document geofencing:** `AddDocumentGeofenceBridge(cfg => cfg.AddRegionSet<Zone>("zones", z => z.Id, z => z.Name))`
-monitors regions that are documents in a Shiny.DocumentDb store: polygons by containment, or points by proximity with
-`withinMeters:`, with no OS limit on how many. Register the store yourself, with a spatial provider and each region
-type's geometry mapped. The page starts and stops monitoring and reads the region the device is in for each set. Each
-change, as `documentgeofence.change` or background.js's `documentgeofence`, carries the region document, serialized
-through the store's `JsonSerializerOptions` metadata and never by reflection. Set `o.RegionSerializerOptions` for a
-keyed store. `start` returns `409` without background location and `501` (`spatial_not_supported`) for a provider
-without spatial queries. It shares Shiny.Gps' one listener with the GPS bridge, so stopping that listener stops
-monitoring too. Android, iOS and Mac Catalyst; other platforms return `501`.
+**Region geofencing:** `AddRegionGeofenceBridge(cfg => …)` monitors region sets from Shiny.Geofencing.Regions, with no
+OS limit on how many regions. A set comes from reverse geocoding (`cfg.AddGeocoderRegionSet("states",
+GeocoderRegionLevel.AdministrativeArea)`), from documents in a Shiny.DocumentDb SQLite store
+(`cfg.AddDocumentRegionSet<Zone>("zones", z => z.Id, z => z.Name)` from Shiny.Geofencing.Regions.DocumentDb: polygons
+by containment, points by proximity with `withinMeters:`), from its US and Canadian dataset (`cfg.AddNorthAmericanRegions()`,
+`cfg.AddNorthAmericanCities()`), or from your own `IRegionSource`. A document store is yours to register, with each
+region type's geometry mapped. The page starts and stops monitoring and reads the region the device is in for each set.
+Each change, as `regiongeofence.change` or background.js's `regiongeofence`, carries the region: a geocoder set's
+placemark as is, anything else through `o.RegionSerializerOptions` metadata (usually the store's `JsonSerializerOptions`)
+and never by reflection, so without it a document's `region` is `null`. `start` returns `409` without background
+location. It shares Shiny.Gps' one listener with the GPS bridge, so stopping that listener stops monitoring too.
+Android, iOS and Mac Catalyst; other platforms return `501`.
 
 **Beacons:** `AddBeaconsBridge()` registers all four features. To leave some out, pass `BeaconFeatures` flags: for
 example `AddBeaconsBridge(BeaconFeatures.Ranging | BeaconFeatures.Eddystone)` skips monitoring's background location and
@@ -1631,7 +1634,7 @@ then the handler. It gets `BackgroundScriptTimeout` (25 s) and 64 MB.
 | Background job | `job:{name}` with `{ name }` | `bridge.AddWebAppJob("sync", job => job.WithInternet(InternetAccess.Any))` (Bridge.Jobs) |
 | GPS reading delivered in the background | `gps` with a reading | `AddGpsBridge()` |
 | Geofence transition | `geofence` with `{ identifier, state }` | `AddGeofenceBridge()` |
-| Document region entered or left | `documentgeofence` with `{ regionSet, regionId, regionName, entered, latitude, longitude, region }` | `AddDocumentGeofenceBridge(…)` (Bridge.DocumentGeofencing) |
+| Region geofence entered or left | `regiongeofence` with `{ regionSet, regionId, regionName, entered, latitude, longitude, region }` | `AddRegionGeofenceBridge(…)` (Bridge.RegionGeofencing) |
 | Beacon region transition | `beacon` with `{ identifier, state }` | `AddBeaconsBridge()` (Bridge.Beacons) |
 | Push | `push.received`, `push.entry` with `{ data, title, message }` | `AddPushBridge(o => o.DispatchToWebApp = true)` (Bridge.Push) |
 | Motion activity delivered in the background | `motion` with `{ activity, confidence, timestamp }` | `AddMotionActivityBridge()` (Bridge.Gps) |

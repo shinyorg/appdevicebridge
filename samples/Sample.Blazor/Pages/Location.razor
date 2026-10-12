@@ -2,7 +2,7 @@
 @inherits BridgePage
 @inject IGpsBridge GpsBridge
 @inject IGeofencesBridge GeofencesBridge
-@inject IDocumentGeofencesBridge DocumentGeofencesBridge
+@inject IRegionGeofencesBridge RegionGeofencesBridge
 @inject IMotionBridge MotionBridge
 @inject IGeocodingBridge GeocodingBridge
 
@@ -25,14 +25,14 @@
 
 <h2>States, provinces and cities</h2>
 <p class="muted">
-    Document geofencing over Shiny.DocumentDb.Geo's US and Canadian reference data: the state or province you are in, and
+    Region geofencing over Shiny.Geofencing.Regions.DocumentDb's US and Canadian reference data: the state or province you are in, and
     any city within 25 km. It rides the same GPS listener as above, so Stop there stops this too.
 </p>
 <div class="actions">
     <button @onclick="StartRegions">Start</button>
-    <button @onclick="@(() => Run(() => DocumentGeofencesBridge.GetCurrentAsync(), RegionJson.IReadOnlyListDocumentCurrentRegion))">Where am I</button>
-    <button @onclick="@(() => Run(() => DocumentGeofencesBridge.GetStatusAsync(), RegionJson.DocumentGeofenceStatus))">Status</button>
-    <button @onclick="@(() => Run(() => DocumentGeofencesBridge.StopAsync(), "Stopped."))">Stop</button>
+    <button @onclick="@(() => Run(() => RegionGeofencesBridge.GetCurrentAsync(), RegionJson.IReadOnlyListCurrentRegion))">Where am I</button>
+    <button @onclick="@(() => Run(() => RegionGeofencesBridge.GetStatusAsync(), RegionJson.RegionGeofenceStatus))">Status</button>
+    <button @onclick="@(() => Run(() => RegionGeofencesBridge.StopAsync(), "Stopped."))">Stop</button>
 </div>
 
 <h2>Motion activity</h2>
@@ -48,7 +48,7 @@
 @code {
     static GpsJsonContext Json => GpsJsonContext.Default;
     static GeofencingJsonContext GeofenceJson => GeofencingJsonContext.Default;
-    static DocumentGeofencingJsonContext RegionJson => DocumentGeofencingJsonContext.Default;
+    static RegionGeofencingJsonContext RegionJson => RegionGeofencingJsonContext.Default;
 
     // Standard background mode: readings keep arriving with the app in the background, where they go to the gps
     // handler — this page's if it is open, background.js's if not.
@@ -58,7 +58,7 @@
     {
         await Listen<GpsReading>(GpsBridge.OnReadingAsync, e => Output = Compact(e, Json.GpsReading));
         await Listen<MotionActivity>(MotionBridge.OnActivityAsync, e => Output = Compact(e, Json.MotionActivity));
-        await Listen<DocumentRegionChange>(DocumentGeofencesBridge.OnChangeAsync, e => Output = Compact(e, RegionJson.DocumentRegionChange));
+        await Listen<RegionChange>(RegionGeofencesBridge.OnChangeAsync, e => Output = Compact(e, RegionJson.RegionChange));
     }
 
     Task CurrentActivity() => Run(async () =>
@@ -109,8 +109,8 @@
 
     Task StartRegions() => Run(async () =>
     {
-        await DocumentGeofencesBridge.RequestAccessAsync();
-        await DocumentGeofencesBridge.StartAsync();
-        return await DocumentGeofencesBridge.GetStatusAsync();
-    }, RegionJson.DocumentGeofenceStatus);
+        await RegionGeofencesBridge.RequestAccessAsync();
+        await RegionGeofencesBridge.StartAsync();
+        return await RegionGeofencesBridge.GetStatusAsync();
+    }, RegionJson.RegionGeofenceStatus);
 }

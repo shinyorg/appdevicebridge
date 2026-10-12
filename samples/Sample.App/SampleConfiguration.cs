@@ -1,5 +1,6 @@
 using System.Reflection;
 using Shiny.Jobs;
+using Shiny.Locations;
 using Shiny.AppDeviceBridge;
 using Shiny.AppDeviceBridge.AppLinks;
 using Shiny.AppDeviceBridge.Beacons;
@@ -9,8 +10,6 @@ using Shiny.AppDeviceBridge.Camera;
 using Shiny.AppDeviceBridge.Contacts;
 using Shiny.AppDeviceBridge.Database;
 using Shiny.AppDeviceBridge.Discovery;
-using Shiny.AppDeviceBridge.DocumentGeofencing;
-using Shiny.DocumentDb.Geo;
 using Shiny.AppDeviceBridge.Folders;
 using Shiny.AppDeviceBridge.Geofencing;
 using Shiny.AppDeviceBridge.Gps;
@@ -25,6 +24,7 @@ using Shiny.AppDeviceBridge.Photos;
 using Shiny.AppDeviceBridge.Printers;
 using Shiny.AppDeviceBridge.Printing;
 using Shiny.AppDeviceBridge.Push;
+using Shiny.AppDeviceBridge.RegionGeofencing;
 using Shiny.AppDeviceBridge.Wearables;
 using Shiny.AppDeviceBridge.InAppPurchases;
 using Shiny.AppDeviceBridge.LiveActivities;
@@ -81,9 +81,12 @@ public static class SampleConfiguration
                         // Unlimited polygon and proximity regions, as documents: which state or province the device is in,
                         // and any city within 25 km. Android, iOS and Mac Catalyst; it shares Shiny.Gps' one listener with
                         // the GPS bridge, so stopping that listener on the Location page stops these too.
-                        .AddDocumentGeofenceBridge(cfg => cfg
-                            .AddRegionSet<GeoRegion>("regions", r => r.Id, r => r.Name)
-                            .AddRegionSet<GeoCity>("cities", c => c.Id, c => c.Name, withinMeters: 25_000))
+                        .AddRegionGeofenceBridge(
+                            cfg => cfg
+                                .AddNorthAmericanRegions()
+                                .AddNorthAmericanCities(withinMeters: 25_000),
+                            o => o.RegionSerializerOptions = SampleGeoJsonContext.Default.Options
+                        )
                         .AddMotionActivityBridge()
                         .AddGeocodingBridge()
                         .AddBluetoothLEBridge()

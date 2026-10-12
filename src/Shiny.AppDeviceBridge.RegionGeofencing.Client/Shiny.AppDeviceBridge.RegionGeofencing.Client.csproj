@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.RegionGeofencing.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge region geofencing bridge — start and stop GPS-driven monitoring of polygon, proximity and reverse-geocoded regions, read the regions the device is in, and hear when it enters or leaves one — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddRegionGeofencesBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

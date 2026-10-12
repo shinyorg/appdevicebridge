@@ -3,9 +3,9 @@ using Shiny.AppDeviceBridge.Blazor;
 using Shiny.AppDeviceBridge.Client;
 using Shiny.AppDeviceBridge.HttpTransfers.Client;
 using Shiny.AppDeviceBridge.Beacons.Client;
-using Shiny.AppDeviceBridge.DocumentGeofencing.Client;
 using Shiny.AppDeviceBridge.Geofencing.Client;
 using Shiny.AppDeviceBridge.Gps.Client;
+using Shiny.AppDeviceBridge.RegionGeofencing.Client;
 using Shiny.AppDeviceBridge.Notifications.Client;
 using Shiny.AppDeviceBridge.Push.Client;
 using Shiny.AppDeviceBridge.Wearables.Client;
@@ -44,7 +44,7 @@ public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls, IQuickEntr
 
             await this.Record("gps", GpsJsonContext.Default.GpsReading, x => $"{x.Latitude:0.0000}, {x.Longitude:0.0000}");
             await this.Record("geofence", GeofencingJsonContext.Default.GeofenceStatus, x => $"{x.Identifier} {x.State}");
-            await this.Record("documentgeofence", DocumentGeofencingJsonContext.Default.DocumentRegionChange, x => $"{(x.Entered ? "entered" : "left")} {x.RegionSet} {x.RegionName ?? x.RegionId}");
+            await this.Record("regiongeofence", RegionGeofencingJsonContext.Default.RegionChange, x => $"{(x.Entered ? "entered" : "left")} {x.RegionSet} {x.RegionName ?? x.RegionId}");
             await this.Record("motion", GpsJsonContext.Default.MotionActivity, x => $"{x.Activity} ({x.Confidence})");
             await this.Record("beacon", BeaconsJsonContext.Default.BeaconRegionStatus, x => $"{x.Identifier} {x.State}");
             await this.Record("push.received", PushJsonContext.Default.PushPayload, x => x.Title ?? x.Message ?? "(data only)");

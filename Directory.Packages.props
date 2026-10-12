@@ -3,17 +3,38 @@
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
         <MauiVersion>10.0.101</MauiVersion>
         <MauiLabsVersion>0.1.0-preview.12.26421.1</MauiLabsVersion>
-        <ShinyVersion>6.0.0</ShinyVersion>
+        <ShinyVersion>6.1.1</ShinyVersion>
         <DocumentDbVersion>14.1.0</DocumentDbVersion>
     </PropertyGroup>
     <ItemGroup>
         <PackageVersion Include="GirCore.Gtk-4.0" Version="0.8.1"/>
         <PackageVersion Include="Nerdbank.GitVersioning" Version="3.10.91"/>
+        <PackageVersion Include="Jint" Version="4.16.2"/>
+        <PackageVersion Include="XenoAtom.Terminal.UI" Version="3.8.1"/>
+        <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.11"/>
+        <PackageVersion Include="SkiaSharp" Version="4.151.1"/>
+        <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.151.1"/>
+        <PackageVersion Include="Xamarin.AndroidX.DocumentFile" Version="1.1.0.3"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12"/>
+        <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0"/>
+        <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0"/>
+        <PackageVersion Include="PolySharp" Version="1.16.0"/>
+        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12"/>
+        <PackageVersion Include="Microsoft.Maui.Controls" Version="$(MauiVersion)"/>
+        <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.12"/>
+        <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12"/>
+        <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12"/>
+        <PackageVersion Include="Microsoft.Maui.Platforms.MacOS" Version="$(MauiLabsVersion)"/>
+        <PackageVersion Include="Microsoft.Maui.Platforms.MacOS.Essentials" Version="$(MauiLabsVersion)"/>
+        <PackageVersion Include="Microsoft.Maui.Platforms.Linux.Gtk4" Version="$(MauiLabsVersion)"/>
+        <PackageVersion Include="Microsoft.Maui.Platforms.Linux.Gtk4.Essentials" Version="$(MauiLabsVersion)"/>
+        <PackageVersion Include="Microsoft.Maui.DevFlow.Agent" Version="$(MauiLabsVersion)"/>
+    </ItemGroup>
+    <ItemGroup>
         <PackageVersion Include="Shiny.Net.HttpServer" Version="2.2.0"/>
         <PackageVersion Include="Shiny.Net.HttpServer.Ssh" Version="2.2.0"/>
         <PackageVersion Include="Shiny.Net.HttpServer.Mcp" Version="2.2.0"/>
-        <PackageVersion Include="Jint" Version="4.16.2"/>
-        <PackageVersion Include="XenoAtom.Terminal.UI" Version="3.8.1"/>
         <PackageVersion Include="Shiny.Extensions.Stores" Version="6.0.0"/>
         <PackageVersion Include="Shiny.Maui.Controls.Desktop" Version="1.6.0"/>
         <PackageVersion Include="Shiny.Maui.Controls.Camera" Version="1.6.0"/>
@@ -35,10 +56,9 @@
         <PackageVersion Include="Shiny.Obd.Wifi" Version="1.4.0"/>
         <PackageVersion Include="Shiny.Gps" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Geofencing" Version="$(ShinyVersion)"/>
-        <PackageVersion Include="Shiny.DocumentDb.Geofencing" Version="$(DocumentDbVersion)"/>
+        <PackageVersion Include="Shiny.Geofencing.Regions" Version="$(ShinyVersion)"/>
+        <PackageVersion Include="Shiny.Geofencing.Regions.DocumentDb" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.DocumentDb.Sqlite" Version="$(DocumentDbVersion)"/>
-        <PackageVersion Include="Shiny.DocumentDb.Geo" Version="$(DocumentDbVersion)"/>
-        <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.11"/>
         <PackageVersion Include="Shiny.BluetoothLE" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Beacons" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Health" Version="2.0.1"/>
@@ -53,25 +73,6 @@
         <PackageVersion Include="Shiny.Printers.Network" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Printing" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Printing.Rendering" Version="$(ShinyVersion)"/>
-        <!-- Shiny.Printing.Rendering's: decodes receipt images in the printers bridge. Linux apps add the native assets. -->
-        <PackageVersion Include="SkiaSharp" Version="4.151.1"/>
-        <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.151.1"/>
-        <PackageVersion Include="Xamarin.AndroidX.DocumentFile" Version="1.1.0.3"/>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12"/>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12"/>
-        <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0"/>
-        <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0"/>
-        <PackageVersion Include="PolySharp" Version="1.16.0"/>
-        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12"/>
-        <PackageVersion Include="Microsoft.Maui.Controls" Version="$(MauiVersion)"/>
-        <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.12"/>
-        <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12"/>
-        <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12"/>
-        <PackageVersion Include="Microsoft.Maui.Platforms.MacOS" Version="$(MauiLabsVersion)"/>
-        <PackageVersion Include="Microsoft.Maui.Platforms.MacOS.Essentials" Version="$(MauiLabsVersion)"/>
-        <PackageVersion Include="Microsoft.Maui.Platforms.Linux.Gtk4" Version="$(MauiLabsVersion)"/>
-        <PackageVersion Include="Microsoft.Maui.Platforms.Linux.Gtk4.Essentials" Version="$(MauiLabsVersion)"/>
-        <PackageVersion Include="Microsoft.Maui.DevFlow.Agent" Version="$(MauiLabsVersion)"/>
     </ItemGroup>
     <ItemGroup>
         <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12"/>
