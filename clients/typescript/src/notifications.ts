@@ -37,6 +37,8 @@ export interface NotificationChannelAction {
     identifier: string;
     title: string;
     actionType: ChannelActionType;
+    /** The device must be unlocked before the action runs — for actions with a real-world effect, such as "Open Garage". Combines with any `ChannelActionType`. Apple: always. Android: 12 (API 31) and later; older versions run the action without asking. Ignored on Windows and Linux. */
+    requiresUnlock: boolean;
 }
 
 /** A notification the user tapped or that arrived while the app was open. */

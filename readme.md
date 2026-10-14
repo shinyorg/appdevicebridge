@@ -61,6 +61,8 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Wearables` | the app | `AddWearablesBridge()`: the companion Apple Watch or Wear OS app, through Shiny.Wearables — status, live messages the page or `background.js` answers, shared context, queued transfers and files through the file roots (iOS and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.LiveActivities` | the app | `AddLiveActivitiesBridge()`: iOS Live Activities and Android 16 Live Updates, through Shiny.Mobile.LiveActivities — start, update and end them from the page, with their push tokens handed to the page or `background.js` (iOS and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.InAppPurchases` | the app | `AddInAppPurchasesBridge()`: App Store (StoreKit 2) and Google Play Billing purchases, through Shiny.Mobile.InAppPurchases — products, the store's purchase sheet, entitlements, finishing, restores and subscription management, with purchase updates handed to the page or `background.js` (iOS and Android; `501` elsewhere) |
+| `Shiny.AppDeviceBridge.GameCenter` | the app | `AddGameCenterBridge(o => o.AddAchievement(…).AddLeaderboard(…))`: Apple Game Center and Google Play Games, through Shiny.GameCenter — sign-in, achievements, leaderboards, friends and the services' own UI, with unlocks and scores queued on the device while offline (Apple platforms and Android; `501` elsewhere) |
+| `Shiny.AppDeviceBridge.CallDirectory` | the app | `AddCallDirectoryBridge()`: call blocking and caller identification, through Shiny.Mobile.CallDirectory — the page keeps the list of numbers to block, label or allow, and iOS's Call Directory extension or Android's call screening applies it (iOS and Android 10+; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.Maps` | the app | `AddMapsBridge()`: a map online from a pluggable basemap (OpenStreetMap via Protomaps, Azure Maps and Google Maps built in) or offline from regions the user downloads (verified against a signed catalog), live traffic flow and incidents from pluggable providers (TomTom, HERE and Azure Maps built in), turn-by-turn directions from a pluggable online router (Valhalla, Azure Maps and Google Maps built in), and addresses turned into stops by a pluggable geocoder (Nominatim, Azure Maps and Google Maps built in) (all platforms) |
 | `Shiny.AppDeviceBridge.Maps.Valhalla` | the app | `AddOnDeviceDirections()`: directions computed on the phone over a downloaded region's road network (Android and iOS; online elsewhere) |
 | `Shiny.AppDeviceBridge.Maps.Blazor` | the web app | `<BridgeMap>`: MapLibre GL JS bundled for offline use, with pins, lines, areas, circles, click-to-draw, routes and live traffic |
@@ -82,7 +84,7 @@ app, served from the device itself, updated from your own server, and able to ca
 
 AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
 `Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi,
-HttpTransfers, Database, Jobs, Gps, Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
+HttpTransfers, Database, Jobs, Gps, Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
 ## The app
@@ -652,7 +654,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Geocoding | `GET geocoding/reverse?latitude=&longitude=` | |
 | Beacons | `GET beacons/status`, `POST beacons/access`, `GET/POST/DELETE beacons/ranging`, `DELETE beacons/ranging/{id}`, `GET/POST/DELETE beacons/regions`, `DELETE beacons/regions/{id}`, `GET beacons/regions/{id}/state`, `POST/DELETE beacons/eddystone`, `GET/DELETE beacons/broadcast`, `POST beacons/broadcast/{ibeacon,eddystone-uid,eddystone-url}` | `beacons.ranged`, `beacons.region`, `beacons.eddystone` |
 | Bluetooth LE | `GET ble/status`, `POST ble/access`, `POST/DELETE ble/scan`, `GET ble/peripherals[/{uuid}]`, `POST/DELETE …/connection`, `GET …/rssi`, `GET …/services`, `GET …/characteristics`, `GET/PUT …/characteristics/{c}`, `POST/DELETE …/notifications` | `ble.scan`, `ble.status`, `ble.notification`, `ble.error` |
-| Receipt printers | `GET printers/status`, `POST printers/scan`, `POST/DELETE printers/connection`, `POST printers/print`, `POST printers/render` | `printers.disconnected` |
+| Receipt printers | `GET printers/status`, `POST printers/scan`, `POST/DELETE printers/connection`, `GET printers/connection/status`, `POST printers/print`, `POST printers/render` | `printers.disconnected` |
 | Printing | `GET printing/capabilities`, `GET printing/printers`, `POST printing/print`, `POST printing/print/{pdf,image}`, `POST printing/html-to-pdf` | |
 | OBD-II | `GET obd/status`, `GET obd/commands`, `POST obd/scan`, `GET obd/adapters`, `POST/DELETE obd/connection`, `POST obd/command`, `POST obd/raw`, `GET obd/vin`, `GET/DELETE obd/dtc`, `POST/DELETE obd/monitor` | `obd.reading`, `obd.disconnected` |
 | Wi-Fi | `GET wifi`, `POST wifi/access`, `GET wifi/networks`, `GET wifi/current`, `POST/DELETE wifi/connection`, `GET wifi/known`, `DELETE wifi/known?id=`, `GET/PUT wifi/radio`, `GET/POST/DELETE wifi/hotspot`, `GET wifi/hotspot/clients` | `wifi.changed`, `wifi.hotspot` |
@@ -662,6 +664,8 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Wearables | `GET wearables`, `POST wearables/messages`, `GET/PUT wearables/context`, `GET/POST wearables/transfers`, `DELETE wearables/transfers/{id}`, `POST wearables/files` | `wearables.status`, `wearables.message`, `wearables.context`, `wearables.transfer`, `wearables.file`, `wearables.completed` |
 | Live activities | `GET liveactivities`, `POST liveactivities/access`, `GET/POST/DELETE liveactivities/activities`, `PUT liveactivities/activities/{id}`, `POST liveactivities/activities/{id}/end` | `liveactivities.started`, `liveactivities.state`, `liveactivities.token`, `liveactivities.starttoken` |
 | In-app purchases | `GET purchases`, `POST purchases/products`, `POST purchases/purchase`, `GET purchases/entitlements`, `GET purchases/unfinished`, `POST purchases/transactions/{transactionId}/finish`, `POST purchases/restore`, `POST purchases/manage` | `purchases.updated` |
+| Game center | `GET games`, `POST games/signin`, `GET games/achievements`, `POST games/achievements/{key}/{unlock,progress,increment,reveal}`, `POST games/achievements/show`, `POST games/leaderboards/{key}/scores`, `POST games/leaderboards/{key}/query`, `POST games/leaderboards/show`, `GET games/friends`, `POST games/flush` | `games.player` |
+| Call directory | `GET calldirectory`, `POST calldirectory/access`, `GET calldirectory/entries/{phoneNumber}`, `PUT/DELETE calldirectory/entries`, `POST calldirectory/entries/remove`, `POST calldirectory/entries/replace`, `POST calldirectory/reload`, `POST calldirectory/normalize` | |
 | Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/basemap/{z}/{x}/{y}`, `GET maps/traffic/{z}/{x}/{y}`, `GET maps/incidents/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
 | Directions | `GET directions`, `POST directions/route`, `GET directions/geocode?query=` | |
 | App links | `GET/DELETE links/pending` | `app.link` |
@@ -846,9 +850,47 @@ feature's access.
   `NSLocalNetworkUsageDescription` on iOS and Mac Catalyst. On Android, the app has to bind to the
   adapter's network, which has no internet. Linux supports Wi-Fi adapters only.
 
+**Game center** (`Shiny.AppDeviceBridge.GameCenter`, `AddGameCenterBridge()`): Apple Game Center on iOS, Mac Catalyst
+and macOS, and Google Play Games Services v2 on Android, via Shiny.GameCenter. Other platforms answer `501`.
+- **Keys:** register achievements and leaderboards with their App Store Connect and Play Console ids —
+  `AddGameCenterBridge(o => o.AddAchievement("ten-wins", appleId: "…", googleId: "CgkI…", totalSteps: 10))` — and the page
+  uses the keys. An unregistered key is passed to the service as a platform id. Incremental achievements must be
+  registered, because Apple counts percent and the device converts.
+- **Sign-in:** Shiny signs in silently at launch; `POST games/signin` shows the service's sign-in UI and answers
+  `{ player }`, `null` when the player declines. `games.player` fires on sign-in, sign-out and account switches.
+- **Progress:** `unlock`, `progress` (`{ steps }`, absolute), `increment` and `reveal` under
+  `games/achievements/{key}/`, and `POST games/leaderboards/{key}/scores` with `{ score }`, are recorded on the device
+  first and sent when the player is signed in and online, so they succeed offline. `GET games` reports `pendingCount`;
+  `POST games/flush` sends the queue now.
+- **Reading and UI:** `GET games/achievements`, `POST games/leaderboards/{key}/query` with `{ scope, timeScope,
+  maxResults }`, and `GET games/friends` (asks for consent; Google answers `ConsentRequested` — ask again later) need a
+  signed-in player. `games/achievements/show` and `games/leaderboards/show` open the service's own screens.
+- **Errors:** `401` `not_authenticated`, `404` `invalid_id`, `409` `no_user_interface`, `503` `network`, `unavailable`
+  or `not_configured`, `502` `game_service_failed`.
+- **Platform setup:** Apple: the `com.apple.developer.game-center` entitlement, Game Center on in App Store Connect, and
+  `NSGKFriendListUsageDescription` for friends. Android: `com.google.android.gms.games.APP_ID` meta-data and every signing
+  key's SHA-1 in the Play Console.
+
+**Call directory** (`Shiny.AppDeviceBridge.CallDirectory`, `AddCallDirectoryBridge()`): call blocking and caller ID
+from a list the page keeps, via Shiny.Mobile.CallDirectory. iOS and Android 10+; elsewhere `501`.
+- **Entries:** `{ phoneNumber, label, type }` — the number as country code and digits (`18005550100`), and `Block`,
+  `Identify` (rings with `label` as caller ID) or `Allow` (Android: rings even when unlisted callers are blocked; iOS
+  stores it as `Identify`). `PUT calldirectory/entries` adds or replaces, `POST …/entries/remove` takes
+  `{ phoneNumbers }`, `POST …/entries/replace` swaps the whole list in one transaction for a server sync, and
+  `DELETE …/entries` clears it. `POST calldirectory/normalize` turns `"+1 (800) 555-0100"` into the stored form.
+- **Reload:** edits reach iOS only on `POST calldirectory/reload`, which answers how the load went
+  (`ExtensionDisabled`, `MaximumEntriesExceeded`, …) — batch edits, then reload once. Android reads the list live.
+- **Access:** `GET calldirectory` reports `access` and `count`. iOS has no prompt — `POST calldirectory/access` opens
+  Settings, where the user turns on Call Blocking & Identification; Android asks for the call screening role.
+- **Platform setup:** iOS: `<ShinyCallDirectoryExtension>true</ShinyCallDirectoryExtension>` and
+  `<ShinyCallDirectoryAppGroup>` in the app's project file build the extension. `AddCallDirectoryBridge(o => …)` takes
+  Shiny's `CallDirectoryOptions` (default country code, Android's block-unlisted and caller-ID notification).
+
 **Receipt printers:**
 - **Printers:** ESC/POS (or TSPL) over Bluetooth LE or raw TCP, one at a time. `scan` finds Bluetooth printers matching a
-  known model, or with `"transport": "Network"` browses mDNS for `_pdl-datastream._tcp` and `_printer._tcp`.
+  known model, or with `"transport": "Network"` browses mDNS for `_pdl-datastream._tcp` and `_printer._tcp`. Add
+  `"sweep": true` to also try a TCP connection to every host on the device's IPv4 subnets (a /24 at most) on the
+  allowed ports, for printers that don't advertise; each network result says how it was found in `discovery`.
   `connection` takes the `id` from a scan, or a network `host` and `port`. The host must be a loopback, private or
   link-local IP address, and the port one of `PrintersBridgeOptions.NetworkPorts` (9100–9102), because a receipt can
   carry raw bytes. `paper` (`Paper58mm`, `Paper80mm`) or `capabilities` say what the printer is.
@@ -856,6 +898,9 @@ feature's access.
   PNG or JPEG, scaled to the printer's width), feeds, cuts and raw bytes — and answers `400` naming any element the
   printer can't print. A cut on a printer without a cutter only feeds. In C#, `PrintElements` builds the list.
   Without a printer it answers `409`. A failed write drops the printer with `printers.disconnected`.
+- **Status:** `GET printers/connection/status` reads the connected printer's sensors — online, cover open, paper near
+  its end or out, cutter and other errors, the cash-drawer pin, and `canPrint`. ESC/POS over the network only
+  (`supportsStatus` on the connection); other printers answer `501`, and one that doesn't reply answers `504`.
 - **PDF:** `render` turns the same elements into `application/pdf`, for the printing bridge or a download. It needs no
   printer. Linux apps add `SkiaSharp.NativeAssets.Linux`, or it answers `501`.
 - **Platform setup:** Bluetooth as for the Bluetooth LE bridge. Network printers need
@@ -1662,6 +1707,9 @@ need Shiny.Push's platform setup: APNs entitlements, and `google-services.json` 
 `{ "timeOfDay": "09:00:00", "dayOfWeek": "Monday" }`), or `geofence` (`{ "latitude", "longitude", "radiusMeters" }`).
 It answers `{ "id": 7 }`. Sending needs no UI, so `background.js` can notify from a job or a geofence.
 
+- **Channels:** `POST notifications/channels` with `actions` — each an `identifier`, `title`, `actionType`
+  (`TextReply`, `Destructive`, `OpenApp`, `None`) and `requiresUnlock`, which makes the user unlock the device before the
+  action runs (Apple, and Android 12+; older Android runs it without asking).
 - **Images:** on iOS and Mac Catalyst, `image: { "root": "data", "path": "photos/cat.jpg" }` attaches a file the
   page wrote through the files bridge. Other platforms ignore it. `GET /_bridge/notifications` reports what the
   platform supports: `badge`, `entry`, `received`, `geofences` and `images`.

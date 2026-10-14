@@ -213,6 +213,90 @@ public class PrintersBridgeTests
     }
 
     [Fact]
+    public async Task A_sweep_adds_printers_that_do_not_advertise()
+    {
+        var scanner = new FakeNetworkScanner(
+            new DiscoveredNetworkPrinter { Name = "Kitchen", Host = "192.168.1.20", Port = 9100, ServiceType = "_pdl-datastream._tcp" }
+        )
+        {
+            Swept =
+            [
+                // Advertises too: keeps its advertised name.
+                new DiscoveredNetworkPrinter { Name = "192.168.1.20", Host = "192.168.1.20", Port = 9100, ServiceType = "", Method = NetworkPrinterDiscoveryMethod.PortSweep },
+                new DiscoveredNetworkPrinter { Name = "192.168.1.31", Host = "192.168.1.31", Port = 9100, ServiceType = "", Method = NetworkPrinterDiscoveryMethod.PortSweep }
+            ]
+        };
+        await using var fixture = await PrintersFixture.StartAsync(scanner);
+
+        var found = await fixture.Client.ScanAsync(new PrinterScanRequest(PrinterTransport.Network, ScanMs: 1_000, Sweep: true));
+
+        Assert.Equal(2, found.Count);
+        var advertised = Assert.Single(found, x => x.Id == "192.168.1.20:9100");
+        Assert.Equal("Kitchen", advertised.Name);
+        Assert.Equal(NetworkDiscoveryMethod.Mdns, advertised.Discovery);
+        var swept = Assert.Single(found, x => x.Id == "192.168.1.31:9100");
+        Assert.Equal("192.168.1.31", swept.Name);
+        Assert.Equal(NetworkDiscoveryMethod.PortSweep, swept.Discovery);
+
+        // Only the ports a page may connect to.
+        Assert.Equal([9100, 9101, 9102], Assert.Single(scanner.Sweeps).Ports);
+    }
+
+    [Fact]
+    public async Task Without_sweep_a_scan_only_browses_mdns()
+    {
+        var scanner = new FakeNetworkScanner { Swept = [new DiscoveredNetworkPrinter { Name = "10.0.0.5", Host = "10.0.0.5", Port = 9100, ServiceType = "", Method = NetworkPrinterDiscoveryMethod.PortSweep }] };
+        await using var fixture = await PrintersFixture.StartAsync(scanner);
+
+        Assert.Empty(await fixture.Client.ScanAsync(new PrinterScanRequest(PrinterTransport.Network, ScanMs: 1_000)));
+        Assert.Empty(scanner.Sweeps);
+
+        var ble = await Assert.ThrowsAsync<BridgeException>(() => fixture.Client.ScanAsync(new PrinterScanRequest(PrinterTransport.Ble, Sweep: true)));
+        Assert.Equal(HttpStatusCode.BadRequest, ble.StatusCode);
+    }
+
+    [Fact]
+    public async Task Reads_the_sensors_of_a_network_esc_pos_printer()
+    {
+        // DLE EOT 1-4: drawer pin high; cover open; no error; paper near its end.
+        await using var printer = FakeNetworkPrinter.Start(statusReply: [0x16, 0x16, 0x12, 0x1E]);
+        await using var fixture = await PrintersFixture.StartAsync(ports: printer.Port);
+
+        var connected = await fixture.Client.ConnectAsync(new PrinterConnectRequest(PrinterTransport.Network, Host: "127.0.0.1", Port: printer.Port));
+        Assert.True(connected.SupportsStatus);
+
+        var status = await fixture.Client.GetPrinterStatusAsync();
+
+        Assert.Equal(new PrinterSensorStatus(
+            IsOnline: true,
+            IsCoverOpen: true,
+            IsPaperNearEnd: true,
+            IsPaperOut: false,
+            IsCutterError: false,
+            HasUnrecoverableError: false,
+            HasAutoRecoverableError: false,
+            IsDrawerSensorHigh: true,
+            CanPrint: false
+        ), status);
+    }
+
+    [Fact]
+    public async Task Printer_status_needs_a_printer_that_answers()
+    {
+        await using var printer = FakeNetworkPrinter.Start();
+        await using var fixture = await PrintersFixture.StartAsync(ports: printer.Port);
+
+        var none = await Assert.ThrowsAsync<BridgeException>(() => fixture.Client.GetPrinterStatusAsync());
+        Assert.Equal("not_connected", none.Code);
+
+        // Connected, but it never replies to DLE EOT.
+        await fixture.Client.ConnectAsync(new PrinterConnectRequest(PrinterTransport.Network, Host: "127.0.0.1", Port: printer.Port));
+        var silent = await Assert.ThrowsAsync<BridgeException>(() => fixture.Client.GetPrinterStatusAsync());
+        Assert.Equal(HttpStatusCode.GatewayTimeout, silent.StatusCode);
+        Assert.Equal("printer_timeout", silent.Code);
+    }
+
+    [Fact]
     public async Task Bluetooth_and_network_scanning_answer_501_where_there_is_none()
     {
         await using var fixture = await PrintersFixture.StartAsync();
@@ -348,29 +432,43 @@ public class PrintersBridgeTests
 
     sealed class FakeNetworkScanner(params DiscoveredNetworkPrinter[] printers) : INetworkPrinterScanner
     {
+        public DiscoveredNetworkPrinter[] Swept { get; init; } = [];
+        public List<NetworkPrinterSweepConfig> Sweeps { get; } = [];
+
         // Like mDNS: everything it knows straight away, then nothing more until the browse is dropped.
         public IObservable<DiscoveredNetworkPrinter> Scan() => printers.ToObservable().Concat(Observable.Never<DiscoveredNetworkPrinter>());
 
         public IObservable<DiscoveredNetworkPrinter> Scan(string serviceType) => this.Scan();
+
+        public IObservable<DiscoveredNetworkPrinter> Sweep(NetworkPrinterSweepConfig? config = null)
+        {
+            this.Sweeps.Add(config ?? new());
+            return this.Swept.ToObservable();
+        }
     }
 
     /// <summary>A port-9100 printer: accepts one connection and keeps whatever it is sent.</summary>
     sealed class FakeNetworkPrinter : IAsyncDisposable
     {
+        static readonly byte[] EscPosStatusRequest = [0x10, 0x04, 1, 0x10, 0x04, 2, 0x10, 0x04, 3, 0x10, 0x04, 4];
+
         readonly TcpListener listener = new(IPAddress.Loopback, 0);
         readonly MemoryStream received = new();
         readonly Task<TcpClient> accepted;
         readonly Task reading;
+        readonly byte[]? statusReply;
 
-        FakeNetworkPrinter()
+        FakeNetworkPrinter(byte[]? statusReply)
         {
+            this.statusReply = statusReply;
             this.listener.Start();
             this.Port = ((IPEndPoint)this.listener.LocalEndpoint).Port;
             this.accepted = this.listener.AcceptTcpClientAsync();
             this.reading = Task.Run(this.ReadAsync);
         }
 
-        public static FakeNetworkPrinter Start() => new();
+        /// <param name="statusReply">The four bytes it answers an ESC/POS status query (<c>DLE EOT 1</c> to <c>4</c>) with; silent when null.</param>
+        public static FakeNetworkPrinter Start(byte[]? statusReply = null) => new(statusReply);
 
         public int Port { get; }
 
@@ -386,6 +484,9 @@ public class PrintersBridgeTests
                 {
                     lock (this.received)
                         this.received.Write(buffer, 0, read);
+
+                    if (this.statusReply is { } reply && buffer.AsSpan(0, read).EndsWith(EscPosStatusRequest))
+                        await stream.WriteAsync(reply);
                 }
             }
             catch (IOException)

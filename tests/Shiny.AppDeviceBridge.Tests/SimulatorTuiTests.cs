@@ -14,7 +14,7 @@ namespace Shiny.AppDeviceBridge.Tests;
 public partial class SimulatorTuiTests : IAsyncLifetime
 {
     const int Width = 160;
-    const int Height = 44;
+    const int Height = 48;
 
     SimulatorHost host = null!;
     SimulatorShell shell = null!;

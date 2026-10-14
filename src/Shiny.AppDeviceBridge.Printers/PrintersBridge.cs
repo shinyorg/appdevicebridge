@@ -23,10 +23,12 @@ namespace Shiny.AppDeviceBridge.Printers;
 /// <code>
 /// GET    /_bridge/printers/status
 /// POST   /_bridge/printers/scan         { "transport": "Ble", "scanMs": 5000 }   the printers seen in the window
+///                                       { "transport": "Network", "sweep": true } mDNS plus a port sweep of the subnet
 /// POST   /_bridge/printers/connection   { "id": "…" }                            a printer the last scan found
 ///                                       { "transport": "Network", "host": "192.168.1.50", "port": 9100, "paper": "Paper80mm" }
 ///                                       { "transport": "Ble", "peripheralUuid": "…", "serviceUuid": "…", "writeCharacteristicUuid": "…" }
 /// DELETE /_bridge/printers/connection
+/// GET    /_bridge/printers/connection/status                                    paper, cover, cutter and drawer sensors
 /// POST   /_bridge/printers/print        { "elements": [{ "type": "Line", "text": "Hello" }, { "type": "Cut" }] }
 /// POST   /_bridge/printers/render       { "elements": […], "pageWidth": 595 }      application/pdf
 ///
@@ -77,6 +79,7 @@ public sealed partial class PrintersBridge : IWebAppBridge, IDisposable
         .MapPost("/scan", this.ScanAsync)
         .MapPost("/connection", this.ConnectAsync)
         .MapDelete("/connection", this.DisconnectAsync)
+        .MapGet("/connection/status", this.PrinterStatusAsync)
         .MapPost("/print", this.PrintAsync)
         .MapPost("/render", this.RenderAsync);
 
@@ -105,9 +108,15 @@ public sealed partial class PrintersBridge : IWebAppBridge, IDisposable
     {
         var body = await WebAppBridgeResults.ReadBodyAsync(context, PrintersJsonContext.Default.PrinterScanRequest) ?? new PrinterScanRequest();
 
-        IObservable<Scanned> source;
+        List<IObservable<Scanned>> sources = [];
         if (body.Transport == PrinterTransport.Ble)
         {
+            if (body.Sweep)
+            {
+                await WebAppBridgeResults.BadRequest(context, "sweep is for network scans.");
+                return;
+            }
+
             if (this.bleScanner is not { } scanner || this.ble is not { } b)
             {
                 await WebAppBridgeResults.NotSupported(context, "Bluetooth LE printers");
@@ -120,7 +129,7 @@ public sealed partial class PrintersBridge : IWebAppBridge, IDisposable
                 return;
             }
 
-            source = new Select<Native.BluetoothLE.DiscoveredPrinter, Scanned>(scanner.Scan(), Scanned.From);
+            sources.Add(new Select<Native.BluetoothLE.DiscoveredPrinter, Scanned>(scanner.Scan(), Scanned.From));
         }
         else
         {
@@ -130,7 +139,14 @@ public sealed partial class PrintersBridge : IWebAppBridge, IDisposable
                 return;
             }
 
-            source = new Select<DiscoveredNetworkPrinter, Scanned>(scanner.Scan(), Scanned.From);
+            sources.Add(new Select<DiscoveredNetworkPrinter, Scanned>(scanner.Scan(), Scanned.From));
+
+            // Only the ports a page may connect to by address, so a sweep never finds a printer it cannot use.
+            if (body.Sweep)
+            {
+                var sweep = new NetworkPrinterSweepConfig { Ports = [.. this.options.NetworkPorts.Order()] };
+                sources.Add(new Select<DiscoveredNetworkPrinter, Scanned>(scanner.Sweep(sweep), Scanned.From));
+            }
         }
 
         var started = false;
@@ -149,19 +165,26 @@ public sealed partial class PrintersBridge : IWebAppBridge, IDisposable
         // Insertion-ordered and de-duplicated: a Bluetooth printer advertises over and over.
         var seen = new Dictionary<string, Scanned>(StringComparer.OrdinalIgnoreCase);
         var failed = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
-        try
-        {
-            using (source.Subscribe(new Observer<Scanned>(
-                x =>
+        var observer = new Observer<Scanned>(
+            x =>
+            {
+                lock (this.gate)
                 {
-                    lock (this.gate)
+                    // A printer that advertises and also answers the sweep keeps its advertised name.
+                    if (!seen.TryGetValue(x.Response.Id, out var known) || known.Response.Discovery != NetworkDiscoveryMethod.Mdns)
                     {
                         seen[x.Response.Id] = x;
                         this.found[x.Response.Id] = x;
                     }
-                },
-                ex => failed.TrySetResult(ex)
-            )))
+                }
+            },
+            ex => failed.TrySetResult(ex)
+        );
+        var subscriptions = new List<IDisposable>();
+        try
+        {
+            foreach (var source in sources)
+                subscriptions.Add(source.Subscribe(observer));
             {
                 var window = Task.Delay(Math.Clamp(body.ScanMs ?? DefaultScanMs, 1_000, MaxScanMs), context.RequestAborted);
                 if (await Task.WhenAny(window, failed.Task) == failed.Task)
@@ -174,6 +197,9 @@ public sealed partial class PrintersBridge : IWebAppBridge, IDisposable
         }
         finally
         {
+            foreach (var subscription in subscriptions)
+                subscription.Dispose();
+
             lock (this.gate)
                 this.scanning = false;
         }
@@ -302,7 +328,8 @@ public sealed partial class PrintersBridge : IWebAppBridge, IDisposable
             peripheral.Name ?? scanned?.Response.Name,
             PrinterTransport.Ble,
             Language(printer.Protocol),
-            ToContract(capabilities)
+            ToContract(capabilities),
+            printer.SupportsStatus
         );
         await this.OpenedAsync(context, printer, info);
     }
@@ -346,7 +373,8 @@ public sealed partial class PrintersBridge : IWebAppBridge, IDisposable
             scanned?.Response.Name,
             PrinterTransport.Network,
             Language(printer.Protocol),
-            ToContract(capabilities)
+            ToContract(capabilities),
+            printer.SupportsStatus
         );
         await this.OpenedAsync(context, printer, info);
     }
@@ -383,6 +411,53 @@ public sealed partial class PrintersBridge : IWebAppBridge, IDisposable
             this.exchange.Release();
         }
         await WebAppBridgeResults.NoContent(context);
+    }
+
+    async ValueTask PrinterStatusAsync(HttpContext context)
+    {
+        // Under the exchange: a status query is a write and a read on the same socket a receipt is streamed over.
+        await this.exchange.WaitAsync(context.RequestAborted);
+        try
+        {
+            if (this.active is not { } a || !a.Printer.IsConnected)
+            {
+                if (this.active is { } lost)
+                    this.Drop(lost, publish: true);
+
+                await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "not_connected", "No printer is connected. POST /_bridge/printers/connection first.");
+                return;
+            }
+
+            if (!a.Printer.SupportsStatus)
+            {
+                await WebAppBridgeResults.NotSupported(context, "Reading this printer's status");
+                return;
+            }
+
+            await this.Guarded(context, async () =>
+            {
+                var s = await a.Printer.GetStatus(context.RequestAborted);
+                await WebAppBridgeResults.Json(
+                    context,
+                    new PrinterSensorStatus(
+                        s.IsOnline,
+                        s.IsCoverOpen,
+                        s.IsPaperNearEnd,
+                        s.IsPaperOut,
+                        s.IsCutterError,
+                        s.HasUnrecoverableError,
+                        s.HasAutoRecoverableError,
+                        s.IsDrawerSensorHigh,
+                        s.CanPrint
+                    ),
+                    PrintersJsonContext.Default.PrinterSensorStatus
+                );
+            });
+        }
+        finally
+        {
+            this.exchange.Release();
+        }
     }
 
     async ValueTask PrintAsync(HttpContext context)
@@ -622,7 +697,17 @@ public sealed partial class PrintersBridge : IWebAppBridge, IDisposable
         );
 
         public static Scanned From(DiscoveredNetworkPrinter p) => new(
-            new($"{p.Host}:{p.Port}", p.Name, PrinterTransport.Network, p.Host, p.Port, null, null, ToContract(p.Capabilities)),
+            new(
+                $"{p.Host}:{p.Port}",
+                p.Name,
+                PrinterTransport.Network,
+                p.Host,
+                p.Port,
+                null,
+                null,
+                ToContract(p.Capabilities),
+                BridgeEnum.Convert<NetworkPrinterDiscoveryMethod, NetworkDiscoveryMethod>(p.Method)
+            ),
             null,
             p
         );

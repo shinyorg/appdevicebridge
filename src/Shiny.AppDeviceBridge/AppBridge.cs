@@ -101,10 +101,11 @@ public sealed class AppBridge : IWebAppBridge
             p.DeviceModel,
             p.PlatformVersion?.ToString(),
             p.Platform,
-            p.DeviceIdiom.ToString(),
+            p.DeviceFormFactor.ToString(),
             ToContract(this.screen?.Orientation ?? DeviceOrientation.Unknown),
             p.CurrentCulture.Name,
-            p.CurrentTimeZone.Id
+            p.CurrentTimeZone.Id,
+            p.ApplicationIdentifier
         );
 
         return WebAppBridgeResults.Json(context, info, AppJsonContext.Default.AppInfo);

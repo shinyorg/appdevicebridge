@@ -20,7 +20,7 @@ public class AppBridgeTests
 
         var info = await fixture.Client.GetInfoAsync();
         Assert.Equal(
-            new Contracts.AppInfo("2.3.4", "Shiny", "Phone 1", "17.0", "iOS", "Phone", Contracts.DisplayOrientation.Portrait, "fr-CA", "UTC"),
+            new Contracts.AppInfo("2.3.4", "Shiny", "Phone 1", "17.0", "iOS", "Phone", Contracts.DisplayOrientation.Portrait, "fr-CA", "UTC", "org.shiny.sample"),
             info
         );
 
@@ -243,7 +243,9 @@ public class AppBridgeTests
 
         public string Platform => "iOS";
 
-        public DeviceIdiom DeviceIdiom => DeviceIdiom.Phone;
+        public string? ApplicationIdentifier => "org.shiny.sample";
+
+        public DeviceFormFactor DeviceFormFactor => DeviceFormFactor.Phone;
 
         public CultureInfo CurrentCulture { get; } = new("fr-CA");
 

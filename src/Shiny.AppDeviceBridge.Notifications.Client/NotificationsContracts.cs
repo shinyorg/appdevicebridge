@@ -92,7 +92,17 @@ public sealed record NotificationEvent(
     string? Text
 );
 
-public sealed record NotificationChannelAction(string Identifier, string Title, ChannelActionType ActionType = ChannelActionType.None);
+/// <param name="RequiresUnlock">
+/// The device must be unlocked before the action runs — for actions with a real-world effect, such as "Open Garage".
+/// Combines with any <see cref="ChannelActionType"/>. Apple: always. Android: 12 (API 31) and later; older versions run
+/// the action without asking. Ignored on Windows and Linux.
+/// </param>
+public sealed record NotificationChannelAction(
+    string Identifier,
+    string Title,
+    ChannelActionType ActionType = ChannelActionType.None,
+    bool RequiresUnlock = false
+);
 
 /// <param name="Identifier">1–64 letters, digits, <c>.</c>, <c>-</c> or <c>_</c>.</param>
 public sealed record NotificationChannel(

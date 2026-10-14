@@ -4,6 +4,7 @@ using Shiny.AppDeviceBridge.Notifications;
 using Shiny.AppDeviceBridge.Notifications.Client;
 using Shiny.Notifications;
 using Notification = Shiny.Notifications.Notification;
+using ChannelActionType = Shiny.AppDeviceBridge.Notifications.Client.ChannelActionType;
 
 namespace Shiny.AppDeviceBridge.Tests;
 
@@ -47,6 +48,36 @@ public class NotificationsBridgeTests
         var failed = await Assert.ThrowsAsync<BridgeException>(() => fixture.Client.RequestAccessAsync(new NotificationAccessRequest()));
 
         Assert.Equal("bridge_failed", failed.Code);
+    }
+
+    [Fact]
+    public async Task Channel_actions_carry_requires_unlock_both_ways()
+    {
+        var manager = new FakeNotificationManager();
+        await using var fixture = await NotificationsFixture.StartAsync(manager);
+
+        var added = await fixture.Client.AddChannelAsync(new NotificationChannel(
+            "garage",
+            Actions:
+            [
+                new NotificationChannelAction("open", "Open Garage", ChannelActionType.OpenApp, RequiresUnlock: true),
+                new NotificationChannelAction("snooze", "Snooze")
+            ]
+        ));
+
+        var native = Assert.Single(manager.Channels).Actions;
+        Assert.True(native[0].RequiresUnlock);
+        Assert.Equal(Shiny.Notifications.ChannelActionType.OpenApp, native[0].ActionType);
+        Assert.False(native[1].RequiresUnlock);
+
+        Assert.Equal(
+            [
+                new NotificationChannelAction("open", "Open Garage", ChannelActionType.OpenApp, true),
+                new NotificationChannelAction("snooze", "Snooze", ChannelActionType.None, false)
+            ],
+            added.Actions
+        );
+        Assert.True(Assert.Single(await fixture.Client.GetChannelsAsync()).Actions![0].RequiresUnlock);
     }
 
     sealed class NotificationsFixture : IAsyncDisposable
@@ -93,11 +124,13 @@ public class NotificationsBridgeTests
 
         public Task<Shiny.AccessState> GetCurrentAccess(AccessRequestFlags flags = AccessRequestFlags.Notification) => Task.FromResult(this.Current);
 
-        public void AddChannel(Channel channel) { }
-        public void RemoveChannel(string channelId) { }
-        public void ClearChannels() { }
-        public Channel? GetChannel(string channelId) => null;
-        public IList<Channel> GetChannels() => [];
+        public List<Channel> Channels { get; } = [];
+
+        public void AddChannel(Channel channel) => this.Channels.Add(channel);
+        public void RemoveChannel(string channelId) => this.Channels.RemoveAll(x => x.Identifier == channelId);
+        public void ClearChannels() => this.Channels.Clear();
+        public Channel? GetChannel(string channelId) => this.Channels.FirstOrDefault(x => x.Identifier == channelId);
+        public IList<Channel> GetChannels() => this.Channels;
         public Task<Notification>? GetNotification(int notificationId) => null;
         public Task Cancel(int id) => Task.CompletedTask;
         public Task Cancel(CancelScope cancelScope = CancelScope.All) => Task.CompletedTask;

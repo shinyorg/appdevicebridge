@@ -5,11 +5,13 @@ using Shiny.AppDeviceBridge.Client;
 using BeaconsClient = Shiny.AppDeviceBridge.Beacons.Client;
 using BleClient = Shiny.AppDeviceBridge.BluetoothLE.Client;
 using CalendarClient = Shiny.AppDeviceBridge.Calendar.Client;
+using CallDirectoryClient = Shiny.AppDeviceBridge.CallDirectory.Client;
 using CameraClient = Shiny.AppDeviceBridge.Camera.Client;
 using ContactsClient = Shiny.AppDeviceBridge.Contacts.Client;
 using DatabaseClient = Shiny.AppDeviceBridge.Database.Client;
 using DesktopClient = Shiny.AppDeviceBridge.Desktop.Client;
 using DiscoveryClient = Shiny.AppDeviceBridge.Discovery.Client;
+using GameCenterClient = Shiny.AppDeviceBridge.GameCenter.Client;
 using RegionGeofencingClient = Shiny.AppDeviceBridge.RegionGeofencing.Client;
 using FoldersClient = Shiny.AppDeviceBridge.Folders.Client;
 using GeofencingClient = Shiny.AppDeviceBridge.Geofencing.Client;
@@ -110,6 +112,7 @@ public static class BridgeCatalog
             Describe(typeof(BeaconsClient.IBeaconsBridge), BeaconsClient.BeaconsJsonContext.Default),
             Describe(typeof(BleClient.IBluetoothLEBridge), BleClient.BleJsonContext.Default),
             Describe(typeof(CalendarClient.ICalendarBridge), CalendarClient.CalendarJsonContext.Default),
+            Describe(typeof(CallDirectoryClient.ICallDirectoryBridge), CallDirectoryClient.CallDirectoryJsonContext.Default),
             Describe(typeof(CameraClient.ICameraBridge), CameraClient.CameraJsonContext.Default),
             Describe(typeof(ContactsClient.IContactsBridge), ContactsClient.ContactsJsonContext.Default),
             Describe(typeof(DatabaseClient.IDatabaseBridge), DatabaseClient.DatabaseJsonContext.Default),
@@ -118,6 +121,7 @@ public static class BridgeCatalog
             Describe(typeof(DiscoveryClient.IDiscoveryBridge), DiscoveryClient.DiscoveryJsonContext.Default),
             Describe(typeof(RegionGeofencingClient.IRegionGeofencesBridge), RegionGeofencingClient.RegionGeofencingJsonContext.Default),
             Describe(typeof(FoldersClient.IFoldersBridge), FoldersClient.FoldersJsonContext.Default),
+            Describe(typeof(GameCenterClient.IGameCenterBridge), GameCenterClient.GameCenterJsonContext.Default),
             Describe(typeof(HealthClient.IHealthBridge), HealthClient.HealthJsonContext.Default),
             Describe(typeof(InAppPurchasesClient.IInAppPurchasesBridge), InAppPurchasesClient.InAppPurchasesJsonContext.Default),
             Describe(typeof(LiveActivitiesClient.ILiveActivitiesBridge), LiveActivitiesClient.LiveActivitiesJsonContext.Default),

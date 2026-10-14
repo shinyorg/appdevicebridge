@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- One target: Shiny.Mobile.CallDirectory carries the platform code (a Call Directory extension on iOS, a
+         CallScreeningService on Android) and NuGet picks its build for the app's head. Everywhere else its manager is a
+         no-op that reports itself unsupported, and the bridge answers 501. -->
+    <RootNamespace>Shiny.AppDeviceBridge.CallDirectory</RootNamespace>
+    <Description>Call blocking and caller identification for a Shiny.AppDeviceBridge web app, backed by Shiny.Mobile.CallDirectory — the page keeps the list of numbers to block, identify or allow, and the system applies it to incoming calls (iOS Call Directory extension, Android CallScreeningService). One call: bridge.AddCallDirectoryBridge().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shiny.Mobile.CallDirectory" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.CallDirectory.Client/Shiny.AppDeviceBridge.CallDirectory.Client.csproj" />
+  </ItemGroup>
+
+</Project>

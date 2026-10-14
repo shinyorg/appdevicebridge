@@ -353,7 +353,15 @@ public sealed class NotificationsBridge(IServiceProvider services, WebAppFileRoo
             Description = body.Description,
             Importance = BridgeEnum.Convert<Contracts.ChannelImportance, ChannelImportance>(body.Importance),
             Sound = BridgeEnum.Convert<Contracts.ChannelSound, ChannelSound>(body.Sound),
-            Actions = [.. (body.Actions ?? []).Select(x => ChannelAction.Create(x.Identifier, x.Title, BridgeEnum.Convert<Contracts.ChannelActionType, ChannelActionType>(x.ActionType)))]
+            Actions =
+            [
+                .. (body.Actions ?? []).Select(x => ChannelAction.Create(
+                    x.Identifier,
+                    x.Title,
+                    BridgeEnum.Convert<Contracts.ChannelActionType, ChannelActionType>(x.ActionType),
+                    x.RequiresUnlock
+                ))
+            ]
         };
 
         try
@@ -558,7 +566,8 @@ static class NotificationContractMapping
             .. (channel.Actions ?? []).Select(x => new Contracts.NotificationChannelAction(
                 x.Identifier,
                 x.Title,
-                BridgeEnum.Convert<ChannelActionType, Contracts.ChannelActionType>(x.ActionType)
+                BridgeEnum.Convert<ChannelActionType, Contracts.ChannelActionType>(x.ActionType),
+                x.RequiresUnlock
             ))
         ]
     );

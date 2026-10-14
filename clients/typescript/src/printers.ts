@@ -10,6 +10,8 @@ export interface ConnectedPrinter {
     transport: PrinterTransport;
     language: PrinterLanguage;
     capabilities: PrinterCapabilities;
+    /** Whether `getPrinterStatus` can read this printer's sensors — an ESC/POS printer on the network. Most Bluetooth printers are write-only. */
+    supportsStatus: boolean;
 }
 
 /** A printer a scan found. Connect with its `id`. */
@@ -25,7 +27,11 @@ export interface DiscoveredPrinter {
     profile: string | null;
     /** What the printer is assumed to be. A network printer never says how wide its paper is, so it is assumed 80mm: pass `paper` when you know better. */
     capabilities: PrinterCapabilities;
+    discovery: NetworkDiscoveryMethod | null;
 }
+
+/** How a network printer was found. */
+export type NetworkDiscoveryMethod = "Mdns" | "PortSweep";
 
 export type PrintAlign = "Left" | "Center" | "Right";
 
@@ -153,6 +159,29 @@ export interface PrinterScanRequest {
     transport?: PrinterTransport;
     /** Up to 30,000 ms; 5 seconds when null. */
     scanMs?: number | null;
+    /** Network only: also try a TCP connection to every host on this device's IPv4 subnets (a /24 at most) on the `port`s the app allows — 9100 to 9102 by default — to find printers that do not advertise over mDNS. */
+    sweep?: boolean;
+}
+
+/** A point-in-time read of the connected printer's own sensors. */
+export interface PrinterSensorStatus {
+    /** False when the printer has taken itself offline: cover open, paper out, an error, or feeding. */
+    isOnline: boolean;
+    isCoverOpen: boolean;
+    /** The roll is running low. Not every printer has the sensor. */
+    isPaperNearEnd: boolean;
+    /** The roll is empty, so printing has stopped. */
+    isPaperOut: boolean;
+    /** The auto-cutter jammed or failed. */
+    isCutterError: boolean;
+    /** An error the printer cannot clear itself; it needs a power cycle or service. */
+    hasUnrecoverableError: boolean;
+    /** An error that clears on its own, such as the print head overheating. */
+    hasAutoRecoverableError: boolean;
+    /** The cash-drawer sensor (kick-out connector pin 3) reads high. Whether high means open depends on the drawer. */
+    isDrawerSensorHigh: boolean;
+    /** Online, cover shut, paper loaded and no error. */
+    canPrint: boolean;
 }
 
 export type PrinterTransport = "Ble" | "Network";
@@ -179,7 +208,7 @@ export class PrintersBridge {
         return call<PrintersStatus>(this.transport, "GET", `printers/status`, { signal: options?.signal });
     }
 
-    /** The printers seen during the scan window: Bluetooth printers matching a known model, or network printers advertising over mDNS (`_pdl-datastream._tcp`, `_printer._tcp`). */
+    /** The printers seen during the scan window: Bluetooth printers matching a known model, or network printers advertising over mDNS (`_pdl-datastream._tcp`, `_printer._tcp`) — plus, with `sweep`, any host on the local subnet that accepts a connection on a printer port. */
     scan(request: PrinterScanRequest, options?: { signal?: AbortSignal }): Promise<DiscoveredPrinter[]> {
         return call<DiscoveredPrinter[]>(this.transport, "POST", `printers/scan`, { json: request, signal: options?.signal });
     }
@@ -192,6 +221,11 @@ export class PrintersBridge {
     /** Disconnects the printer. */
     disconnect(options?: { signal?: AbortSignal }): Promise<void> {
         return callVoid(this.transport, "DELETE", `printers/connection`, { signal: options?.signal });
+    }
+
+    /** Reads the connected printer's paper, cover, cutter and drawer sensors — check before a receipt, or poll for a drawer closing. Fails with 409 when no printer is connected, 501 when this printer cannot report its status (`supportsStatus`), and 504 when it does not answer. */
+    getPrinterStatus(options?: { signal?: AbortSignal }): Promise<PrinterSensorStatus> {
+        return call<PrinterSensorStatus>(this.transport, "GET", `printers/connection/status`, { signal: options?.signal });
     }
 
     /** Prints a receipt on the connected printer. */

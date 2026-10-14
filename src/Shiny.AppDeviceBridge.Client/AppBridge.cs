@@ -115,6 +115,10 @@ public enum EnergySaverStatus { Unknown, On, Off }
 /// <param name="Platform">Android, iOS, MacCatalyst, macOS, Windows or Linux.</param>
 /// <param name="Culture">A culture name such as <c>en-US</c>.</param>
 /// <param name="TimeZone">A time zone id.</param>
+/// <param name="ApplicationIdentifier">
+/// The bundle identifier on Apple, the package name on Android, the package identity name on a packaged Windows app,
+/// the Flatpak app id or Snap name on Linux — null when the app has no such identity.
+/// </param>
 public sealed record AppInfo(
     string AppVersion,
     string DeviceManufacturer,
@@ -124,7 +128,8 @@ public sealed record AppInfo(
     string DeviceIdiom,
     DisplayOrientation Orientation,
     string Culture,
-    string TimeZone
+    string TimeZone,
+    string? ApplicationIdentifier = null
 );
 
 /// <param name="Success">False when the platform could not do it.</param>

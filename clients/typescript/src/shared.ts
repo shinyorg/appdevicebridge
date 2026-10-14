@@ -24,6 +24,8 @@ export interface AppInfo {
     culture: string;
     /** A time zone id. */
     timeZone: string;
+    /** The bundle identifier on Apple, the package name on Android, the package identity name on a packaged Windows app, the Flatpak app id or Snap name on Linux — null when the app has no such identity. */
+    applicationIdentifier: string | null;
 }
 
 /** A link the app was opened with. */

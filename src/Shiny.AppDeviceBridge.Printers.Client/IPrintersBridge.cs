@@ -16,7 +16,8 @@ public interface IPrintersBridge
 
     /// <summary>
     /// The printers seen during the scan window: Bluetooth printers matching a known model, or network printers
-    /// advertising over mDNS (<c>_pdl-datastream._tcp</c>, <c>_printer._tcp</c>).
+    /// advertising over mDNS (<c>_pdl-datastream._tcp</c>, <c>_printer._tcp</c>) — plus, with
+    /// <see cref="PrinterScanRequest.Sweep"/>, any host on the local subnet that accepts a connection on a printer port.
     /// </summary>
     [BridgePost("scan")]
     Task<IReadOnlyList<DiscoveredPrinter>> ScanAsync(PrinterScanRequest request, CancellationToken cancellationToken = default);
@@ -28,6 +29,14 @@ public interface IPrintersBridge
     /// <summary>Disconnects the printer.</summary>
     [BridgeDelete("connection")]
     Task DisconnectAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Reads the connected printer's paper, cover, cutter and drawer sensors — check before a receipt, or poll for a
+    /// drawer closing. Fails with 409 when no printer is connected, 501 when this printer cannot report its status
+    /// (<see cref="ConnectedPrinter.SupportsStatus"/>), and 504 when it does not answer.
+    /// </summary>
+    [BridgeGet("connection/status")]
+    Task<PrinterSensorStatus> GetPrinterStatusAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Prints a receipt on the connected printer.</summary>
     [BridgePost("print")]

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.CallDirectory.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge call directory bridge — call blocking and caller identification from a list the app owns — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddCallDirectoryBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

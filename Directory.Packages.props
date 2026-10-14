@@ -3,7 +3,7 @@
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
         <MauiVersion>10.0.101</MauiVersion>
         <MauiLabsVersion>0.1.0-preview.12.26421.1</MauiLabsVersion>
-        <ShinyVersion>6.1.1</ShinyVersion>
+        <ShinyVersion>6.3.0</ShinyVersion>
         <DocumentDbVersion>14.1.0</DocumentDbVersion>
     </PropertyGroup>
     <ItemGroup>
@@ -36,8 +36,8 @@
         <PackageVersion Include="Shiny.Net.HttpServer.Ssh" Version="2.2.0"/>
         <PackageVersion Include="Shiny.Net.HttpServer.Mcp" Version="2.2.0"/>
         <PackageVersion Include="Shiny.Extensions.Stores" Version="6.0.0"/>
-        <PackageVersion Include="Shiny.Maui.Controls.Desktop" Version="1.6.0"/>
-        <PackageVersion Include="Shiny.Maui.Controls.Camera" Version="1.6.0"/>
+        <PackageVersion Include="Shiny.Maui.Controls.Desktop" Version="1.7.0"/>
+        <PackageVersion Include="Shiny.Maui.Controls.Camera" Version="1.7.0"/>
         <PackageVersion Include="Shiny.Hosting.Maui" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Core" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.AppStore" Version="$(ShinyVersion)"/>
@@ -47,6 +47,8 @@
         <PackageVersion Include="Shiny.Wearables" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Mobile.LiveActivities" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Mobile.InAppPurchases" Version="$(ShinyVersion)"/>
+        <PackageVersion Include="Shiny.Mobile.CallDirectory" Version="$(ShinyVersion)"/>
+        <PackageVersion Include="Shiny.GameCenter" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Notifications.Linux" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Net.Wifi" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Net.Wifi.Linux" Version="$(ShinyVersion)"/>

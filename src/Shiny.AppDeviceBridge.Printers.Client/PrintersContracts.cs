@@ -5,6 +5,16 @@ namespace Shiny.AppDeviceBridge.Printers.Client;
 
 public enum PrinterTransport { Ble, Network }
 
+/// <summary>How a network printer was found.</summary>
+public enum NetworkDiscoveryMethod
+{
+    /// <summary>It advertised itself over mDNS / DNS-SD.</summary>
+    Mdns,
+
+    /// <summary>It accepted a TCP connection during a subnet sweep. A swept printer has no name: its name is its address.</summary>
+    PortSweep
+}
+
 /// <summary>The common receipt widths: 58mm is 32 columns and 384 dots, 80mm is 48 columns and 576 dots with a cutter.</summary>
 public enum PrinterPaper { Paper58mm, Paper80mm }
 
@@ -119,10 +129,49 @@ public sealed record PrintersStatus(
 );
 
 /// <param name="Id">The Bluetooth peripheral id, or <c>host:port</c> on the network.</param>
-public sealed record ConnectedPrinter(string Id, string? Name, PrinterTransport Transport, PrinterLanguage Language, PrinterCapabilities Capabilities);
+/// <param name="SupportsStatus">
+/// Whether <see cref="IPrintersBridge.GetPrinterStatusAsync"/> can read this printer's sensors — an ESC/POS printer on the
+/// network. Most Bluetooth printers are write-only.
+/// </param>
+public sealed record ConnectedPrinter(
+    string Id,
+    string? Name,
+    PrinterTransport Transport,
+    PrinterLanguage Language,
+    PrinterCapabilities Capabilities,
+    bool SupportsStatus = false
+);
 
 /// <param name="ScanMs">Up to 30,000 ms; 5 seconds when null.</param>
-public sealed record PrinterScanRequest(PrinterTransport Transport = PrinterTransport.Ble, int? ScanMs = null);
+/// <param name="Sweep">
+/// Network only: also try a TCP connection to every host on this device's IPv4 subnets (a /24 at most) on the
+/// <see cref="PrinterConnectRequest.Port"/>s the app allows — 9100 to 9102 by default — to find printers that do not
+/// advertise over mDNS.
+/// </param>
+public sealed record PrinterScanRequest(PrinterTransport Transport = PrinterTransport.Ble, int? ScanMs = null, bool Sweep = false);
+
+/// <summary>A point-in-time read of the connected printer's own sensors.</summary>
+/// <param name="IsOnline">False when the printer has taken itself offline: cover open, paper out, an error, or feeding.</param>
+/// <param name="IsPaperNearEnd">The roll is running low. Not every printer has the sensor.</param>
+/// <param name="IsPaperOut">The roll is empty, so printing has stopped.</param>
+/// <param name="IsCutterError">The auto-cutter jammed or failed.</param>
+/// <param name="HasUnrecoverableError">An error the printer cannot clear itself; it needs a power cycle or service.</param>
+/// <param name="HasAutoRecoverableError">An error that clears on its own, such as the print head overheating.</param>
+/// <param name="IsDrawerSensorHigh">
+/// The cash-drawer sensor (kick-out connector pin 3) reads high. Whether high means open depends on the drawer.
+/// </param>
+/// <param name="CanPrint">Online, cover shut, paper loaded and no error.</param>
+public sealed record PrinterSensorStatus(
+    bool IsOnline,
+    bool IsCoverOpen,
+    bool IsPaperNearEnd,
+    bool IsPaperOut,
+    bool IsCutterError,
+    bool HasUnrecoverableError,
+    bool HasAutoRecoverableError,
+    bool IsDrawerSensorHigh,
+    bool CanPrint
+);
 
 /// <summary>A printer a scan found. Connect with its <see cref="Id"/>.</summary>
 /// <param name="Id">The Bluetooth peripheral id, or <c>host:port</c> on the network.</param>
@@ -139,7 +188,8 @@ public sealed record DiscoveredPrinter(
     int? Port,
     int? Rssi,
     string? Profile,
-    PrinterCapabilities Capabilities
+    PrinterCapabilities Capabilities,
+    NetworkDiscoveryMethod? Discovery = null
 );
 
 /// <summary>
@@ -204,6 +254,7 @@ public sealed record PrinterDisconnected(string Id, PrinterTransport Transport);
 [JsonSerializable(typeof(IReadOnlyList<DiscoveredPrinter>))]
 [JsonSerializable(typeof(PrinterConnectRequest))]
 [JsonSerializable(typeof(ConnectedPrinter))]
+[JsonSerializable(typeof(PrinterSensorStatus))]
 [JsonSerializable(typeof(PrintReceiptRequest))]
 [JsonSerializable(typeof(PrintReceiptResult))]
 [JsonSerializable(typeof(PrintRenderRequest))]
