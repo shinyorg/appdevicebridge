@@ -71,7 +71,6 @@ public class InvocationTests
     {
         await using var app = new TestApp();
         var options = app.Options();
-        options.BackgroundScriptTimeout = TimeSpan.FromMilliseconds(500);
 
         var (host, invoker, _) = await CreateAsync(app, options);
         await using var _ = host;
@@ -81,7 +80,11 @@ public class InvocationTests
         Assert.False(failed.Succeeded);
         Assert.Contains("nope", failed.Error);
 
+        // The short budget is for the run that never ends only — a cold engine on a loaded CI runner can take longer than
+        // that to fail the run above.
+        options.BackgroundScriptTimeout = TimeSpan.FromMilliseconds(500);
         var forever = await invoker.InvokeAsync("forever", "{}");
+        options.BackgroundScriptTimeout = TimeSpan.FromSeconds(25);
         Assert.False(forever.Succeeded);
         Assert.Contains("did not finish", forever.Error);
 

@@ -438,18 +438,55 @@ public class SimulatorPageServingTests
 
 public class SimulatorTrailTests
 {
-    static (SimulatorState State, FakeTimeProvider Time) NewState()
+    static (SimulatorState State, TrailClock Time) NewState()
     {
-        var time = new FakeTimeProvider(DateTimeOffset.Parse("2026-09-18T12:00:00Z"));
+        var time = new TrailClock(new FakeTimeProvider(DateTimeOffset.Parse("2026-09-18T12:00:00Z")));
         return (new SimulatorState(new WebAppEventHub(), new AppDeviceBridgeOptions { AppId = "test" }, time), time);
     }
 
-    static async Task Eventually(Func<bool> condition)
+    internal static async Task Eventually(Func<bool> condition)
     {
         for (var i = 0; i < 500 && !condition(); i++)
             await Task.Delay(10, TestContext.Current.CancellationToken);
 
         Assert.True(condition());
+    }
+
+    // A player that never finishes fails the test instead of hanging the run.
+    static Task Finished(Task playback) => playback.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+    /// <summary>
+    /// A fake clock that knows when the player is waiting on it. The player sets <see cref="TrailPlayer.Position"/>, fires
+    /// events and applies steps before it registers its next delay, so advancing the moment a step is seen can land before
+    /// the delay exists — the advance is lost and the player waits forever. <see cref="AdvanceNextDelay"/> waits for the
+    /// delay first. One delay is outstanding at a time, so each call releases exactly one.
+    /// </summary>
+    internal sealed class TrailClock(FakeTimeProvider fake) : TimeProvider
+    {
+        int created;
+        int released;
+
+        public override DateTimeOffset GetUtcNow() => fake.GetUtcNow();
+        public override long GetTimestamp() => fake.GetTimestamp();
+        public override long TimestampFrequency => fake.TimestampFrequency;
+        public override TimeZoneInfo LocalTimeZone => fake.LocalTimeZone;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = fake.CreateTimer(callback, state, dueTime, period);
+            Interlocked.Increment(ref this.created);
+            return timer;
+        }
+
+        /// <summary>Moves the clock without waiting — for code that only reads the time.</summary>
+        public void Advance(TimeSpan by) => fake.Advance(by);
+
+        public async Task AdvanceNextDelay(TimeSpan by)
+        {
+            var next = ++this.released;
+            await Eventually(() => Volatile.Read(ref this.created) >= next);
+            fake.Advance(by);
+        }
     }
 
     static Trail WifiTrail() => new()
@@ -473,12 +510,12 @@ public class SimulatorTrailTests
         await Eventually(() => state.FindRoute("wifi", "GET current")!.Behavior.Mode == ResponseMode.Null);
         Assert.DoesNotContain("true", state.FindRoute("wifi", "GET radio")!.Behavior.Json);
 
-        time.Advance(TimeSpan.FromSeconds(1));
+        await time.AdvanceNextDelay(TimeSpan.FromSeconds(1));
         await Eventually(() => state.FindRoute("wifi", "GET radio")!.Behavior.Json.Contains("true"));
         Assert.True(state.Find("wifi")!.IsSupported);
 
-        time.Advance(TimeSpan.FromSeconds(1));
-        await done;
+        await time.AdvanceNextDelay(TimeSpan.FromSeconds(1));
+        await Finished(done);
 
         Assert.False(state.Find("wifi")!.IsSupported);
         Assert.Equal(TrailPlayback.Finished, player.Playback);
@@ -491,12 +528,11 @@ public class SimulatorTrailTests
         using var player = new TrailPlayer(state, WifiTrail()) { Speed = 4 };
         var done = player.Play();
 
-        await Eventually(() => player.Position == 1);
-        time.Advance(TimeSpan.FromMilliseconds(250));
+        await time.AdvanceNextDelay(TimeSpan.FromMilliseconds(250));
         await Eventually(() => state.FindRoute("wifi", "GET radio")!.Behavior.Json.Contains("true"));
 
-        time.Advance(TimeSpan.FromMilliseconds(250));
-        await done;
+        await time.AdvanceNextDelay(TimeSpan.FromMilliseconds(250));
+        await Finished(done);
         Assert.False(state.Find("wifi")!.IsSupported);
     }
 
@@ -509,7 +545,7 @@ public class SimulatorTrailTests
 
         await Eventually(() => player.Position == 1);
         player.Pause();
-        time.Advance(TimeSpan.FromSeconds(5));
+        await time.AdvanceNextDelay(TimeSpan.FromSeconds(5));
         await Task.Delay(50, TestContext.Current.CancellationToken);
 
         Assert.DoesNotContain("true", state.FindRoute("wifi", "GET radio")!.Behavior.Json);
@@ -519,7 +555,7 @@ public class SimulatorTrailTests
         await Eventually(() => state.FindRoute("wifi", "GET radio")!.Behavior.Json.Contains("true"));
 
         player.Stop();
-        await done;
+        await Finished(done);
         Assert.Equal(TrailPlayback.Stopped, player.Playback);
         Assert.True(state.Find("wifi")!.IsSupported);
     }
@@ -532,24 +568,15 @@ public class SimulatorTrailTests
         using var player = new TrailPlayer(state, trail);
         var done = player.Play();
 
-        // Advanced until each pass fires rather than once when the player looks ready: the player sets Position before it
-        // registers its delay with the clock, and on a later pass Position is already 0, so a single Advance can land before
-        // the delay exists and be lost. One delay is outstanding at a time, so each Advance fires at most one step.
         for (var i = 1; i <= 3; i++)
         {
             var pass = i;
-            await Eventually(() =>
-            {
-                if (state.FindEvent("wifi.changed")!.Fired >= pass)
-                    return true;
-
-                time.Advance(TimeSpan.FromMilliseconds(100));
-                return false;
-            });
+            await time.AdvanceNextDelay(TimeSpan.FromMilliseconds(100));
+            await Eventually(() => state.FindEvent("wifi.changed")!.Fired >= pass);
         }
 
         player.Stop();
-        await done;
+        await Finished(done);
         Assert.True(player.Passes >= 2);
     }
 
@@ -567,7 +594,7 @@ public class SimulatorTrailTests
             ]
         };
 
-        await new TrailPlayer(state, trail).Play();
+        await Finished(new TrailPlayer(state, trail).Play());
 
         Assert.False(state.Find("wifi")!.IsSupported);
         Assert.Contains(state.Activity, x => x.Text.Contains("GET nowhere"));
@@ -656,8 +683,8 @@ public class SimulatorTrailTests
         var done = new TrailPlayer(state, trail).Play();
 
         await Eventually(() => state.FindEvent("gps.reading")!.Fired == 1);
-        time.Advance(TimeSpan.FromSeconds(1));
-        await done;
+        await time.AdvanceNextDelay(TimeSpan.FromSeconds(1));
+        await Finished(done);
 
         Assert.Equal(2, state.FindEvent("gps.reading")!.Fired);
         Assert.Contains("10.001", state.FindRoute("gps", "GET current")!.Behavior.Json);
