@@ -1850,3 +1850,7 @@ admits callers on this device holding that token, and only from this origin — 
   `shiny-bridge-sim --dev-server http://localhost:5288 --scenario samples/simulator/sample.scenario.json --trail samples/simulator/harbourfront.gpx`.
 
 The sample key pair in `samples/keys` is public. It's for development only.
+
+## Commercial Support
+
+Shipping this to production? [ShinySoft Technologies](https://shinysoft.biz), the company that builds and maintains the Shiny libraries, offers priority issue response, support agreements, architecture reviews and private office hours. See [Commercial Support](https://shinylib.net/foundation/support/?utm_source=github&utm_medium=readme#commercial-support) or [get in touch](https://shinysoft.biz/contact?utm_source=github&utm_medium=readme). Community support through GitHub issues and discussions stays free.
