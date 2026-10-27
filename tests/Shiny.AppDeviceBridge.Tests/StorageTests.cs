@@ -181,6 +181,36 @@ public class StorageBridgeTests
     }
 
     [Fact]
+    public async Task SecureSettingsWorkOnAStoreThatSerializesEveryValue()
+    {
+        // The Apple, Android and Windows secure stores write every value, strings included, through Shiny's serializer.
+        // One with nothing registered must still take the strings the bridge stores.
+        await using var app = new TestApp();
+        var secure = new SerializingKeyValueStore(new Shiny.Impl.DefaultJsonSerializer());
+
+        var (host, webView) = await StartAsync(app, app.BridgeOptions(), new WebAppSettingsBridge(new MemoryKeyValueStore(), secure, TestApp.AppId));
+        await using var _ = host;
+        using var __ = webView;
+
+        Assert.Equal(HttpStatusCode.NoContent, (await webView.PutAsync("/_bridge/settings/secure/token", new StringContent("\"s3cret\""))).StatusCode);
+        Assert.Equal("\"s3cret\"", await webView.GetStringAsync("/_bridge/settings/secure/token"));
+        Assert.Equal(["token"], (await webView.GetFromJsonAsync("/_bridge/settings/secure", AppDeviceBridgeJsonContext.Default.SettingsList))!.Keys);
+    }
+
+
+    sealed class SerializingKeyValueStore(Shiny.ISerializer serializer) : IKeyValueStore
+    {
+        readonly Dictionary<string, string> values = new();
+
+        public bool IsReadOnly => false;
+        public void Clear() => this.values.Clear();
+        public bool Contains(string key) => this.values.ContainsKey(key);
+        public bool Remove(string key) => this.values.Remove(key);
+        public T? Get<T>(string key) => this.values.TryGetValue(key, out var json) ? serializer.Deserialize<T>(json) : default;
+        public void Set<T>(string key, T value) => this.values[key] = serializer.Serialize(value);
+    }
+
+    [Fact]
     public async Task FilesCoverTheLifecycle()
     {
         await using var app = new TestApp();

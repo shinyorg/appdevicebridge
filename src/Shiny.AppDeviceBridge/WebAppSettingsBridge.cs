@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.DependencyInjection;
 using Shiny.AppDeviceBridge.Client;
 using Shiny.Extensions.Stores;
@@ -273,11 +272,3 @@ public sealed class WebAppSettingsBridge : IWebAppBridge
             store.Set(this.IndexKey, String.Join('\n', index.Order(StringComparer.Ordinal)));
     }
 }
-
-/// <summary>
-/// Also registered with Shiny's shared serializer: the Apple and Android secure stores serialize every
-/// value, strings included, and a trimmed build has no reflection fallback to find string metadata with.
-/// </summary>
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
-[JsonSerializable(typeof(string))]
-partial class WebAppStoreJsonContext : JsonSerializerContext;

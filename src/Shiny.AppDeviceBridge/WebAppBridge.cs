@@ -222,7 +222,6 @@ public static class AppDeviceBridgeHttpServerBuilderExtensions
 
         // Registered either way and left unmapped when switched off, so a later configure call can still change its mind.
         services.AddShinyStores();
-        global::Shiny.Json.AddContext(WebAppStoreJsonContext.Default);
         services.AddWebAppBridge<WebAppSettingsBridge>();
         services.AddWebAppBridge<WebAppFilesBridge>();
 

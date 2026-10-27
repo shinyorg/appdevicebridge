@@ -2,6 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json.Serialization;
 using Shiny.AppDeviceBridge.Client;
+using AgeSignalsClient = Shiny.AppDeviceBridge.AgeSignals.Client;
 using BeaconsClient = Shiny.AppDeviceBridge.Beacons.Client;
 using BleClient = Shiny.AppDeviceBridge.BluetoothLE.Client;
 using CalendarClient = Shiny.AppDeviceBridge.Calendar.Client;
@@ -30,6 +31,7 @@ using RpiCameraClient = Shiny.AppDeviceBridge.RpiCamera.Client;
 using ScreenRecorderClient = Shiny.AppDeviceBridge.ScreenRecorder.Client;
 using SpeechClient = Shiny.AppDeviceBridge.Speech.Client;
 using TransfersClient = Shiny.AppDeviceBridge.HttpTransfers.Client;
+using VpnClient = Shiny.AppDeviceBridge.Vpn.Client;
 using WearablesClient = Shiny.AppDeviceBridge.Wearables.Client;
 using WifiClient = Shiny.AppDeviceBridge.Wifi.Client;
 
@@ -109,6 +111,7 @@ public static class BridgeCatalog
             Describe(typeof(IAppBridge), AppJsonContext.Default),
             Describe(typeof(IDeviceBridge), DeviceJsonContext.Default),
             Describe(typeof(ISensorsBridge), SensorsJsonContext.Default),
+            Describe(typeof(AgeSignalsClient.IAgeSignalsBridge), AgeSignalsClient.AgeSignalsJsonContext.Default),
             Describe(typeof(BeaconsClient.IBeaconsBridge), BeaconsClient.BeaconsJsonContext.Default),
             Describe(typeof(BleClient.IBluetoothLEBridge), BleClient.BleJsonContext.Default),
             Describe(typeof(CalendarClient.ICalendarBridge), CalendarClient.CalendarJsonContext.Default),
@@ -141,6 +144,7 @@ public static class BridgeCatalog
             Describe(typeof(RpiCameraClient.IRpiCameraBridge), RpiCameraClient.RpiCameraJsonContext.Default),
             Describe(typeof(ScreenRecorderClient.IScreenRecorderBridge), ScreenRecorderClient.ScreenRecorderJsonContext.Default),
             Describe(typeof(SpeechClient.ISpeechBridge), SpeechClient.SpeechJsonContext.Default),
+            Describe(typeof(VpnClient.IVpnBridge), VpnClient.VpnJsonContext.Default),
             Describe(typeof(WearablesClient.IWearablesBridge), WearablesClient.WearablesJsonContext.Default),
             Describe(typeof(WifiClient.IWifiBridge), WifiClient.WifiJsonContext.Default)
         }.OrderBy(x => x.Name, StringComparer.Ordinal)

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- One target: Shiny.AgeSignals carries the platform code (Declared Age Range on iOS and macOS, Play Age Signals on
+         Android) and NuGet picks its build for the app's head. Everywhere else it reports NotSupported, and the bridge
+         answers 501. -->
+    <RootNamespace>Shiny.AppDeviceBridge.AgeSignals</RootNamespace>
+    <Description>The user's age range as the app store shares it, for a Shiny.AppDeviceBridge web app, backed by Shiny.AgeSignals — Apple Declared Age Range and Google Play Age Signals, for app store accountability laws such as Texas SB 2420. One call: bridge.AddAgeSignalsBridge().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shiny.AgeSignals" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.AgeSignals.Client/Shiny.AppDeviceBridge.AgeSignals.Client.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -43,6 +43,8 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wearables.Client/Shiny.AppDeviceBridge.Wearables.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.InAppPurchases.Client/Shiny.AppDeviceBridge.InAppPurchases.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.CallDirectory.Client/Shiny.AppDeviceBridge.CallDirectory.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AgeSignals.Client/Shiny.AppDeviceBridge.AgeSignals.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Vpn.Client/Shiny.AppDeviceBridge.Vpn.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.GameCenter.Client/Shiny.AppDeviceBridge.GameCenter.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.LiveActivities.Client/Shiny.AppDeviceBridge.LiveActivities.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Client/Shiny.AppDeviceBridge.Maps.Client.csproj" />

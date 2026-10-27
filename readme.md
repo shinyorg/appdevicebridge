@@ -63,6 +63,8 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.InAppPurchases` | the app | `AddInAppPurchasesBridge()`: App Store (StoreKit 2) and Google Play Billing purchases, through Shiny.Mobile.InAppPurchases — products, the store's purchase sheet, entitlements, finishing, restores and subscription management, with purchase updates handed to the page or `background.js` (iOS and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.GameCenter` | the app | `AddGameCenterBridge(o => o.AddAchievement(…).AddLeaderboard(…))`: Apple Game Center and Google Play Games, through Shiny.GameCenter — sign-in, achievements, leaderboards, friends and the services' own UI, with unlocks and scores queued on the device while offline (Apple platforms and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.CallDirectory` | the app | `AddCallDirectoryBridge()`: call blocking and caller identification, through Shiny.Mobile.CallDirectory — the page keeps the list of numbers to block, label or allow, and iOS's Call Directory extension or Android's call screening applies it (iOS and Android 10+; `501` elsewhere) |
+| `Shiny.AppDeviceBridge.AgeSignals` | the app | `AddAgeSignalsBridge()`: the user's age range as the app store shares it, through Shiny.AgeSignals — Apple Declared Age Range and Google Play Age Signals, for app store accountability laws such as Texas SB 2420 |
+| `Shiny.AppDeviceBridge.Vpn` | the app | `AddVpnBridge()`: the app's profile in the OS's built-in IKEv2 VPN client, through Shiny.Net.Vpn — save and remove the profile, connect, disconnect and watch the tunnel |
 | `Shiny.AppDeviceBridge.Maps` | the app | `AddMapsBridge()`: a map online from a pluggable basemap (OpenStreetMap via Protomaps, Azure Maps and Google Maps built in) or offline from regions the user downloads (verified against a signed catalog), live traffic flow and incidents from pluggable providers (TomTom, HERE and Azure Maps built in), turn-by-turn directions from a pluggable online router (Valhalla, Azure Maps and Google Maps built in), and addresses turned into stops by a pluggable geocoder (Nominatim, Azure Maps and Google Maps built in) (all platforms) |
 | `Shiny.AppDeviceBridge.Maps.Valhalla` | the app | `AddOnDeviceDirections()`: directions computed on the phone over a downloaded region's road network (Android and iOS; online elsewhere) |
 | `Shiny.AppDeviceBridge.Maps.Blazor` | the web app | `<BridgeMap>`: MapLibre GL JS bundled for offline use, with pins, lines, areas, circles, click-to-draw, routes and live traffic |
@@ -84,7 +86,7 @@ app, served from the device itself, updated from your own server, and able to ca
 
 AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
 `Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi,
-HttpTransfers, Database, Jobs, Gps, Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
+HttpTransfers, Database, Jobs, Gps, Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, AgeSignals, Vpn, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
 ## The app
@@ -666,6 +668,8 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | In-app purchases | `GET purchases`, `POST purchases/products`, `POST purchases/purchase`, `GET purchases/entitlements`, `GET purchases/unfinished`, `POST purchases/transactions/{transactionId}/finish`, `POST purchases/restore`, `POST purchases/manage` | `purchases.updated` |
 | Game center | `GET games`, `POST games/signin`, `GET games/achievements`, `POST games/achievements/{key}/{unlock,progress,increment,reveal}`, `POST games/achievements/show`, `POST games/leaderboards/{key}/scores`, `POST games/leaderboards/{key}/query`, `POST games/leaderboards/show`, `GET games/friends`, `POST games/flush` | `games.player` |
 | Call directory | `GET calldirectory`, `POST calldirectory/access`, `GET calldirectory/entries/{phoneNumber}`, `PUT/DELETE calldirectory/entries`, `POST calldirectory/entries/remove`, `POST calldirectory/entries/replace`, `POST calldirectory/reload`, `POST calldirectory/normalize` | |
+| Age signals | `GET agesignals`, `POST agesignals/request`, `POST agesignals/significant-update` | |
+| VPN | `GET vpn`, `PUT/DELETE vpn/profile`, `POST vpn/connect`, `POST vpn/disconnect` | `vpn.status` |
 | Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/basemap/{z}/{x}/{y}`, `GET maps/traffic/{z}/{x}/{y}`, `GET maps/incidents/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
 | Directions | `GET directions`, `POST directions/route`, `GET directions/geocode?query=` | |
 | App links | `GET/DELETE links/pending` | `app.link` |
@@ -885,6 +889,42 @@ from a list the page keeps, via Shiny.Mobile.CallDirectory. iOS and Android 10+;
 - **Platform setup:** iOS: `<ShinyCallDirectoryExtension>true</ShinyCallDirectoryExtension>` and
   `<ShinyCallDirectoryAppGroup>` in the app's project file build the extension. `AddCallDirectoryBridge(o => …)` takes
   Shiny's `CallDirectoryOptions` (default country code, Android's block-unlisted and caller-ID notification).
+
+**Age signals** (`Shiny.AppDeviceBridge.AgeSignals`, `AddAgeSignalsBridge()`): the user's age range as the app store
+shares it, via Shiny.AgeSignals — Apple Declared Age Range (iOS and macOS 26+) and Google Play Age Signals, for app store
+accountability laws such as Texas SB 2420. iOS, macOS and Android; elsewhere, Mac Catalyst included, `501`.
+- **Asking:** `POST agesignals/request` with `{ gates: [13, 16, 18] }` (one to three ascending ages) answers
+  `{ status, lowerBound, upperBound, source, … }`. `status` is `Shared`, `Declined`, `VerificationRequired` or
+  `NotSupported` (an OS older than 26); declining is a result, not an error. `source` runs weakest first —
+  `SelfDeclared`, `GuardianDeclared`, `Confirmed`, `IdVerified` — so an app can require a minimum. Google Play ignores
+  the gates and uses the bands set in Play Console. Nothing is cached: ask at the moments the law cares about.
+- **Eligibility:** `GET agesignals` reports, with no UI, whether the OS has the API and Apple's eligibility and 26.4
+  regulatory flags. `POST agesignals/significant-update` with `{ description }` shows Apple's significant-update sheet
+  (`{ shown: false }` on Android, where guardian approval comes back on the signal's `significantChange`).
+- **Errors:** `503` `network`, `transient`, `not_available` or `store_unavailable`, `403` `app_not_owned` (not installed
+  from Play), `409` `invalid_account` or `no_user_interface`, `502` `age_signals_failed`.
+- **Platform setup:** Apple: the `com.apple.developer.declared-age-range` entitlement — without it the request never
+  returns. Android: install from Google Play.
+
+**VPN** (`Shiny.AppDeviceBridge.Vpn`, `AddVpnBridge()`): the app's one profile in the OS's built-in IKEv2 VPN client,
+via Shiny.Net.Vpn. iOS, Mac Catalyst, macOS, Android 11+ and Linux (NetworkManager with its strongSwan plugin); Windows
+answers `501`. The OS owns the tunnel: it outlives the app and the user can switch it off in system settings.
+- **Profile:** `PUT vpn/profile` with `{ name, serverAddress, authentication, … }` — `SharedSecret` (`secret`),
+  `UsernamePassword` (`username`, `password`) or `Certificate` (`pkcs12` as base64, with its `password`) — plus optional
+  `remoteIdentifier`, `localIdentifier` and `serverRootCertificate`. The first save shows the OS consent prompt and answers
+  `{ access: "Denied" }` if the user declines. Secrets go to the keychain or keystore and are never read back.
+  `DELETE vpn/profile` removes it.
+- **Tunnel:** `POST vpn/connect` (`{ timeoutSeconds }`, 30 by default) waits for the tunnel and answers the new state;
+  `POST vpn/disconnect` keeps the profile. `vpn.status` fires on every change, including ones made in system settings.
+- **Capabilities:** `GET vpn` answers `{ state, capabilities }`. Check `capabilities` first: Android 11–12 can't report
+  `status`, Android never takes a `remoteIdentifier`, Apple can't take a `serverRootCertificate`, and Linux has no
+  `certificate` profiles. An option the platform lacks answers `501` `not_supported`.
+- **Errors:** `403` `vpn_permission` (no profile, or consent withdrawn), `502` `vpn_connection_failed` with the OS's
+  reason, `502` `vpn_failed`.
+- **Security:** the page can point the device's traffic at a server of its choosing, so register it only for a web app
+  you ship.
+- **Platform setup:** Apple: the Personal VPN capability and the `com.apple.developer.networking.vpn.api` entitlement
+  (`allow-vpn`). Linux: `network-manager-strongswan`, and a polkit rule on a headless device.
 
 **Receipt printers:**
 - **Printers:** ESC/POS (or TSPL) over Bluetooth LE or raw TCP, one at a time. `scan` finds Bluetooth printers matching a

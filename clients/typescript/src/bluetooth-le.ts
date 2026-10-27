@@ -90,7 +90,7 @@ export interface BleStatus {
 
 export interface BleWriteRequest {
     /** Base64 in JSON. */
-    data: Blob | ArrayBuffer | Uint8Array;
+    data: string;
     /** Wait for the peripheral to acknowledge the write. */
     withResponse?: boolean;
 }

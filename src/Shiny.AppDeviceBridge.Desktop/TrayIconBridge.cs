@@ -30,7 +30,7 @@ public static class TrayIconBridgeExtensions
         var options = new TrayIconBridgeOptions();
         configure?.Invoke(options);
 
-        bridge.Maui.UseTrayIcon();
+        bridge.Maui.UseShinyDesktop();
         bridge.Services.TryAddSingleton(options);
         bridge.AddBridge<TrayIconBridge>();
         return bridge;

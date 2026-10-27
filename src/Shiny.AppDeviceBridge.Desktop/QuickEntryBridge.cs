@@ -63,8 +63,8 @@ public static class QuickEntryBridgeExtensions
         if (!bridge.Services.Any(x => x.ServiceType == typeof(IQuickEntryService)))
             bridge.Maui.UseShinyControls();
 
-        if (!bridge.Services.Any(x => x.ServiceType == typeof(IGlobalHotKeyService)))
-            bridge.Maui.UseDesktopQuickEntry();
+        // Safe to call again after the tray bridge's own UseShinyDesktop(): it only adds what is missing.
+        bridge.Maui.UseShinyDesktop(cfg => cfg.UseQuickEntryWindow());
 
         if (bridge.Services.FirstOrDefault(x => x.ServiceType == typeof(QuickEntryOptions))?.ImplementationInstance is QuickEntryOptions controlOptions)
         {

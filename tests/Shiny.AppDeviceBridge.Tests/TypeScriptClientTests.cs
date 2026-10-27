@@ -46,6 +46,17 @@ public class TypeScriptClientTests
         Assert.Contains("export type TrafficIncidentKind = \"Other\" | \"Accident\"", maps);
     }
 
+    [Fact]
+    public void Types_bytes_inside_a_json_body_as_base64_and_a_raw_body_as_binary()
+    {
+        var clients = TypeScriptGenerator.Generate();
+
+        // JSON.stringify has no binary form, and System.Text.Json reads a byte[] property as base64.
+        Assert.Contains("    pkcs12?: string | null;", clients["vpn.ts"]);
+        Assert.Contains("    data: string;", clients["bluetooth-le.ts"]);
+        Assert.Contains("printPdf(pdf: Blob | ArrayBuffer | Uint8Array,", clients["printing.ts"]);
+    }
+
     static string RepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

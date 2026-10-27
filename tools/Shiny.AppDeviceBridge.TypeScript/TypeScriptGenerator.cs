@@ -178,7 +178,10 @@ public static partial class TypeScriptGenerator
 
                 var nullable = IsNullable(property);
                 var optional = usage == Usage.Input && !IsRequired(property);
-                var tsType = TsType(property.PropertyType, Ref, forParameter: usage == Usage.Input) + (nullable ? " | null" : "");
+                // A property is always written with JSON.stringify, which has no binary form: System.Text.Json reads a byte[]
+                // as base64, so the page sends one. Only a whole raw body (a byte[] parameter) goes over as bytes.
+                var tsType = (property.PropertyType == typeof(byte[]) ? "string" : TsType(property.PropertyType, Ref, forParameter: usage == Usage.Input))
+                    + (nullable ? " | null" : "");
 
                 body.AppendLine($"    {JsonName(property)}{(optional ? "?" : "")}: {tsType};");
             }

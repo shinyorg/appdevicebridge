@@ -3,7 +3,7 @@
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
         <MauiVersion>10.0.101</MauiVersion>
         <MauiLabsVersion>0.1.0-preview.12.26421.1</MauiLabsVersion>
-        <ShinyVersion>6.3.0</ShinyVersion>
+        <ShinyVersion>6.4.0</ShinyVersion>
         <DocumentDbVersion>14.1.0</DocumentDbVersion>
     </PropertyGroup>
     <ItemGroup>
@@ -32,12 +32,12 @@
         <PackageVersion Include="Microsoft.Maui.DevFlow.Agent" Version="$(MauiLabsVersion)"/>
     </ItemGroup>
     <ItemGroup>
-        <PackageVersion Include="Shiny.Net.HttpServer" Version="2.2.0"/>
-        <PackageVersion Include="Shiny.Net.HttpServer.Ssh" Version="2.2.0"/>
-        <PackageVersion Include="Shiny.Net.HttpServer.Mcp" Version="2.2.0"/>
-        <PackageVersion Include="Shiny.Extensions.Stores" Version="6.0.0"/>
-        <PackageVersion Include="Shiny.Maui.Controls.Desktop" Version="1.7.0"/>
-        <PackageVersion Include="Shiny.Maui.Controls.Camera" Version="1.7.0"/>
+        <PackageVersion Include="Shiny.Net.HttpServer" Version="2.2.1"/>
+        <PackageVersion Include="Shiny.Net.HttpServer.Ssh" Version="2.2.1"/>
+        <PackageVersion Include="Shiny.Net.HttpServer.Mcp" Version="2.2.1"/>
+        <PackageVersion Include="Shiny.Extensions.Stores" Version="6.0.1"/>
+        <PackageVersion Include="Shiny.Maui.Controls.Desktop" Version="2.1.0"/>
+        <PackageVersion Include="Shiny.Maui.Controls.Camera" Version="2.1.0"/>
         <PackageVersion Include="Shiny.Hosting.Maui" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Core" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.AppStore" Version="$(ShinyVersion)"/>
@@ -48,6 +48,9 @@
         <PackageVersion Include="Shiny.Mobile.LiveActivities" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Mobile.InAppPurchases" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Mobile.CallDirectory" Version="$(ShinyVersion)"/>
+        <PackageVersion Include="Shiny.AgeSignals" Version="$(ShinyVersion)"/>
+        <PackageVersion Include="Shiny.Net.Vpn" Version="$(ShinyVersion)"/>
+        <PackageVersion Include="Shiny.Net.Vpn.Linux" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.GameCenter" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Notifications.Linux" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Net.Wifi" Version="$(ShinyVersion)"/>
@@ -66,7 +69,7 @@
         <PackageVersion Include="Shiny.Health" Version="2.0.1"/>
         <PackageVersion Include="Shiny.Contacts" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Calendar" Version="$(ShinyVersion)"/>
-        <PackageVersion Include="Shiny.Speech" Version="3.0.0-beta-0030"/>
+        <PackageVersion Include="Shiny.Speech" Version="3.0.0-beta-0036"/>
         <PackageVersion Include="Shiny.ScreenRecorder" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.ScreenRecorder.Linux" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Net.Http" Version="$(ShinyVersion)"/>
