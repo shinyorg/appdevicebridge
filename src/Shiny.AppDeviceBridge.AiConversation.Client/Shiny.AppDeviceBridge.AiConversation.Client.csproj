@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.AiConversation.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge AI conversation bridge (persisted, streaming AI sessions with questions, memory and a voice loop, run by the app's own model) for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddAiConversationBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

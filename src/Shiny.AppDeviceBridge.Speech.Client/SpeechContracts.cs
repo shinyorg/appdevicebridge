@@ -18,6 +18,35 @@ public enum SpeechEndReason
 
 public enum SpeechErrorSource { Recognition, Synthesis }
 
+/// <summary>
+/// An emotional delivery, mapped by each engine onto whatever it offers — the closest intent, not an exact term.
+/// </summary>
+public enum SpeechEmotion
+{
+    /// <summary>No direction: the engine's own delivery.</summary>
+    Neutral,
+    Happy,
+    Excited,
+    Sad,
+    Angry,
+    Fearful,
+    Calm,
+    Whispering,
+    Shouting,
+    Friendly,
+    Serious,
+    Sarcastic
+}
+
+/// <summary>
+/// How an utterance should sound. Engines with expressive control (Azure, ElevenLabs v3, Typecast, OpenAI) honour what
+/// they can; the on-device engines ignore it.
+/// </summary>
+/// <param name="Emotion">The delivery.</param>
+/// <param name="Intensity">0–2, where 1 is the engine's default. Only Azure and Typecast use it.</param>
+/// <param name="Instructions">Free-text direction, at most 1,000 characters. Only OpenAI uses it.</param>
+public sealed record SpeechTone(SpeechEmotion Emotion = SpeechEmotion.Neutral, float? Intensity = null, string? Instructions = null);
+
 public sealed record SpeechStatus(bool RecognitionSupported, bool SynthesisSupported, bool Listening, bool Recognizing, bool Speaking);
 
 public sealed record SpeechAccessResult(AccessState Access);
@@ -58,6 +87,7 @@ public sealed record SpeechListener(string? Culture, IReadOnlyList<string>? Keyw
 /// <param name="Rate">0.25–4.</param>
 /// <param name="Volume">0–1.</param>
 /// <param name="Wait">Return once speech ends rather than straight away.</param>
+/// <param name="Tone">How it should sound; ignored by engines with no expressive control.</param>
 public sealed record SpeakRequest(
     string Text,
     string? Culture = null,
@@ -65,7 +95,8 @@ public sealed record SpeakRequest(
     float? Pitch = null,
     float? Rate = null,
     float? Volume = null,
-    bool Wait = true
+    bool Wait = true,
+    SpeechTone? Tone = null
 );
 
 /// <param name="Completed">False when it was interrupted.</param>

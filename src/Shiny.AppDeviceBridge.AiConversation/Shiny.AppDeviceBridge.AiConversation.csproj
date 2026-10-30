@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Cleared: src/Directory.Build.props sets the single target. -->
+    <TargetFramework></TargetFramework>
+
+    <!-- Multi-targeted for the voice loop only: it listens and speaks through Shiny.Speech, whose recognizer and
+         synthesizer exist in its platform builds. Sessions are plain .NET and work everywhere, Linux included; there the
+         voice loop needs a cloud or Whisper speech service the app registers itself. -->
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
+    <RootNamespace>Shiny.AppDeviceBridge.AiConversation</RootNamespace>
+    <Description>Conversations with the app's own AI model for a Shiny.AppDeviceBridge web app, backed by Shiny.AiConversation — persisted sessions that stream their replies as events, typed questions with choices, images, assistant memory, context and token tracking, and the hands-free voice loop with wake word, push-to-talk and interruption. The model, its key and its tools stay in the app. One call: bridge.AddAiConversationBridge().</Description>
+
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-macos'))">14.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shiny.AiConversation" />
+    <PackageReference Include="Shiny.AiConversation.Voice" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.AiConversation.Client/Shiny.AppDeviceBridge.AiConversation.Client.csproj" />
+  </ItemGroup>
+
+</Project>

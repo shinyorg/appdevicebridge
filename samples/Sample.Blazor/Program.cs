@@ -21,6 +21,8 @@ using Shiny.AppDeviceBridge.Gps.Client;
 using Shiny.AppDeviceBridge.RegionGeofencing.Client;
 using Shiny.AppDeviceBridge.ScreenRecorder.Client;
 using Shiny.AppDeviceBridge.Speech.Client;
+using Shiny.AppDeviceBridge.Audio.Client;
+using Shiny.AppDeviceBridge.AiConversation.Client;
 using Shiny.AppDeviceBridge.Health.Client;
 using Shiny.AppDeviceBridge.BluetoothLE.Client;
 using Shiny.AppDeviceBridge.Beacons.Client;
@@ -29,6 +31,8 @@ using Shiny.AppDeviceBridge.Wifi.Client;
 using Shiny.AppDeviceBridge.Push.Client;
 using Shiny.AppDeviceBridge.Wearables.Client;
 using Shiny.AppDeviceBridge.InAppPurchases.Client;
+using Shiny.AppDeviceBridge.Biometrics.Client;
+using Shiny.AppDeviceBridge.Nfc.Client;
 using Shiny.AppDeviceBridge.LiveActivities.Client;
 using Shiny.AppDeviceBridge.Maps.Blazor;
 
@@ -61,6 +65,8 @@ builder.Services
     .AddMotionBridgeClient()
     .AddGeocodingBridgeClient()
     .AddSpeechBridgeClient()
+    .AddAudioBridgeClient()
+    .AddAiConversationBridgeClient()
     .AddScreenRecorderBridgeClient()
     .AddHealthBridgeClient()
     .AddBluetoothLEBridgeClient()
@@ -71,6 +77,8 @@ builder.Services
     .AddWearablesBridgeClient()
     .AddLiveActivitiesBridgeClient()
     .AddInAppPurchasesBridgeClient()
+    .AddBiometricsBridgeClient()
+    .AddNfcBridgeClient()
     .AddBridgeMaps();
 builder.Services.AddScoped<NativeCallHandlers>();
 

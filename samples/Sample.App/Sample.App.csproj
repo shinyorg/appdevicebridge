@@ -15,6 +15,8 @@
     <!-- The region geofencing demo: US states / Canadian provinces and their cities, in a SQLite store. -->
     <PackageReference Include="Shiny.DocumentDb.Sqlite" />
     <PackageReference Include="Shiny.Geofencing.Regions.DocumentDb" />
+    <!-- The AI page's model: any OpenAI-compatible endpoint, configured by environment variable. -->
+    <PackageReference Include="Shiny.AiConversation.OpenAi" />
   </ItemGroup>
 
   <ItemGroup>
@@ -42,9 +44,13 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Push/Shiny.AppDeviceBridge.Push.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wearables/Shiny.AppDeviceBridge.Wearables.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.InAppPurchases/Shiny.AppDeviceBridge.InAppPurchases.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Biometrics/Shiny.AppDeviceBridge.Biometrics.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Nfc/Shiny.AppDeviceBridge.Nfc.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.LiveActivities/Shiny.AppDeviceBridge.LiveActivities.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.RpiCamera/Shiny.AppDeviceBridge.RpiCamera.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Speech/Shiny.AppDeviceBridge.Speech.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Audio/Shiny.AppDeviceBridge.Audio.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AiConversation/Shiny.AppDeviceBridge.AiConversation.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.ScreenRecorder/Shiny.AppDeviceBridge.ScreenRecorder.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wifi/Shiny.AppDeviceBridge.Wifi.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps/Shiny.AppDeviceBridge.Maps.csproj" />

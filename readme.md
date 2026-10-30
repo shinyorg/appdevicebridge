@@ -64,6 +64,8 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.GameCenter` | the app | `AddGameCenterBridge(o => o.AddAchievement(…).AddLeaderboard(…))`: Apple Game Center and Google Play Games, through Shiny.GameCenter — sign-in, achievements, leaderboards, friends and the services' own UI, with unlocks and scores queued on the device while offline (Apple platforms and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.CallDirectory` | the app | `AddCallDirectoryBridge()`: call blocking and caller identification, through Shiny.Mobile.CallDirectory — the page keeps the list of numbers to block, label or allow, and iOS's Call Directory extension or Android's call screening applies it (iOS and Android 10+; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.AgeSignals` | the app | `AddAgeSignalsBridge()`: the user's age range as the app store shares it, through Shiny.AgeSignals — Apple Declared Age Range and Google Play Age Signals, for app store accountability laws such as Texas SB 2420 |
+| `Shiny.AppDeviceBridge.Biometrics` | the app | `AddBiometricsBridge()`: verify the device owner with the platform's own prompt, through Shiny.Biometrics — Touch ID, Face ID and Optic ID, Android fingerprint, face and iris, and Windows Hello, with a passcode / PIN fallback |
+| `Shiny.AppDeviceBridge.Nfc` | the app | `AddNfcBridge()`: read and write NDEF NFC tags, through Shiny.Nfc — one-tap reads and writes, continuous scanning with `nfc.tag` events, and writing or locking a held tag; Android, iOS and PC/SC readers on Windows, macOS and Linux |
 | `Shiny.AppDeviceBridge.Vpn` | the app | `AddVpnBridge()`: the app's profile in the OS's built-in IKEv2 VPN client, through Shiny.Net.Vpn — save and remove the profile, connect, disconnect and watch the tunnel |
 | `Shiny.AppDeviceBridge.Maps` | the app | `AddMapsBridge()`: a map online from a pluggable basemap (OpenStreetMap via Protomaps, Azure Maps and Google Maps built in) or offline from regions the user downloads (verified against a signed catalog), live traffic flow and incidents from pluggable providers (TomTom, HERE and Azure Maps built in), turn-by-turn directions from a pluggable online router (Valhalla, Azure Maps and Google Maps built in), and addresses turned into stops by a pluggable geocoder (Nominatim, Azure Maps and Google Maps built in) (all platforms) |
 | `Shiny.AppDeviceBridge.Maps.Valhalla` | the app | `AddOnDeviceDirections()`: directions computed on the phone over a downloaded region's road network (Android and iOS; online elsewhere) |
@@ -72,8 +74,11 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Notifications` | the app | `AddNotificationsBridge()`: local notifications now, scheduled, repeating or at a geofence; pending, cancel, badge, channels; taps handed to the web app |
 | `Shiny.AppDeviceBridge.HttpTransfers` | the app | `AddHttpTransfersBridge()`: background uploads and downloads to and from file roots, with progress events and completion handlers |
 | `Shiny.AppDeviceBridge.AppLinks` | the app | `AddAppLinksBridge(o => o.Schemes.Add("myapp"))`: deep links and universal/app links routed to the page |
+| `Shiny.AppDeviceBridge.ShareTarget` | the app | `AddShareTargetBridge()`: text, links and files other apps share to this one, queued for the page with the files copied into a file root, kept until the page removes them (Android, iOS and Mac Catalyst files, Windows; macOS and Linux through a hook) |
 | `Shiny.AppDeviceBridge.Health` | the app | `AddHealthBridge()`: HealthKit and Health Connect permissions, bucketed reads, writes and live readings |
-| `Shiny.AppDeviceBridge.Speech` | the app | `AddSpeechBridge()`: on-device speech recognition, dictation as events, text-to-speech, voices |
+| `Shiny.AppDeviceBridge.Speech` | the app | `AddSpeechBridge()`: on-device speech recognition, dictation as events, text-to-speech, voices, tone |
+| `Shiny.AppDeviceBridge.AiConversation` | the app | `AddAiConversationBridge()`: streaming, persisted conversations with the app's AI model, questions, memory, voice loop |
+| `Shiny.AppDeviceBridge.Audio` | the app | `AddAudioBridge()`: play clips, system volume, microphone recording to WAV with effects, audio routes, live monitor |
 | `Shiny.AppDeviceBridge.ScreenRecorder` | the app | `AddScreenRecorderBridge()`: record the device's screen to a video filed into a file root, through Shiny.ScreenRecorder — microphone and system audio where the platform has them, pause and resume, a time limit, and events for every state change and ending (all platforms) |
 | `Shiny.AppDeviceBridge.Contacts` | the app | `AddContactsBridge()`: access, paged search, read, photos, create, update and delete (Android, iOS) |
 | `Shiny.AppDeviceBridge.Calendar` | the app | `AddCalendarBridge()`: access, calendars, events in a date range, create, update and delete |
@@ -84,9 +89,9 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Desktop` | the app | `AddTrayIconBridge()`: system tray / menu bar icons, menus, badges, notifications and animation. `AddQuickEntryBridge()`: a prompt window that opens over other applications from a global hotkey. Both hand what the user does back to the web app |
 | `Shiny.AppDeviceBridge.RpiCamera` | the app, or a headless Pi | `bridge.AddRpiCameraBridge()`, on a MAUI or headless bridge builder: Raspberry Pi cameras through libcamera — snapshots, captures into a file root, sensor controls and a shared live MJPEG stream; `camera.StreamToAsync(stream)` streams framed JPEGs into any `Stream`, such as a Bluetooth LE L2CAP channel, for `ReadFramesAsync` to read |
 
-AppLinks, Camera, Photos, Folders and Desktop need MAUI: they reference
+AppLinks, ShareTarget, Camera, Photos, Folders and Desktop need MAUI: they reference
 `Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi,
-HttpTransfers, Database, Jobs, Gps, Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, AgeSignals, Vpn, Speech, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
+HttpTransfers, Database, Jobs, Gps, Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, AgeSignals, Biometrics, Nfc, Vpn, Speech, Audio, AiConversation, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
 ## The app
@@ -669,12 +674,17 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Game center | `GET games`, `POST games/signin`, `GET games/achievements`, `POST games/achievements/{key}/{unlock,progress,increment,reveal}`, `POST games/achievements/show`, `POST games/leaderboards/{key}/scores`, `POST games/leaderboards/{key}/query`, `POST games/leaderboards/show`, `GET games/friends`, `POST games/flush` | `games.player` |
 | Call directory | `GET calldirectory`, `POST calldirectory/access`, `GET calldirectory/entries/{phoneNumber}`, `PUT/DELETE calldirectory/entries`, `POST calldirectory/entries/remove`, `POST calldirectory/entries/replace`, `POST calldirectory/reload`, `POST calldirectory/normalize` | |
 | Age signals | `GET agesignals`, `POST agesignals/request`, `POST agesignals/significant-update` | |
+| Biometrics | `GET biometrics[?strength=Weak]`, `POST biometrics/authenticate` | |
+| NFC | `GET nfc`, `POST nfc/access`, `POST nfc/read`, `POST nfc/write`, `POST/DELETE nfc/scan`, `POST nfc/tags/{tagId}/{write,lock,release}` | `nfc.tag`, `nfc.scan` |
 | VPN | `GET vpn`, `PUT/DELETE vpn/profile`, `POST vpn/connect`, `POST vpn/disconnect` | `vpn.status` |
 | Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/basemap/{z}/{x}/{y}`, `GET maps/traffic/{z}/{x}/{y}`, `GET maps/incidents/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
 | Directions | `GET directions`, `POST directions/route`, `GET directions/geocode?query=` | |
 | App links | `GET/DELETE links/pending` | `app.link` |
+| Share target | `GET sharetarget/pending`, `GET/DELETE sharetarget/pending/{id}` | `sharetarget.received` |
 | Health | `GET health`, `POST health/access`, `GET/POST health/samples/{type}`, `POST/DELETE health/listeners/{type}` | `health.reading`, `health.stopped` |
 | Speech | `GET speech/status`, `POST speech/access`, `POST speech/recognize`, `GET/POST/DELETE speech/listener`, `POST/DELETE speech/speak`, `GET speech/voices?culture=`, `GET speech/cultures` | `speech.partial`, `speech.result`, `speech.keyword`, `speech.ended`, `speech.spoken`, `speech.error` |
+| AI conversation | `GET ai`, `GET/POST ai/sessions`, `GET ai/sessions/latest`, `GET/DELETE ai/sessions/{id}`, `PUT ai/sessions/{id}/title`, `GET/POST ai/sessions/{id}/messages`, `DELETE ai/sessions/{id}/turn`, `POST ai/sessions/{id}/compact`, `GET ai/attachments?id=`, `GET/PUT/DELETE ai/memory`, `GET/POST/DELETE ai/voice`, `POST ai/voice/{access,talk,stop,pause,resume}` | `ai.turn.started`, `ai.delta`, `ai.tool`, `ai.questions`, `ai.turn.ended`, `ai.message`, `ai.state`, `ai.usage`, `ai.title`, `ai.compacted`, `ai.memory`, `ai.error`, `ai.voice.state`, `ai.voice.transcript`, `ai.voice.speaking`, `ai.voice.interrupted`, `ai.voice.level`, `ai.voice.error` |
+| Audio | `GET audio/status`, `POST audio/access`, `GET/POST/DELETE audio/playback`, `DELETE audio/playback/{id}`, `PUT audio/volume`, `POST/DELETE audio/recording`, `POST audio/recording/cancel`, `GET audio/devices`, `POST audio/devices/picker`, `POST/PUT/DELETE audio/monitor` | `audio.playback.ended`, `audio.playback.level`, `audio.volume`, `audio.recording.level`, `audio.recording.ended`, `audio.devices`, `audio.monitor.level`, `audio.monitor.ended` |
 | Screen recorder | `GET screenrecorder`, `POST screenrecorder/access`, `POST/DELETE screenrecorder/recording`, `POST screenrecorder/recording/cancel`, `POST screenrecorder/recording/pause`, `POST screenrecorder/recording/resume` | `screenrecorder.status`, `screenrecorder.ended` |
 | Contacts | `GET contacts`, `POST contacts/access`, `GET/POST contacts/items`, `GET/PUT/DELETE contacts/items/{id}`, `GET contacts/items/{id}/photo` | |
 | Calendar | `GET calendar`, `POST calendar/access`, `GET calendar/calendars`, `GET/POST calendar/events`, `GET/PUT/DELETE calendar/events/{id}` | |
@@ -906,6 +916,42 @@ accountability laws such as Texas SB 2420. iOS, macOS and Android; elsewhere, Ma
 - **Platform setup:** Apple: the `com.apple.developer.declared-age-range` entitlement — without it the request never
   returns. Android: install from Google Play.
 
+**Biometrics** (`Shiny.AppDeviceBridge.Biometrics`, `AddBiometricsBridge()`): verify the device owner with the platform's
+own prompt, via Shiny.Biometrics — LocalAuthentication (Touch ID, Face ID, Optic ID) on iOS, Mac Catalyst and macOS,
+BiometricPrompt (fingerprint, face, iris) on Android, and Windows Hello. Linux answers `501`.
+- **Checking:** `GET biometrics` reports, with no UI, `{ status, types, isDeviceCredentialSet }`: `status` is `Available`,
+  `NotEnrolled`, `LockedOut`, `PasscodeNotSet`, `Unavailable`, `SecurityUpdateRequired` or `NotSupported` (no hardware),
+  and `types` lists the hardware (`Fingerprint`, `Face`, `Iris`, or `Unknown` for Windows Hello). `?strength=Weak` asks
+  Android about class 2 biometrics.
+- **Prompting:** `POST biometrics/authenticate` with `{ reason, allowDeviceCredential }` (plus Android's `title`,
+  `subtitle`, `strength`, `confirmationRequired`, and the `cancelText` / Apple `fallbackText` buttons) answers
+  `{ status, errorMessage }`. A cancel, lockout or missing enrollment is a `status` (`Cancelled`, `Fallback`, `Failed`,
+  `LockedOut`, `NotEnrolled`, `PasscodeNotSet`, `NotAvailable`, `Timeout`), not an error. Windows Hello always offers its
+  PIN.
+- **Errors:** `400` for an empty reason or text over 256 characters, `409` `cannot_prompt` when the app has nothing to
+  show the prompt from (no Android activity, or a missing `NSFaceIDUsageDescription`).
+- **Security:** the answer is a local yes/no for the page's UI. Don't send it to a server as proof of identity.
+- **Platform setup:** iOS: `NSFaceIDUsageDescription` in Info.plist. Android and Windows need nothing.
+
+**NFC** (`Shiny.AppDeviceBridge.Nfc`, `AddNfcBridge()`): read and write NDEF tags (URLs, text, MIME, smart posters,
+Android app records) via Shiny.Nfc — Android reader mode, iOS CoreNFC, and PC/SC readers on Windows, macOS and Linux. A
+WebView has no Web NFC, so this is the page's way to the radio. Mac Catalyst and devices without NFC answer `501`.
+- **One tap:** `POST nfc/read` (`{ alertMessage }`) answers `{ identifier, records }`, or `204` when the scan ended
+  first (the user dismissed the iOS sheet). `POST nfc/write` with `{ records }` answers `{ written }`.
+- **Scanning:** listen for `nfc.tag` first (`409 not_listening` otherwise), then `POST nfc/scan`. Each tag fires
+  `nfc.tag` with its records already read; `nfc.scan` reports the end (`Stopped`, `Dismissed`, `Failed`). The scan stops
+  on `DELETE nfc/scan` or when the page stops listening. One NFC session at a time (`409 nfc_busy`).
+- **Held tags:** a native tag only lives while the scan handles it, so scan with `holdSeconds` (≤ 60) to
+  `POST nfc/tags/{tagId}/write` or `/lock` (permanent) a tag from `nfc.tag`; `/release` moves on. A released tag
+  answers `404 tag_not_held`. `holdSeconds: 0` (the default) releases every tag at once, for read-only scanning.
+- **Records:** read records carry `format`, `type`, base64 `payload`, `id` and the decoded `uri` / `text` / `language` /
+  `mimeType`. Write records set exactly one of `uri`, `text` (+ `language`), `mimeType` + `data`, `androidPackage`, or
+  raw `format` + `type` + `data`; 1–32 records, ≤ 32 KB.
+- **Errors:** `410 tag_lost`, `409 tag_read_only|tag_not_supported|nfc_unavailable`, `413 message_too_large`,
+  `422 invalid_ndef`, `502 nfc_failed`.
+- **Platform setup:** Android: `android.permission.NFC`. iOS: `NFCReaderUsageDescription` and the
+  `com.apple.developer.nfc.readersession.formats` entitlement with `TAG`. Linux: `pcscd`.
+
 **VPN** (`Shiny.AppDeviceBridge.Vpn`, `AddVpnBridge()`): the app's one profile in the OS's built-in IKEv2 VPN client,
 via Shiny.Net.Vpn. iOS, Mac Catalyst, macOS, Android 11+ and Linux (NetworkManager with its strongSwan plugin); Windows
 answers `501`. The OS owns the tunnel: it outlives the app and the user can switch it off in system settings.
@@ -1006,6 +1052,39 @@ Platform setup:
 - **Windows:** a protocol registration; redirect activations to the first instance for links while running.
 - **Linux:** `x-scheme-handler` in the .desktop file; cold starts only.
 
+**Share target:** text, links and files other apps share to this one wait in a queue for the page. The files are
+copied into a file root (`Root`, `data` by default) under `shares/{id}/`. To share *from* the page, use `device/share`.
+- **Delivery:** read `GET /_bridge/sharetarget/pending` at boot and listen for `sharetarget.received`. Then
+  `DELETE /_bridge/sharetarget/pending/{id}` once a share is handled, which also deletes its files. Shares survive a
+  restart, and past `MaxPending` (20) the oldest is dropped.
+- **Links:** `url` is only ever an absolute http or https URL. Text that is just such a link arrives as `url`, and
+  any other scheme stays `text`.
+- **Files:** at most `MaxFiles` (20) per share, each within `MaxFileWriteBytes`, with names cleaned to one path segment.
+  One that can't be read is left out. Without the `Root` file root, the bridge answers `501`.
+- **Background:** shares never go to `background.js`.
+
+```ts
+const shares = new ShareTargetBridge();
+
+async function handle(share: SharedContent) {
+    if (share.url) await saveBookmark(share.url);
+    for (const f of share.files) await importFile(f.file);
+    await shares.remove(share.id);
+}
+
+for (const share of await shares.getPending()) await handle(share);
+shares.onReceived(handle);
+```
+
+Platform setup:
+- **Android:** `ACTION_SEND` / `ACTION_SEND_MULTIPLE` intent filters on a `SingleTop` main activity. Only `content:`
+  files are taken.
+- **iOS / Mac Catalyst:** `CFBundleDocumentTypes`: files arrive through "Open in" and "Copy to". Text and links need
+  the app's own share extension, which hands over with `ShareTarget.ReceiveAsync`.
+- **Windows:** the Share Target declaration in a packaged app's manifest, or file type associations.
+- **maui-labs AppKit:** the head overrides `OpenUrls` and passes file URLs to `ShareTarget.ReceiveAsync`.
+- **Linux:** `%F` in the .desktop file's `Exec`, plus `AcceptCommandLineFiles = true`; cold starts only.
+
 **Health:**
 - **Platforms:** HealthKit on iOS, Health Connect on Android. Other platforms return `501`. On Android
   without Health Connect, every call except `GET health` returns `503`.
@@ -1050,9 +1129,63 @@ const steps = await health.getSamples("StepCount", today, new Date(), { interval
 - **Platforms:** Linux has no OS speech engine, so its endpoints return `501`. To use a cloud
   provider or Whisper there, pass `o => o.RegisterSpeechServices = false` and register your own
   `ISpeechToTextService` / `ITextToSpeechService`.
+- **Tone:** `speak` takes an optional `tone` — `emotion` (`Happy`, `Excited`, `Calm`, `Whispering`, …),
+  `intensity` 0–2 and free-text `instructions` (≤ 1,000 characters). Expressive cloud engines registered in place of
+  the on-device one honour what they can; the on-device engines ignore it.
 - **Platform setup:** Android needs `RECORD_AUDIO`, plus a `<queries>` entry for
   `android.intent.action.TTS_SERVICE`. Apple platforms need `NSSpeechRecognitionUsageDescription` and
   `NSMicrophoneUsageDescription`, plus the `com.apple.security.device.audio-input` entitlement for sandboxed apps.
+
+**AI conversation:** Built on Shiny.AiConversation 3.0. The model, its key, tools and prompts are the app's; the page never sees them.
+- **Register:** `AddAiConversationBridge(ai => ai.SetChatClientProvider<T>(), o => o.Voice = true)` — the first
+  argument is Shiny.AiConversation's own `AiConversationOptions` (provider, stores, tools, interceptors); without a
+  provider it uses the registered `IChatClient`. `AiConversationBridgeOptions`: `Voice` (off), `MaxOpenSessions` (8),
+  `RegisterAiConversation` (on).
+- **Sessions:** `POST sessions`, `GET sessions/latest` (`204` when none), `GET sessions?text=&tag=&profile=`,
+  `GET/DELETE sessions/{id}`, `PUT sessions/{id}/title`. Events come only from sessions the bridge holds open (it
+  opens one on use and closes the least recently used idle one past `MaxOpenSessions`).
+- **Sending:** `POST sessions/{id}/messages` takes `text` or `answer: { questionId, choiceIds }` (never both), up to
+  4 `images` as `{ file: { root, path } }`, and `instructions`. It answers with `turnId` at once; `"wait": true`
+  answers with the outcome and reply. The turn outlives the request; a newer message supersedes it;
+  `DELETE sessions/{id}/turn` interrupts (`409 no_turn`).
+- **Events:** `ai.delta`, `ai.message`, `ai.turn.started`, `ai.turn.ended` (outcome + error), `ai.questions`,
+  `ai.tool`, `ai.state`, `ai.usage`, `ai.title`, `ai.compacted`, `ai.memory`, `ai.error` — each carries `sessionId`;
+  filter on it.
+- **Questions:** answer one with choices by `answer`; one without choices with text. Not pending: `409 no_such_question`.
+- **History:** `GET sessions/{id}/messages?before=&count=` pages backwards; image parts' `attachmentId` →
+  `GET attachments?id=`.
+- **Memory:** `GET/PUT/DELETE memory` (`Global`, or `Profile`/`Session` with a `scopeKey`).
+- **Voice:** `POST voice { sessionId, wakeWord?, interruption?, quietWords?, followUpTimeoutSeconds?, culture? }`
+  needs a listener on `ai.voice.state` (`409 not_listening`) and detaches when none is left; `voice/talk`,
+  `voice/stop`, `voice/pause`, `voice/resume`, `DELETE voice`. A loop the app attached itself: `409 voice_busy`.
+- **Platforms:** sessions everywhere; voice on iOS, Mac Catalyst, macOS, Android, Windows (Linux needs a cloud or
+  Whisper speech service). `501` for whatever isn't registered.
+- **Security:** the page spends the app's model and can lead it to call any tool the app registered — register only
+  tools the web app may use.
+
+**Audio:** built on Shiny.Audio 3.0 (Shiny.Audio.Linux on Linux).
+- **Playing:** `POST playback` takes exactly one of an absolute `http`/`https` `url` or a `file` (`{ root, path }`) in
+  a file root, and answers once the clip plays, with its `id`. Clips play together, at most 32 (`409 too_many_clips`);
+  `DELETE playback/{id}` stops one, `DELETE playback` all. `audio.playback.ended` carries `stopped` and any `error`.
+- **Volume:** `GET status` reads the system media volume; `PUT volume` sets it, `501` on iOS and Mac Catalyst
+  (`volumeControlSupported: false`). `audio.volume` fires for the hardware buttons too.
+- **Recording:** `POST recording` records 16 kHz mono WAV, with an optional `effect` preset (`Robot`, `Chipmunk`,
+  `DeepVoice`, `Cathedral`, `Telephone`, `Megaphone`, `Ensemble`), `processing`, `inputDeviceId` and `mode`
+  (`Both` keeps the clean take as `dryFile`). `DELETE recording` files it into `Root` (`data`) under `Folder`
+  (`audio-recordings`) as `REC_yyyyMMdd-HHmmss.wav`, read through the files bridge; `POST recording/cancel` keeps
+  nothing. `MaxRecordingDuration` (1 h; `null` for none) stops and files a recording left running and raises
+  `audio.recording.ended` with `MaxDurationReached`.
+- **Routes:** `GET devices` lists inputs and outputs; `POST devices/picker` shows the system output picker;
+  `audio.devices` fires on a route change.
+- **Monitor:** `POST monitor` routes the microphone live to the output (`PUT monitor` changes `gain`). Listen to
+  `audio.monitor.level` first (`409 not_listening` without); it stops once nobody listens, so a page that went away
+  can't leave the microphone on the speaker.
+- **One microphone:** a recording and the monitor exclude each other: `409 microphone_busy`.
+- **Platforms:** playback, recording and routes on iOS, Mac Catalyst, macOS, Android, Windows and Linux; the monitor on
+  all but Windows. Anything missing answers `501` and shows as `false` in `GET status`. Bring your own services with
+  `o => o.RegisterAudioServices = false`.
+- **Platform setup:** Android `RECORD_AUDIO`; Apple `NSMicrophoneUsageDescription`, plus
+  `com.apple.security.device.audio-input` when sandboxed.
 
 **Screen recorder:** built on Shiny.ScreenRecorder, which is still a prerelease package. It records the device's
 screen: in a browser that is `getDisplayMedia`, which the WebViews on iOS and Android don't offer.

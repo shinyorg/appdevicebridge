@@ -28,9 +28,33 @@
     <!-- Live activities bridge: compiles Shiny.Mobile.LiveActivities' stock Lock Screen / Dynamic Island widget into the app. -->
     <ShinyLiveActivityWidget Condition="$(TargetFramework.Contains('-ios'))">true</ShinyLiveActivityWidget>
 
-    <CodesignEntitlements Condition="$(TargetFramework.Contains('-ios'))">Platforms/iOS/Entitlements.plist</CodesignEntitlements>
     <CodesignEntitlements Condition="$(TargetFramework.Contains('-maccatalyst'))">Platforms/MacCatalyst/Entitlements.plist</CodesignEntitlements>
   </PropertyGroup>
+
+  <!--
+    iOS capabilities that need a provisioning profile carrying them. Each is on for this repo's App ID
+    (org.shinylib.appdevicebridge.sample). To run the sample under your own team, change ApplicationId, enable the
+    capability on your App ID in the Apple developer portal and download a fresh development profile - or comment out
+    the entitlement for a bridge you don't need: a profile without the capability fails the signing step.
+  -->
+  <ItemGroup Condition="$(TargetFramework.Contains('-ios'))">
+    <!-- Health bridge: HealthKit capability. (healthkit.access is only for clinical health records, which it doesn't read.) -->
+    <CustomEntitlements Include="com.apple.developer.healthkit" Type="Boolean" Value="true" Visible="false" />
+
+    <!-- NFC bridge: NFC Tag Reading capability. TAG, not NDEF - App Store Connect rejects NDEF since the iOS 18 SDK. -->
+    <CustomEntitlements Include="com.apple.developer.nfc.readersession.formats" Type="StringArray" Value="TAG" Visible="false" />
+  </ItemGroup>
+
+  <!--
+    Push bridge: the Push Notifications capability. Commented out by default because a profile without it - a plain
+    wildcard or automatic one - fails the signing step, which would break deploying the sample for everyone else. Enable
+    Push Notifications on your App ID, download a fresh profile, then uncomment to receive pushes.
+
+  <ItemGroup Condition="$(TargetFramework.Contains('-ios')) Or $(TargetFramework.Contains('-maccatalyst'))">
+    <CustomEntitlements Include="aps-environment" Type="String" Value="development" Condition="'$(Configuration)' == 'Debug'" Visible="false" />
+    <CustomEntitlements Include="aps-environment" Type="String" Value="production" Condition="'$(Configuration)' == 'Release'" Visible="false" />
+  </ItemGroup>
+  -->
 
   <ItemGroup>
     <MauiIcon Include="Resources/AppIcon/appicon.svg" ForegroundFile="Resources/AppIcon/appiconfg.svg" ForegroundScale="0.75" Color="#4F46E5" />

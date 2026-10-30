@@ -61,7 +61,7 @@ public static class SpeechBridgeExtensions
 /// GET    /_bridge/speech/listener    204 when not listening
 /// POST   /_bridge/speech/listener    { "culture": "en-US", "keywords": ["stop"] } — results arrive as events
 /// DELETE /_bridge/speech/listener
-/// POST   /_bridge/speech/speak       { "text": "…", "culture", "voice", "pitch", "rate", "volume", "wait": true }
+/// POST   /_bridge/speech/speak       { "text": "…", "culture", "voice", "pitch", "rate", "volume", "wait": true, "tone": { "emotion": "Excited" } }
 /// DELETE /_bridge/speech/speak
 /// GET    /_bridge/speech/voices?culture=en-US
 /// GET    /_bridge/speech/cultures    the cultures voices exist for
@@ -84,6 +84,7 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
     const int MaxTextLength = 4000;
     const int MaxKeywords = 32;
     const int MaxKeywordLength = 64;
+    const int MaxInstructionsLength = 1000;
 
     readonly ISpeechToTextService? stt;
     readonly ITextToSpeechService? tts;
@@ -471,6 +472,13 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
             return;
         }
 
+        if (body.Tone is { } tone
+            && (tone.Intensity is < 0f or > 2f || (tone.Intensity is { } i && Single.IsNaN(i)) || tone.Instructions?.Length > MaxInstructionsLength))
+        {
+            await WebAppBridgeResults.BadRequest(context, $"Expected a tone intensity from 0 to 2 and instructions of at most {MaxInstructionsLength} characters.");
+            return;
+        }
+
         VoiceInfo? voice = null;
         if (body.Voice is { } voiceId)
         {
@@ -491,7 +499,8 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
             Voice = voice ?? options.Voice,
             SpeechRate = body.Rate ?? options.SpeechRate,
             Pitch = body.Pitch ?? options.Pitch,
-            Volume = body.Volume ?? options.Volume
+            Volume = body.Volume ?? options.Volume,
+            Tone = ToNative(body.Tone) ?? options.Tone
         };
 
         var cancellation = new CancellationTokenSource();
@@ -606,6 +615,15 @@ public sealed class SpeechBridge : IWebAppBridge, IDisposable
     }
 
     // ---- helpers
+
+    static Shiny.Speech.SpeechTone? ToNative(Client.SpeechTone? tone) => tone is null
+        ? null
+        : new Shiny.Speech.SpeechTone
+        {
+            Emotion = BridgeEnum.Convert<Client.SpeechEmotion, Shiny.Speech.SpeechEmotion>(tone.Emotion),
+            Intensity = tone.Intensity ?? 1.0f,
+            Instructions = String.IsNullOrWhiteSpace(tone.Instructions) ? null : tone.Instructions
+        };
 
     void PublishError(SpeechErrorSource source, string message)
         => this.errors.Publish(new SpeechError(source, message));

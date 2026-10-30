@@ -8,6 +8,12 @@
 <h2>Text-to-speech</h2>
 <div class="form">
     <input @bind="text" placeholder="Something to say" />
+    <select @bind="emotion">
+        @foreach (var e in Enum.GetValues<SpeechEmotion>())
+        {
+            <option value="@e">@e</option>
+        }
+    </select>
     <button @onclick="Speak">Speak</button>
     <button @onclick="@(() => Run(() => SpeechBridge.StopSpeakingAsync(), "Stopped."))">Stop</button>
     <button @onclick="@(() => Run(() => SpeechBridge.GetVoicesAsync(), Json.IReadOnlyListSpeechVoice))">Voices</button>
@@ -34,6 +40,9 @@
     static SpeechJsonContext Json => SpeechJsonContext.Default;
 
     string text = "Hello from the web app.";
+
+    // Honoured by expressive cloud engines; the on-device ones ignore it.
+    SpeechEmotion emotion = SpeechEmotion.Neutral;
     string? partial;
     string log = String.Empty;
 
@@ -60,5 +69,5 @@
     void Log(string name, string detail) => log = Prepend(log, $"{DateTime.Now:T}  {name}  {detail}");
 
     // Returns as soon as speech starts; OnSpokenAsync says when it finished.
-    Task Speak() => Run(() => SpeechBridge.SpeakAsync(new SpeakRequest(text, Wait: false)), "Speaking.");
+    Task Speak() => Run(() => SpeechBridge.SpeakAsync(new SpeakRequest(text, Wait: false, Tone: emotion == SpeechEmotion.Neutral ? null : new SpeechTone(emotion))), "Speaking.");
 }

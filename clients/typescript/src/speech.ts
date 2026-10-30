@@ -36,6 +36,8 @@ export interface SpeakRequest {
     volume?: number | null;
     /** Return once speech ends rather than straight away. */
     wait?: boolean;
+    /** How it should sound; ignored by engines with no expressive control. */
+    tone?: SpeechTone | null;
 }
 
 export interface SpeakResult {
@@ -46,6 +48,9 @@ export interface SpeakResult {
 export interface SpeechAccessResult {
     access: AccessState;
 }
+
+/** An emotional delivery, mapped by each engine onto whatever it offers — the closest intent, not an exact term. */
+export type SpeechEmotion = "Neutral" | "Happy" | "Excited" | "Sad" | "Angry" | "Fearful" | "Calm" | "Whispering" | "Shouting" | "Friendly" | "Serious" | "Sarcastic";
 
 /** Why dictation ended. */
 export type SpeechEndReason = "Stopped" | "PageClosed" | "Error";
@@ -93,6 +98,16 @@ export interface SpeechStatus {
     listening: boolean;
     recognizing: boolean;
     speaking: boolean;
+}
+
+/** How an utterance should sound. Engines with expressive control (Azure, ElevenLabs v3, Typecast, OpenAI) honour what they can; the on-device engines ignore it. */
+export interface SpeechTone {
+    /** The delivery. */
+    emotion?: SpeechEmotion;
+    /** 0–2, where 1 is the engine's default. Only Azure and Typecast use it. */
+    intensity?: number | null;
+    /** Free-text direction, at most 1,000 characters. Only OpenAI uses it. */
+    instructions?: string | null;
 }
 
 export interface SpeechVoice {

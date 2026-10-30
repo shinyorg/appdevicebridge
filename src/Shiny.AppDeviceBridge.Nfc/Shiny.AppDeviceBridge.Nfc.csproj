@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- One target: Shiny.Nfc carries the platform code (Android reader mode, iOS CoreNFC, PC/SC readers on Windows, macOS and Linux) and NuGet picks its build for the app's head. Mac Catalyst and devices without NFC report no capabilities, and the bridge answers 501. -->
+    <RootNamespace>Shiny.AppDeviceBridge.Nfc</RootNamespace>
+    <Description>NDEF NFC tags for a Shiny.AppDeviceBridge web app, backed by Shiny.Nfc: one-tap reads and writes, continuous scanning with tag events, and writing or locking a held tag. Android, iOS, and PC/SC readers on Windows, macOS and Linux. One call: bridge.AddNfcBridge().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shiny.Nfc" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Nfc.Client/Shiny.AppDeviceBridge.Nfc.Client.csproj" />
+  </ItemGroup>
+
+</Project>

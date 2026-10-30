@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- One target: Shiny.Biometrics carries the platform code (LocalAuthentication on iOS, Mac Catalyst and macOS,
+         BiometricPrompt on Android, Windows Hello) and NuGet picks its build for the app's head. On Linux it reports
+         NotSupported, and the bridge answers 501. -->
+    <RootNamespace>Shiny.AppDeviceBridge.Biometrics</RootNamespace>
+    <Description>Biometric verification of the device owner for a Shiny.AppDeviceBridge web app, backed by Shiny.Biometrics: Touch ID, Face ID and Optic ID, Android fingerprint, face and iris, and Windows Hello, with a passcode / PIN fallback. One call: bridge.AddBiometricsBridge().</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shiny.Biometrics" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Biometrics.Client/Shiny.AppDeviceBridge.Biometrics.Client.csproj" />
+  </ItemGroup>
+
+</Project>

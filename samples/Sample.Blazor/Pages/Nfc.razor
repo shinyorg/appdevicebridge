@@ -1,0 +1,104 @@
+@page "/nfc"
+@inherits BridgePage
+@inject INfcBridge NfcBridge
+
+<h1>NFC</h1>
+
+<p class="muted">NDEF tags through the native radio: Android reader mode, iOS CoreNFC, or a PC/SC reader on Windows, macOS and Linux. A WebView has no Web NFC, so the bridge is the way in.</p>
+
+<h2>Status</h2>
+<div class="actions">
+    <button @onclick="@(() => Run(() => NfcBridge.GetStatusAsync(), Json.NfcStatus))">Status</button>
+    <button @onclick="@(() => Run(() => NfcBridge.RequestAccessAsync(), Json.NfcAccessResult))">Access</button>
+</div>
+
+<h2>One tap</h2>
+<div class="actions">
+    <button @onclick="@(() => Run(() => NfcBridge.ReadAsync(new NfcReadRequest("Hold near the tag")), Json.NfcReadResult))">Read a tag</button>
+    <input @bind="uri" placeholder="https://shinylib.net" />
+    <button @onclick="Write">Write URL</button>
+</div>
+
+<h2>Scan</h2>
+<div class="actions">
+    <label><input type="checkbox" @bind="hold" /> Hold each tag for writing (10 s)</label>
+    <button @onclick="StartScan">Start</button>
+    <button @onclick="@(() => Run(() => NfcBridge.StopScanAsync(), "Stopped."))">Stop</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+
+<ul class="list">
+    @foreach (var tag in tags)
+    {
+        <li>
+            <strong>@(tag.Identifier ?? "no UID")</strong>
+            <span class="muted">@Describe(tag)</span>
+            @if (held.Contains(tag.TagId))
+            {
+                <button @onclick="@(() => WriteTag(tag.TagId))">Write URL here</button>
+                <button @onclick="@(() => Release(tag.TagId))">Release</button>
+            }
+        </li>
+    }
+</ul>
+
+@code {
+    static NfcJsonContext Json => NfcJsonContext.Default;
+
+    readonly List<NfcTag> tags = [];
+    readonly HashSet<string> held = [];
+    string uri = "https://shinylib.net";
+    bool hold;
+
+    // the scan needs a listener on nfc.tag before it starts, and stops when this page stops listening
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen<NfcTag>(NfcBridge.OnTagAsync, t =>
+        {
+            tags.Insert(0, t);
+            if (tags.Count > 40)
+                tags.RemoveAt(tags.Count - 1);
+
+            if (hold)
+                held.Add(t.TagId);
+        });
+        await Listen<NfcScanEnded>(NfcBridge.OnScanEndedAsync, e =>
+        {
+            held.Clear();
+            Output = Compact(e, Json.NfcScanEnded);
+        });
+    }
+
+    Task Write() => Run(() => NfcBridge.WriteAsync(new NfcWriteRequest([new NfcWriteRecord(Uri: uri)], "Hold near the tag")), Json.NfcWriteResult);
+
+    Task StartScan() => Run(async () =>
+    {
+        tags.Clear();
+        held.Clear();
+        await NfcBridge.StartScanAsync(new NfcScanRequest("Tap tags", hold ? 10 : 0));
+    }, "Scanning - tap tags.");
+
+    Task WriteTag(string tagId) => Run(async () =>
+    {
+        await NfcBridge.WriteTagAsync(tagId, new NfcTagWriteRequest([new NfcWriteRecord(Uri: uri)]));
+        await Release(tagId);
+    }, "Written.");
+
+    async Task Release(string tagId)
+    {
+        held.Remove(tagId);
+        await NfcBridge.ReleaseTagAsync(tagId);
+    }
+
+    static string Describe(NfcTag tag)
+    {
+        if (tag.ReadError is { } error)
+            return $"unreadable: {error}";
+
+        if (tag.Records is not { Count: > 0 } records)
+            return "blank tag";
+
+        return String.Join(" · ", records.Select(r => r.Uri ?? r.Text ?? r.MimeType ?? $"{r.Format} {r.Type}"));
+    }
+}

@@ -3,7 +3,10 @@ using System.Reflection;
 using System.Text.Json.Serialization;
 using Shiny.AppDeviceBridge.Client;
 using AgeSignalsClient = Shiny.AppDeviceBridge.AgeSignals.Client;
+using AiClient = Shiny.AppDeviceBridge.AiConversation.Client;
+using AudioClient = Shiny.AppDeviceBridge.Audio.Client;
 using BeaconsClient = Shiny.AppDeviceBridge.Beacons.Client;
+using BiometricsClient = Shiny.AppDeviceBridge.Biometrics.Client;
 using BleClient = Shiny.AppDeviceBridge.BluetoothLE.Client;
 using CalendarClient = Shiny.AppDeviceBridge.Calendar.Client;
 using CallDirectoryClient = Shiny.AppDeviceBridge.CallDirectory.Client;
@@ -21,6 +24,7 @@ using HealthClient = Shiny.AppDeviceBridge.Health.Client;
 using InAppPurchasesClient = Shiny.AppDeviceBridge.InAppPurchases.Client;
 using LiveActivitiesClient = Shiny.AppDeviceBridge.LiveActivities.Client;
 using MapsClient = Shiny.AppDeviceBridge.Maps.Client;
+using NfcClient = Shiny.AppDeviceBridge.Nfc.Client;
 using NotificationsClient = Shiny.AppDeviceBridge.Notifications.Client;
 using ObdClient = Shiny.AppDeviceBridge.Obd.Client;
 using PhotosClient = Shiny.AppDeviceBridge.Photos.Client;
@@ -29,6 +33,7 @@ using PrintingClient = Shiny.AppDeviceBridge.Printing.Client;
 using PushClient = Shiny.AppDeviceBridge.Push.Client;
 using RpiCameraClient = Shiny.AppDeviceBridge.RpiCamera.Client;
 using ScreenRecorderClient = Shiny.AppDeviceBridge.ScreenRecorder.Client;
+using ShareTargetClient = Shiny.AppDeviceBridge.ShareTarget.Client;
 using SpeechClient = Shiny.AppDeviceBridge.Speech.Client;
 using TransfersClient = Shiny.AppDeviceBridge.HttpTransfers.Client;
 using VpnClient = Shiny.AppDeviceBridge.Vpn.Client;
@@ -112,7 +117,10 @@ public static class BridgeCatalog
             Describe(typeof(IDeviceBridge), DeviceJsonContext.Default),
             Describe(typeof(ISensorsBridge), SensorsJsonContext.Default),
             Describe(typeof(AgeSignalsClient.IAgeSignalsBridge), AgeSignalsClient.AgeSignalsJsonContext.Default),
+            Describe(typeof(AiClient.IAiConversationBridge), AiClient.AiConversationJsonContext.Default),
+            Describe(typeof(AudioClient.IAudioBridge), AudioClient.AudioJsonContext.Default),
             Describe(typeof(BeaconsClient.IBeaconsBridge), BeaconsClient.BeaconsJsonContext.Default),
+            Describe(typeof(BiometricsClient.IBiometricsBridge), BiometricsClient.BiometricsJsonContext.Default),
             Describe(typeof(BleClient.IBluetoothLEBridge), BleClient.BleJsonContext.Default),
             Describe(typeof(CalendarClient.ICalendarBridge), CalendarClient.CalendarJsonContext.Default),
             Describe(typeof(CallDirectoryClient.ICallDirectoryBridge), CallDirectoryClient.CallDirectoryJsonContext.Default),
@@ -135,6 +143,7 @@ public static class BridgeCatalog
             Describe(typeof(GpsClient.IGeocodingBridge), GpsClient.GpsJsonContext.Default),
             Describe(typeof(MapsClient.IMapsBridge), MapsClient.MapsJsonContext.Default),
             Describe(typeof(MapsClient.IDirectionsBridge), MapsClient.DirectionsJsonContext.Default),
+            Describe(typeof(NfcClient.INfcBridge), NfcClient.NfcJsonContext.Default),
             Describe(typeof(NotificationsClient.INotificationsBridge), NotificationsClient.NotificationsJsonContext.Default),
             Describe(typeof(ObdClient.IObdBridge), ObdClient.ObdJsonContext.Default),
             Describe(typeof(PhotosClient.IPhotosBridge), PhotosClient.PhotosJsonContext.Default),
@@ -143,6 +152,7 @@ public static class BridgeCatalog
             Describe(typeof(PushClient.IPushBridge), PushClient.PushJsonContext.Default),
             Describe(typeof(RpiCameraClient.IRpiCameraBridge), RpiCameraClient.RpiCameraJsonContext.Default),
             Describe(typeof(ScreenRecorderClient.IScreenRecorderBridge), ScreenRecorderClient.ScreenRecorderJsonContext.Default),
+            Describe(typeof(ShareTargetClient.IShareTargetBridge), ShareTargetClient.ShareTargetJsonContext.Default),
             Describe(typeof(SpeechClient.ISpeechBridge), SpeechClient.SpeechJsonContext.Default),
             Describe(typeof(VpnClient.IVpnBridge), VpnClient.VpnJsonContext.Default),
             Describe(typeof(WearablesClient.IWearablesBridge), WearablesClient.WearablesJsonContext.Default),

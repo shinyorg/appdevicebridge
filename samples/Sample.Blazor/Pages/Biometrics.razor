@@ -1,0 +1,35 @@
+@page "/biometrics"
+@inherits BridgePage
+@inject IBiometricsBridge BiometricsBridge
+
+<h1>Biometrics</h1>
+
+<p class="muted">The platform's own prompt: Touch ID, Face ID or Optic ID on Apple, fingerprint, face or iris on Android, Windows Hello on Windows. The answer is a local yes/no for this page's UI, not proof of identity for a server.</p>
+
+<h2>Availability</h2>
+<div class="actions">
+    <button @onclick="@(() => Run(() => BiometricsBridge.GetAvailabilityAsync(), Json.BiometricAvailability))">Check</button>
+    <button @onclick="@(() => Run(() => BiometricsBridge.GetAvailabilityAsync(BiometricStrength.Weak), Json.BiometricAvailability))">Check (Android weak)</button>
+</div>
+
+<h2>Prompt</h2>
+<div class="actions">
+    <input @bind="reason" placeholder="Reason shown in the prompt" />
+    <label><input type="checkbox" @bind="allowDeviceCredential" /> Allow passcode / PIN</label>
+    <button @onclick="Authenticate">Authenticate</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    static BiometricsJsonContext Json => BiometricsJsonContext.Default;
+
+    string reason = "Unlock the sample";
+    bool allowDeviceCredential = true;
+
+    // a cancel or lockout is a status in the result, not an error
+    Task Authenticate() => Run(
+        () => BiometricsBridge.AuthenticateAsync(new BiometricRequest(reason, Title: "Shiny sample", AllowDeviceCredential: allowDeviceCredential)),
+        Json.BiometricResult
+    );
+}

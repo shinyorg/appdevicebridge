@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Biometrics.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge biometrics bridge (Touch ID, Face ID, Optic ID, Android fingerprint / face / iris and Windows Hello) for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddBiometricsBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

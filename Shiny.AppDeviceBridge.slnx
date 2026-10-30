@@ -38,9 +38,12 @@
     <Project Path="src/Shiny.AppDeviceBridge.InAppPurchases/Shiny.AppDeviceBridge.InAppPurchases.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.CallDirectory/Shiny.AppDeviceBridge.CallDirectory.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.AgeSignals/Shiny.AppDeviceBridge.AgeSignals.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.Biometrics/Shiny.AppDeviceBridge.Biometrics.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.Nfc/Shiny.AppDeviceBridge.Nfc.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Vpn/Shiny.AppDeviceBridge.Vpn.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.GameCenter/Shiny.AppDeviceBridge.GameCenter.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.LiveActivities/Shiny.AppDeviceBridge.LiveActivities.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.ShareTarget/Shiny.AppDeviceBridge.ShareTarget.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.RegionGeofencing/Shiny.AppDeviceBridge.RegionGeofencing.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Geofencing/Shiny.AppDeviceBridge.Geofencing.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Beacons/Shiny.AppDeviceBridge.Beacons.csproj"/>
@@ -57,6 +60,8 @@
     <Project Path="src/Shiny.AppDeviceBridge.Printers/Shiny.AppDeviceBridge.Printers.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Printing/Shiny.AppDeviceBridge.Printing.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Speech/Shiny.AppDeviceBridge.Speech.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.Audio/Shiny.AppDeviceBridge.Audio.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.AiConversation/Shiny.AppDeviceBridge.AiConversation.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.ScreenRecorder/Shiny.AppDeviceBridge.ScreenRecorder.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Desktop/Shiny.AppDeviceBridge.Desktop.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Core/Shiny.AppDeviceBridge.Core.csproj"/>
@@ -84,6 +89,8 @@
     <Project Path="src/Shiny.AppDeviceBridge.Beacons.Client/Shiny.AppDeviceBridge.Beacons.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Gps.Client/Shiny.AppDeviceBridge.Gps.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Speech.Client/Shiny.AppDeviceBridge.Speech.Client.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.Audio.Client/Shiny.AppDeviceBridge.Audio.Client.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.AiConversation.Client/Shiny.AppDeviceBridge.AiConversation.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.ScreenRecorder.Client/Shiny.AppDeviceBridge.ScreenRecorder.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Health.Client/Shiny.AppDeviceBridge.Health.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.BluetoothLE.Client/Shiny.AppDeviceBridge.BluetoothLE.Client.csproj"/>
@@ -94,9 +101,12 @@
     <Project Path="src/Shiny.AppDeviceBridge.InAppPurchases.Client/Shiny.AppDeviceBridge.InAppPurchases.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.CallDirectory.Client/Shiny.AppDeviceBridge.CallDirectory.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.AgeSignals.Client/Shiny.AppDeviceBridge.AgeSignals.Client.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.Biometrics.Client/Shiny.AppDeviceBridge.Biometrics.Client.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.Nfc.Client/Shiny.AppDeviceBridge.Nfc.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Vpn.Client/Shiny.AppDeviceBridge.Vpn.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.GameCenter.Client/Shiny.AppDeviceBridge.GameCenter.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.LiveActivities.Client/Shiny.AppDeviceBridge.LiveActivities.Client.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.ShareTarget.Client/Shiny.AppDeviceBridge.ShareTarget.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Maps/Shiny.AppDeviceBridge.Maps.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Maps.Client/Shiny.AppDeviceBridge.Maps.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Maps.Valhalla/Shiny.AppDeviceBridge.Maps.Valhalla.csproj"/>

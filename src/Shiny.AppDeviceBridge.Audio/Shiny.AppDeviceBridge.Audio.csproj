@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Cleared: src/Directory.Build.props sets the single target. -->
+    <TargetFramework></TargetFramework>
+
+    <!-- Multi-targeted because Shiny.Audio only registers capture, playback, routes and the monitor in its platform
+         builds. The net10.0 build serves Linux through Shiny.Audio.Linux (PulseAudio/PipeWire, ALSA as a fallback) and
+         answers 501 anywhere else. Android's microphone permission request needs Shiny's host, which the app's host
+         starts. -->
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
+    <RootNamespace>Shiny.AppDeviceBridge.Audio</RootNamespace>
+    <Description>The device's speakers and microphone for a Shiny.AppDeviceBridge web app, backed by Shiny.Audio — play clips from a URL or a file root, read and set the system volume, record the microphone to WAV with effect presets, list audio routes, and route the microphone live to the output, with level meters as events. One call: bridge.AddAudioBridge().</Description>
+
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">26.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-macos'))">14.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shiny.Audio" />
+  </ItemGroup>
+
+  <!-- Linux audio carries a managed MP3 decoder, so it ships separately and only the net10.0 build references it. It is
+       only registered when the process is actually on Linux. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="Shiny.Audio.Linux" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <DefineConstants>$(DefineConstants);AUDIO_LINUX</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Audio.Client/Shiny.AppDeviceBridge.Audio.Client.csproj" />
+  </ItemGroup>
+
+</Project>

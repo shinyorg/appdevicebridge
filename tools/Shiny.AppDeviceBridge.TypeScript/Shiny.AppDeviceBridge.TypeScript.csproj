@@ -34,6 +34,8 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Gps.Client/Shiny.AppDeviceBridge.Gps.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.ScreenRecorder.Client/Shiny.AppDeviceBridge.ScreenRecorder.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Speech.Client/Shiny.AppDeviceBridge.Speech.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Audio.Client/Shiny.AppDeviceBridge.Audio.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AiConversation.Client/Shiny.AppDeviceBridge.AiConversation.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Health.Client/Shiny.AppDeviceBridge.Health.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.BluetoothLE.Client/Shiny.AppDeviceBridge.BluetoothLE.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Beacons.Client/Shiny.AppDeviceBridge.Beacons.Client.csproj" />
@@ -44,9 +46,12 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.InAppPurchases.Client/Shiny.AppDeviceBridge.InAppPurchases.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.CallDirectory.Client/Shiny.AppDeviceBridge.CallDirectory.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AgeSignals.Client/Shiny.AppDeviceBridge.AgeSignals.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Biometrics.Client/Shiny.AppDeviceBridge.Biometrics.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Nfc.Client/Shiny.AppDeviceBridge.Nfc.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Vpn.Client/Shiny.AppDeviceBridge.Vpn.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.GameCenter.Client/Shiny.AppDeviceBridge.GameCenter.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.LiveActivities.Client/Shiny.AppDeviceBridge.LiveActivities.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.ShareTarget.Client/Shiny.AppDeviceBridge.ShareTarget.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Client/Shiny.AppDeviceBridge.Maps.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Database.Client/Shiny.AppDeviceBridge.Database.Client.csproj" />
   </ItemGroup>

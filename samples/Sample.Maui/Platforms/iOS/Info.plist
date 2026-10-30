@@ -114,6 +114,12 @@
 	<string>The sample web app adds events to your calendar.</string>
 	<key>NSCalendarsUsageDescription</key>
 	<string>The sample web app lists, adds and removes calendar events.</string>
+	<!-- Biometrics bridge: Face ID devices refuse to prompt without it -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>The sample web app verifies you with Face ID when you ask it to.</string>
+	<!-- NFC bridge -->
+	<key>NFCReaderUsageDescription</key>
+	<string>The sample web app reads and writes NFC tags.</string>
 
 	<!-- App links bridge: sample://… -->
 	<key>CFBundleURLTypes</key>

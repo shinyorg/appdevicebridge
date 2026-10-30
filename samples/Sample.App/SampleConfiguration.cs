@@ -27,10 +27,14 @@ using Shiny.AppDeviceBridge.Push;
 using Shiny.AppDeviceBridge.RegionGeofencing;
 using Shiny.AppDeviceBridge.Wearables;
 using Shiny.AppDeviceBridge.InAppPurchases;
+using Shiny.AppDeviceBridge.Biometrics;
+using Shiny.AppDeviceBridge.Nfc;
 using Shiny.AppDeviceBridge.LiveActivities;
 using Shiny.AppDeviceBridge.RpiCamera;
 using Shiny.AppDeviceBridge.ScreenRecorder;
 using Shiny.AppDeviceBridge.Speech;
+using Shiny.AppDeviceBridge.Audio;
+using Shiny.AppDeviceBridge.AiConversation;
 using Shiny.AppDeviceBridge.Wifi;
 using Shiny.AppDeviceBridge.Maui;
 using Shiny.AppDeviceBridge.WebView;
@@ -108,10 +112,36 @@ public static class SampleConfiguration
 
                         // App Store and Google Play purchases; updates with no page open go to background.js.
                         .AddInAppPurchasesBridge()
+
+                        // Touch ID / Face ID / fingerprint / Windows Hello, and NDEF tags (PC/SC readers on the desktops)
+                        .AddBiometricsBridge()
+                        .AddNfcBridge()
                         .AddNotificationsBridge()
                         .AddHttpTransfersBridge()
                         .AddHealthBridge()
                         .AddSpeechBridge()
+
+                        // Clips, the volume, microphone recordings filed into the data root, routes and a live monitor.
+                        // Five minutes a recording at most, so a page that went away cannot leave the microphone on.
+                        .AddAudioBridge(o => o.MaxRecordingDuration = TimeSpan.FromMinutes(5))
+
+                        // Conversations with the app's model; the page never sees the key. Any OpenAI-compatible
+                        // endpoint: SAMPLE_AI_KEY, plus SAMPLE_AI_ENDPOINT and SAMPLE_AI_MODEL to leave OpenAI. Without a
+                        // key, each turn fails with the reason, which the AI page shows.
+                        .AddAiConversationBridge(
+                            ai =>
+                            {
+                                if (Environment.GetEnvironmentVariable("SAMPLE_AI_KEY") is { Length: > 0 } key)
+                                {
+                                    ai.AddStaticOpenAIChatClient(
+                                        key,
+                                        Environment.GetEnvironmentVariable("SAMPLE_AI_ENDPOINT") ?? "https://api.openai.com/v1",
+                                        Environment.GetEnvironmentVariable("SAMPLE_AI_MODEL") ?? "gpt-4.1-mini"
+                                    );
+                                }
+                            },
+                            o => o.Voice = true
+                        )
 
                         // The whole screen, other apps included, everywhere but iOS and Mac Catalyst. Ten minutes at most,
                         // so a page that went away cannot leave it recording.

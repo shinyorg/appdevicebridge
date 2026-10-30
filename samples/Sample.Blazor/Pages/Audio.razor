@@ -1,0 +1,104 @@
+@page "/audio"
+@inherits BridgePage
+@inject IAudioBridge AudioBridge
+
+<h1>Audio</h1>
+<p class="muted">The device's speakers and microphone. Each part answers 501 where the platform lacks it; Status says which.</p>
+
+<div class="actions">
+    <button @onclick="@(() => Run(() => AudioBridge.GetStatusAsync(), Json.AudioStatus))">Status</button>
+    <button @onclick="@(() => Run(() => AudioBridge.RequestAccessAsync(), Json.AudioAccessResult))">Request access</button>
+</div>
+
+<h2>Playback</h2>
+<div class="form">
+    <input @bind="url" placeholder="https://…/clip.mp3" />
+    <button @onclick="@(() => Run(() => AudioBridge.PlayAsync(new AudioPlayRequest(Url: url)), Json.AudioPlayback))">Play URL</button>
+    <button @onclick="@(() => Run(() => AudioBridge.StopAllPlaybackAsync(), "Stopped."))">Stop all</button>
+    <button @onclick="@(() => Run(() => AudioBridge.SetVolumeAsync(new AudioVolumeRequest(0.5f)), Json.AudioVolume))">Volume 50%</button>
+</div>
+<meter min="0" max="1" value="@playbackLevel"></meter>
+
+<h2>Recording</h2>
+<div class="form">
+    <select @bind="effect">
+        <option value="">No effect</option>
+        @foreach (var preset in Enum.GetValues<AudioEffectPreset>())
+        {
+            <option value="@preset">@preset</option>
+        }
+    </select>
+    <button @onclick="StartRecording">Record</button>
+    <button @onclick="StopRecording">Stop</button>
+    <button @onclick="@(() => Run(() => AudioBridge.CancelRecordingAsync(), "Cancelled."))">Cancel</button>
+    <button @onclick="PlayLast" disabled="@(last is null)">Play last</button>
+</div>
+<meter min="0" max="1" value="@recordingLevel"></meter>
+
+<h2>Routes</h2>
+<div class="actions">
+    <button @onclick="@(() => Run(() => AudioBridge.GetDevicesAsync(), Json.AudioDevices))">Devices</button>
+    <button @onclick="@(() => Run(() => AudioBridge.ShowOutputPickerAsync(), "Shown."))">Output picker</button>
+</div>
+
+<h2>Monitor</h2>
+<p class="muted">The microphone straight to the output. Use headphones: on a speaker it feeds back. It stops when you leave this page.</p>
+<div class="actions">
+    <button @onclick="@(() => Run(() => AudioBridge.StartMonitorAsync(new AudioMonitorRequest(Gain: 0.8, Processing: new AudioProcessing(EchoCancellation: true))), Json.AudioMonitor))">Start</button>
+    <button @onclick="@(() => Run(() => AudioBridge.StopMonitorAsync(), "Stopped."))">Stop</button>
+</div>
+<meter min="0" max="1" value="@monitorLevel"></meter>
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    static AudioJsonContext Json => AudioJsonContext.Default;
+
+    // MP3 rather than Ogg: Apple's player has no Ogg decoder.
+    string url = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
+    string effect = String.Empty;
+    AudioRecording? last;
+    double playbackLevel;
+    double recordingLevel;
+    double monitorLevel;
+    string log = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Listen<AudioPlaybackEnded>(AudioBridge.OnPlaybackEndedAsync, e =>
+        {
+            playbackLevel = 0;
+            Log("audio.playback.ended", e.Error ?? (e.Stopped ? "stopped" : "finished"));
+        });
+        await Listen<AudioLevelChanged>(AudioBridge.OnPlaybackLevelAsync, e => playbackLevel = e.Level);
+        await Listen<AudioVolume>(AudioBridge.OnVolumeAsync, e => Log("audio.volume", $"{e.Volume:P0}"));
+        await Listen<AudioLevelChanged>(AudioBridge.OnRecordingLevelAsync, e => recordingLevel = e.Level);
+        await Listen<AudioRecordingEnded>(AudioBridge.OnRecordingEndedAsync, e =>
+        {
+            recordingLevel = 0;
+            last = e.Recording ?? last;
+            Log("audio.recording.ended", e.Message ?? e.Reason.ToString());
+        });
+        await Listen<AudioDevices>(AudioBridge.OnDevicesAsync, e => Log("audio.devices", $"{e.CurrentInput?.Name} → {e.CurrentOutput?.Name}"));
+
+        // The monitor runs only while something listens to its level: this page, for as long as it is open.
+        await Listen<AudioLevelChanged>(AudioBridge.OnMonitorLevelAsync, e => monitorLevel = e.Level);
+        await Listen<AudioMonitorEnded>(AudioBridge.OnMonitorEndedAsync, e =>
+        {
+            monitorLevel = 0;
+            Log("audio.monitor.ended", e.Message ?? e.Reason.ToString());
+        });
+    }
+
+    Task StartRecording() => Run(
+        () => AudioBridge.StartRecordingAsync(new AudioRecordingRequest(Effect: Enum.TryParse<AudioEffectPreset>(effect, out var preset) ? preset : null, MaxDurationSeconds: 60)),
+        Json.AudioStatus
+    );
+
+    Task StopRecording() => Run(async () => last = await AudioBridge.StopRecordingAsync(), Json.AudioRecording);
+
+    Task PlayLast() => Run(() => AudioBridge.PlayAsync(new AudioPlayRequest(File: last!.File)), Json.AudioPlayback);
+
+    void Log(string name, string detail) => log = Prepend(log, $"{DateTime.Now:T}  {name}  {detail}");
+}

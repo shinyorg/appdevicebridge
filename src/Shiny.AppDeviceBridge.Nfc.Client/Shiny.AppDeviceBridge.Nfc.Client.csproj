@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Nfc.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge NFC bridge (read and write NDEF tags) for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddNfcBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

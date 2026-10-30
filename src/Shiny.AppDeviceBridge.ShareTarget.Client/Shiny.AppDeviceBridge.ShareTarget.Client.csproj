@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.ShareTarget.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge share target bridge — text, links and files other apps share to this one, waiting for the page as a queue with the files in a file root — for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddShareTargetBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

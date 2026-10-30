@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Shiny.AppDeviceBridge.Simulator.Catalog;
 using Shiny.AppDeviceBridge.Simulator.Hosting;
 using Shiny.AppDeviceBridge.Simulator.Simulation;
 using Shiny.AppDeviceBridge.Simulator.Trails;
@@ -14,7 +15,10 @@ namespace Shiny.AppDeviceBridge.Tests;
 public partial class SimulatorTuiTests : IAsyncLifetime
 {
     const int Width = 160;
-    const int Height = 48;
+
+    // Tall enough for the whole bridge tree, under eight rows of title, status and key help, so a new bridge does not
+    // push the last one off the screen.
+    static readonly int Height = BridgeCatalog.All.Count + 8;
 
     SimulatorHost host = null!;
     SimulatorShell shell = null!;

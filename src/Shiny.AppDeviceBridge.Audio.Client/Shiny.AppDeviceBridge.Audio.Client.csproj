@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Audio.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge audio bridge (playback, system volume, microphone recording to WAV, audio routes and a live microphone monitor) for a web app hosted by Shiny.AppDeviceBridge. Register with services.AddAudioBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>

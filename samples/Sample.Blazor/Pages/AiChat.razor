@@ -1,0 +1,140 @@
+@page "/ai"
+@inherits BridgePage
+@inject IAiConversationBridge Ai
+
+<h1>AI chat</h1>
+<p class="muted">The app's own model, through Shiny.AiConversation: the page never sees the key. Sessions are stored, so a reload carries on.</p>
+
+<div class="actions">
+    <button @onclick="@(() => Run(() => Ai.GetStatusAsync(), Json.AiStatus))">Status</button>
+    <button @onclick="NewSession">New session</button>
+    <button @onclick="@(() => Run(() => Ai.GetSessionsAsync(), Json.IReadOnlyListAiSessionSummary))">Sessions</button>
+    <button @onclick="@(() => Run(() => Ai.GetMemoryAsync(), Json.IReadOnlyListAiMemoryDocument))">Memory</button>
+</div>
+
+@if (session is not null)
+{
+    <p class="muted">@(session.Title ?? "Untitled") · @state · @session.Usage.TotalTokens tokens</p>
+
+    <div class="log">
+        @foreach (var message in history)
+        {
+            <p><strong>@message.Role</strong>: @message.Text</p>
+        }
+        @if (streaming.Length > 0)
+        {
+            <p><strong>Assistant</strong>: @streaming…</p>
+        }
+    </div>
+
+    @foreach (var question in questions)
+    {
+        <p>@question.Text</p>
+        <div class="actions">
+            @foreach (var choice in question.Choices ?? [])
+            {
+                <button @onclick="@(() => Answer(question, choice))">@choice.Label</button>
+            }
+        </div>
+    }
+
+    <div class="form">
+        <input @bind="text" placeholder="Say something" />
+        <button @onclick="Send">Send</button>
+        <button @onclick="@(() => Run(() => Ai.InterruptAsync(session.Id), "Interrupted."))">Stop</button>
+    </div>
+
+    <h2>Voice</h2>
+    <p class="muted">The voice loop listens while this page is open. @voiceState @transcript</p>
+    <div class="actions">
+        <button @onclick="@(() => Run(() => Ai.AttachVoiceAsync(new AiVoiceRequest(session.Id)), Json.AiVoiceStatus))">Attach</button>
+        <button @onclick="@(() => Run(() => Ai.PushToTalkAsync(), "Listening."))">Talk</button>
+        <button @onclick="@(() => Run(() => Ai.StopSpeakingAsync(), "Stopped."))">Quiet</button>
+        <button @onclick="@(() => Run(() => Ai.DetachVoiceAsync(), "Detached."))">Detach</button>
+    </div>
+}
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    static AiConversationJsonContext Json => AiConversationJsonContext.Default;
+
+    AiSession? session;
+    readonly List<AiMessage> history = [];
+    IReadOnlyList<AiQuestion> questions = [];
+    string streaming = String.Empty;
+    string text = String.Empty;
+    string state = String.Empty;
+    string voiceState = String.Empty;
+    string transcript = String.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Each event names its session; this page shows one.
+        await Listen<AiTextDelta>(Ai.OnDeltaAsync, e =>
+        {
+            if (e.SessionId == session?.Id)
+                streaming += e.Text;
+        });
+        await Listen<AiMessageChanged>(Ai.OnMessageAsync, e =>
+        {
+            if (e.SessionId != session?.Id || e.Message.Role is not (AiMessageRole.User or AiMessageRole.Assistant))
+                return;
+
+            history.RemoveAll(x => x.Id == e.Message.Id);
+            history.Add(e.Message);
+            if (e.Message.Role == AiMessageRole.Assistant && e.Message.Status != AiMessageStatus.Streaming)
+                streaming = String.Empty;
+        });
+        await Listen<AiQuestionsAsked>(Ai.OnQuestionsAsync, e =>
+        {
+            if (e.SessionId == session?.Id)
+                questions = e.Questions;
+        });
+        await Listen<AiStateChanged>(Ai.OnStateAsync, e =>
+        {
+            if (e.SessionId == session?.Id)
+                state = e.State.ToString();
+        });
+        await Listen<AiTurnEnded>(Ai.OnTurnEndedAsync, e =>
+        {
+            if (e.SessionId != session?.Id)
+                return;
+
+            streaming = String.Empty;
+            if (e.Error is not null)
+                Error = e.Error;
+        });
+
+        // The voice loop runs only while something listens to its state: this page, for as long as it is open.
+        await Listen<AiVoiceStateChanged>(Ai.OnVoiceStateAsync, e => voiceState = e.State.ToString());
+        await Listen<AiTranscript>(Ai.OnTranscriptAsync, e => transcript = e.Final ? $"“{e.Text}”" : e.Text + "…");
+
+        await Run(async () => await Open(await Ai.GetLatestSessionAsync() ?? await Ai.StartSessionAsync(new AiStartSessionRequest())), "Ready.");
+    }
+
+    async Task Open(AiSession opened)
+    {
+        session = opened;
+        state = opened.State.ToString();
+        questions = opened.PendingQuestions;
+        history.Clear();
+        history.AddRange((await Ai.GetMessagesAsync(opened.Id)).Messages.Where(x => x.Role is AiMessageRole.User or AiMessageRole.Assistant));
+    }
+
+    Task NewSession() => Run(async () => await Open(await Ai.StartSessionAsync(new AiStartSessionRequest())), "Started.");
+
+    Task Send()
+    {
+        var message = text;
+        text = String.Empty;
+        questions = [];
+        return Run(() => Ai.SendAsync(session!.Id, new AiSendRequest(message)), Json.AiSendResult);
+    }
+
+    Task Answer(AiQuestion question, AiChoice choice)
+    {
+        questions = [];
+        return Run(() => Ai.SendAsync(session!.Id, new AiSendRequest(Answer: new AiAnswer(question.Id, [choice.Id]))), Json.AiSendResult);
+    }
+}

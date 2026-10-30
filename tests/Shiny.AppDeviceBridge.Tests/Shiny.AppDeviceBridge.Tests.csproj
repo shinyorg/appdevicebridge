@@ -62,15 +62,21 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.InAppPurchases/Shiny.AppDeviceBridge.InAppPurchases.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.CallDirectory/Shiny.AppDeviceBridge.CallDirectory.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AgeSignals/Shiny.AppDeviceBridge.AgeSignals.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Biometrics/Shiny.AppDeviceBridge.Biometrics.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Nfc/Shiny.AppDeviceBridge.Nfc.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Vpn/Shiny.AppDeviceBridge.Vpn.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.GameCenter/Shiny.AppDeviceBridge.GameCenter.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.LiveActivities/Shiny.AppDeviceBridge.LiveActivities.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.ShareTarget/Shiny.AppDeviceBridge.ShareTarget.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Printers/Shiny.AppDeviceBridge.Printers.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Printing/Shiny.AppDeviceBridge.Printing.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Beacons/Shiny.AppDeviceBridge.Beacons.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Gps/Shiny.AppDeviceBridge.Gps.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.RegionGeofencing/Shiny.AppDeviceBridge.RegionGeofencing.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.ScreenRecorder/Shiny.AppDeviceBridge.ScreenRecorder.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Audio/Shiny.AppDeviceBridge.Audio.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AiConversation/Shiny.AppDeviceBridge.AiConversation.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Speech/Shiny.AppDeviceBridge.Speech.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps/Shiny.AppDeviceBridge.Maps.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Valhalla/Shiny.AppDeviceBridge.Maps.Valhalla.csproj" SetTargetFramework="TargetFramework=net10.0" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Blazor/Shiny.AppDeviceBridge.Maps.Blazor.csproj" />
