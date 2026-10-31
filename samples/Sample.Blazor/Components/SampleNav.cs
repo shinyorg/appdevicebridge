@@ -24,6 +24,7 @@ public static class SampleNav
         new("Media",
             new NavItem("media", "Media", "film"),
             new NavItem("device-camera", "Camera", "camera", "camera"),
+            new NavItem("barcodes", "Barcodes", "barcode", "barcodes"),
             new NavItem("photos", "Photos", "image", "photos"),
             new NavItem("camera", "Pi camera", "chip", "rpicamera"),
             new NavItem("speech", "Speech", "mic", "speech"),

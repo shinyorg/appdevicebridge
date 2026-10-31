@@ -27,6 +27,7 @@ using Shiny.AppDeviceBridge.Push;
 using Shiny.AppDeviceBridge.RegionGeofencing;
 using Shiny.AppDeviceBridge.Wearables;
 using Shiny.AppDeviceBridge.InAppPurchases;
+using Shiny.AppDeviceBridge.Barcodes;
 using Shiny.AppDeviceBridge.Biometrics;
 using Shiny.AppDeviceBridge.Nfc;
 using Shiny.AppDeviceBridge.LiveActivities;
@@ -153,6 +154,9 @@ public static class SampleConfiguration
                         // This device's own camera, for a page elsewhere to drive: Open shows the bridge's camera screen
                         // over the web app.
                         .AddCameraBridge()
+
+                        // The camera as a full-screen barcode scanner, long range and auto-zoom included.
+                        .AddBarcodesBridge()
                         .AddFoldersBridge()
 
                         // A SQLite client over files in the file roots: the Database page opens data/sample.db.

@@ -36,8 +36,9 @@
         <PackageVersion Include="Shiny.Net.HttpServer.Ssh" Version="2.2.1"/>
         <PackageVersion Include="Shiny.Net.HttpServer.Mcp" Version="2.2.1"/>
         <PackageVersion Include="Shiny.Extensions.Stores" Version="6.0.1"/>
-        <PackageVersion Include="Shiny.Maui.Controls.Desktop" Version="2.2.0"/>
-        <PackageVersion Include="Shiny.Maui.Controls.Camera" Version="2.2.0"/>
+        <PackageVersion Include="Shiny.Maui.Controls.Desktop" Version="2.3.1"/>
+        <PackageVersion Include="Shiny.Maui.Controls.Camera" Version="2.3.1"/>
+        <PackageVersion Include="Shiny.Maui.Controls.Camera.Barcode" Version="2.3.1"/>
         <PackageVersion Include="Shiny.Hosting.Maui" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.Core" Version="$(ShinyVersion)"/>
         <PackageVersion Include="Shiny.AppStore" Version="$(ShinyVersion)"/>

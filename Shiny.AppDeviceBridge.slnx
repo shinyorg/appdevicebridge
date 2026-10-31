@@ -38,6 +38,7 @@
     <Project Path="src/Shiny.AppDeviceBridge.InAppPurchases/Shiny.AppDeviceBridge.InAppPurchases.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.CallDirectory/Shiny.AppDeviceBridge.CallDirectory.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.AgeSignals/Shiny.AppDeviceBridge.AgeSignals.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.Barcodes/Shiny.AppDeviceBridge.Barcodes.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Biometrics/Shiny.AppDeviceBridge.Biometrics.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Nfc/Shiny.AppDeviceBridge.Nfc.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Vpn/Shiny.AppDeviceBridge.Vpn.csproj"/>
@@ -101,6 +102,7 @@
     <Project Path="src/Shiny.AppDeviceBridge.InAppPurchases.Client/Shiny.AppDeviceBridge.InAppPurchases.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.CallDirectory.Client/Shiny.AppDeviceBridge.CallDirectory.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.AgeSignals.Client/Shiny.AppDeviceBridge.AgeSignals.Client.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.Barcodes.Client/Shiny.AppDeviceBridge.Barcodes.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Biometrics.Client/Shiny.AppDeviceBridge.Biometrics.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Nfc.Client/Shiny.AppDeviceBridge.Nfc.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Vpn.Client/Shiny.AppDeviceBridge.Vpn.Client.csproj"/>

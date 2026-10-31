@@ -41,6 +41,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Push.Client/Shiny.AppDeviceBridge.Push.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Wearables.Client/Shiny.AppDeviceBridge.Wearables.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.InAppPurchases.Client/Shiny.AppDeviceBridge.InAppPurchases.Client.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Barcodes.Client/Shiny.AppDeviceBridge.Barcodes.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Biometrics.Client/Shiny.AppDeviceBridge.Biometrics.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Nfc.Client/Shiny.AppDeviceBridge.Nfc.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.LiveActivities.Client/Shiny.AppDeviceBridge.LiveActivities.Client.csproj" />

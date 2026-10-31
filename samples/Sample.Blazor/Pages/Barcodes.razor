@@ -1,0 +1,72 @@
+@page "/barcodes"
+@inherits BridgePage
+@inject IBarcodesBridge BarcodesBridge
+
+<h1>Barcodes</h1>
+
+<p class="muted">The device's camera as a scanner, shown full screen over the web app: Apple Vision, ML Kit on Android, ZXing.Net on Windows. Long range reads codes the platform scanners miss, such as a shelf label across an aisle, and auto-zoom pulls the camera in on a code too small to read.</p>
+
+<h2>Status</h2>
+<div class="actions">
+    <button @onclick="@(() => Run(() => BarcodesBridge.GetStatusAsync(), Json.BarcodeScannerStatus))">Status</button>
+</div>
+
+<h2>Scan</h2>
+<div class="actions">
+    <label><input type="checkbox" @bind="longRange" /> Long range</label>
+    <label><input type="checkbox" @bind="autoZoom" disabled="@(!longRange)" /> Auto-zoom</label>
+    <label><input type="checkbox" @bind="retailOnly" /> EAN / UPC only</label>
+</div>
+<div class="actions">
+    <button @onclick="@(() => Scan(1))" disabled="@Busy">Scan one</button>
+    <button @onclick="@(() => Scan(0))" disabled="@Busy">Scan many</button>
+    <button @onclick="@(() => Run(() => BarcodesBridge.StopScanAsync(), "Stopped."))">Stop</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+
+<ul class="list">
+    @foreach (var barcode in codes)
+    {
+        <li>
+            <strong>@barcode.Value</strong>
+            <span class="muted">@barcode.Format</span>
+        </li>
+    }
+</ul>
+
+@code {
+    static BarcodesJsonContext Json => BarcodesJsonContext.Default;
+
+    static readonly BarcodeFormat[] Retail = [BarcodeFormat.Ean13, BarcodeFormat.Ean8, BarcodeFormat.UpcA, BarcodeFormat.UpcE];
+
+    readonly List<ScannedBarcode> codes = [];
+    bool longRange;
+    bool autoZoom = true;
+    bool retailOnly;
+
+    // each code as it is read, while a many-code scan is still open on the device
+    protected override Task OnInitializedAsync() => Listen<ScannedBarcode>(BarcodesBridge.OnDetectedAsync, code =>
+    {
+        codes.Insert(0, code);
+        if (codes.Count > 40)
+            codes.RemoveAt(codes.Count - 1);
+    });
+
+    // a refused permission, a person backing out or a timeout is a reason in the result, not an error
+    Task Scan(int maxResults)
+    {
+        codes.Clear();
+        return Run(
+            () => BarcodesBridge.ScanAsync(new BarcodeScanRequest(
+                Formats: retailOnly ? Retail : null,
+                Mode: longRange ? BarcodeScanMode.LongRange : BarcodeScanMode.Standard,
+                AutoZoom: longRange && autoZoom,
+                MaxResults: maxResults,
+                Title: "Shiny sample",
+                Instructions: maxResults == 1 ? "Point at a barcode" : "Point at barcodes; tap ✓ when done"
+            )),
+            Json.BarcodeScanResult
+        );
+    }
+}

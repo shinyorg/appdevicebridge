@@ -82,6 +82,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.ScreenRecorder` | the app | `AddScreenRecorderBridge()`: record the device's screen to a video filed into a file root, through Shiny.ScreenRecorder — microphone and system audio where the platform has them, pause and resume, a time limit, and events for every state change and ending (all platforms) |
 | `Shiny.AppDeviceBridge.Contacts` | the app | `AddContactsBridge()`: access, paged search, read, photos, create, update and delete (Android, iOS) |
 | `Shiny.AppDeviceBridge.Calendar` | the app | `AddCalendarBridge()`: access, calendars, events in a date range, create, update and delete |
+| `Shiny.AppDeviceBridge.Barcodes` | the app | `AddBarcodesBridge()`: the camera as a full-screen barcode scanner, through Shiny.Maui.Controls — QR, Data Matrix, Aztec, PDF417, EAN/UPC, Code 128 and more, one code or many, and long-range scanning with auto-zoom for codes across an aisle |
 | `Shiny.AppDeviceBridge.Camera` | the app | `AddCameraBridge()`: this device's own camera driven from a page anywhere — a live MJPEG viewfinder, photos and video filed into a file root, lens, zoom, torch and effects; `CameraBridgeView` for a camera screen of your own |
 | `Shiny.AppDeviceBridge.Photos` | the app | `AddPhotosBridge()`: the system photo picker, and the photo library — pages, thumbnails and full-size exports — as files in a file root |
 | `Shiny.AppDeviceBridge.Folders` | the app | `AddFoldersBridge()`: the platform's folder picker, and `FolderRoots` for folders the app adds by path — each remembered as a file root across launches |
@@ -89,7 +90,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Desktop` | the app | `AddTrayIconBridge()`: system tray / menu bar icons, menus, badges, notifications and animation. `AddQuickEntryBridge()`: a prompt window that opens over other applications from a global hotkey. Both hand what the user does back to the web app |
 | `Shiny.AppDeviceBridge.RpiCamera` | the app, or a headless Pi | `bridge.AddRpiCameraBridge()`, on a MAUI or headless bridge builder: Raspberry Pi cameras through libcamera — snapshots, captures into a file root, sensor controls and a shared live MJPEG stream; `camera.StreamToAsync(stream)` streams framed JPEGs into any `Stream`, such as a Bluetooth LE L2CAP channel, for `ReadFramesAsync` to read |
 
-AppLinks, ShareTarget, Camera, Photos, Folders and Desktop need MAUI: they reference
+AppLinks, ShareTarget, Camera, Barcodes, Photos, Folders and Desktop need MAUI: they reference
 `Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi,
 HttpTransfers, Database, Jobs, Gps, Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, AgeSignals, Biometrics, Nfc, Vpn, Speech, Audio, AiConversation, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
@@ -693,6 +694,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Database | `GET database/connections`, `POST database/databases`, `POST database/{create,schema,query,query/cancel,value,object}`, `POST database/rows{,/count,/totals,/insert,/update,/delete}`, `POST database/design/preview`, `POST database/import{,/preview}`, `POST database/export`, `POST database/{history,history/clear,saved,saved/save}`, `DELETE database/saved/{id}` | |
 | Tray icon | `GET/POST/DELETE tray`, `GET/PUT/DELETE tray/{id}`, `PUT/DELETE tray/{id}/menu`, `POST tray/{id}/menu/show`, `POST tray/{id}/notification`, `PUT/DELETE tray/{id}/animation` | `tray.click`, `tray.menu` |
 | Quick entry | `GET quickentry`, `PUT quickentry/options`, `POST quickentry/{show,hide,toggle}`, `GET/PUT quickentry/prompt`, `POST quickentry/prompt/reset`, `POST quickentry/glow/{show,hide,pulse}` | `quickentry.submitted`, `quickentry.suggestion`, `quickentry.cancelled`, `quickentry.microphone`, `quickentry.opened`, `quickentry.closed` |
+| Barcodes | `GET barcodes`, `POST/DELETE barcodes/scan` | `barcodes.detected` |
 | Device camera | `GET camera`, `POST camera/access`, `POST camera/open`, `POST camera/close`, `POST camera/photo`, `POST/DELETE camera/recording`, `PUT camera/settings`, `GET camera/preview` (MJPEG) | `camera.status` |
 | Pi camera | `GET rpicamera`, `GET rpicamera/snapshot`, `POST rpicamera/capture`, `GET rpicamera/stream` (MJPEG), `GET/PUT rpicamera/controls`, `DELETE rpicamera/streams` | |
 
@@ -915,6 +917,23 @@ accountability laws such as Texas SB 2420. iOS, macOS and Android; elsewhere, Ma
   from Play), `409` `invalid_account` or `no_user_interface`, `502` `age_signals_failed`.
 - **Platform setup:** Apple: the `com.apple.developer.declared-age-range` entitlement — without it the request never
   returns. Android: install from Google Play.
+
+**Barcodes** (`Shiny.AppDeviceBridge.Barcodes`, `AddBarcodesBridge()`): the device's camera as a barcode scanner, through
+the Shiny.Maui.Controls modal scanner — Apple Vision on iOS, Mac Catalyst and macOS, ML Kit on Android, ZXing.Net on
+Windows. Linux answers `501`.
+- **Scanning:** `POST barcodes/scan` shows the scanner full screen over the web app and answers when it closes with
+  `{ barcodes, reason }` — each code's `value`, `format` and normalized `bounds`. `reason` is `MaxResults`, `Done`,
+  `Dismissed`, `Timeout`, `Stopped`, `PermissionDenied` or `CameraUnavailable`; a refusal or a person backing out is a
+  result, not an error. `maxResults` is 1 by default (0 scans until the person taps ✓), plus `formats`,
+  `filterDuplicates`, `timeoutSeconds` (an idle timeout), `scanWindow`, `torchOn`, `title` and `instructions`.
+  `barcodes.detected` raises each code as it is read, and `DELETE barcodes/scan` stops the scan.
+- **Long range:** `mode: "LongRange"` locates codes in the full-resolution frame, reads 1D codes with a blur-tolerant
+  decoder and hands 2D codes to the platform cut out and enlarged — for a shelf label across an aisle. `autoZoom` pulls
+  the camera in on a code too small to read; `maxAutoZoom`, `fullFrameInterval`, `maxNativeCropsPerFrame` and
+  `uncheckedConfirmations` tune it, and are ignored in `Standard` mode.
+- **Errors:** `400` for a field out of range or `Unknown` in `formats`, `409` `scan_in_progress` while another scan runs.
+- **Platform setup:** `NSCameraUsageDescription` on Apple platforms (and the camera entitlement where sandboxed),
+  `CAMERA` on Android, the `webcam` capability on Windows.
 
 **Biometrics** (`Shiny.AppDeviceBridge.Biometrics`, `AddBiometricsBridge()`): verify the device owner with the platform's
 own prompt, via Shiny.Biometrics — LocalAuthentication (Touch ID, Face ID, Optic ID) on iOS, Mac Catalyst and macOS,

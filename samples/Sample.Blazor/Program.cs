@@ -31,6 +31,7 @@ using Shiny.AppDeviceBridge.Wifi.Client;
 using Shiny.AppDeviceBridge.Push.Client;
 using Shiny.AppDeviceBridge.Wearables.Client;
 using Shiny.AppDeviceBridge.InAppPurchases.Client;
+using Shiny.AppDeviceBridge.Barcodes.Client;
 using Shiny.AppDeviceBridge.Biometrics.Client;
 using Shiny.AppDeviceBridge.Nfc.Client;
 using Shiny.AppDeviceBridge.LiveActivities.Client;
@@ -77,6 +78,7 @@ builder.Services
     .AddWearablesBridgeClient()
     .AddLiveActivitiesBridgeClient()
     .AddInAppPurchasesBridgeClient()
+    .AddBarcodesBridgeClient()
     .AddBiometricsBridgeClient()
     .AddNfcBridgeClient()
     .AddBridgeMaps();

@@ -214,6 +214,22 @@ triggers:
   - camera.status
   - remote viewfinder
   - device camera
+  - IBarcodesBridge
+  - AddBarcodesBridge
+  - AddBarcodesBridgeClient
+  - BarcodesBridgeClient
+  - Shiny.AppDeviceBridge.Barcodes
+  - Shiny.AppDeviceBridge.Barcodes.Client
+  - IBarcodeScanSource
+  - BarcodeScanRequest
+  - BarcodeScanResult
+  - BarcodeScanMode
+  - ScannedBarcode
+  - barcodes.detected
+  - barcode scanner
+  - QR code scanner
+  - long-range barcode
+  - auto-zoom
   - IWearablesBridge
   - AddWearablesBridge
   - AddWearablesBridgeClient
@@ -498,7 +514,7 @@ calls device features from that web app, updates it over the air, or writes a br
     only `Shiny.AppDeviceBridge`; their extensions are generic (`TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
     where TBuilder : AppDeviceBridgeBuilder`) and return the builder they were given, so they chain on either builder and
     run headless.
-  - **MAUI** — AppLinks, ShareTarget, Camera, Photos, Folders, Desktop (tray, quick entry), and the device and sensors bridges inside
+  - **MAUI** — AppLinks, ShareTarget, Camera, Barcodes, Photos, Folders, Desktop (tray, quick entry), and the device and sensors bridges inside
     `Shiny.AppDeviceBridge.Maui` itself. They reference
     `Shiny.AppDeviceBridge.Maui`, extend `MauiAppDeviceBridgeBuilder`, and do their own MAUI registration through
     `bridge.Maui` (camera control, tray icon, controls, Essentials, lifecycle events). The app calls none of that.
@@ -651,6 +667,7 @@ generate `webApp.UpdateServer`, `PublicKey`, `Channel` or `HttpMessageHandlerFac
 | `.Contacts` | `AddContactsBridge()` | `IContactsBridge` |
 | `.Calendar` | `AddCalendarBridge()` | `ICalendarBridge` |
 | `.Photos` | `AddPhotosBridge()` | `IPhotosBridge` |
+| `.Barcodes` | `AddBarcodesBridge()` — calls `UseShinyCamera()`; camera permission as for `.Camera` | `IBarcodesBridge` — the Shiny.Maui.Controls modal scanner, full screen: one code or many, `LongRange` mode with `AutoZoom` (not Linux) |
 | `.Camera` | `AddCameraBridge(o => …)` | `ICameraBridge` — this device's camera driven from a page anywhere; viewfinder MJPEG at `camera/preview` for an `<img>` (not Linux) |
 | `.Folders` | `AddFoldersBridge()` — also registers `FolderRoots` for folders the app adds by path | `IFoldersBridge` |
 | `.Database` | `AddDatabaseBridge(o => o.StatementTimeout = …)`; another engine: `bridge.Services.AddDatabaseDriver<T>()` | `IDatabaseBridge` — SQLite files in the file roots, or a driver's connections; all platforms — see Database below |
@@ -873,6 +890,27 @@ laws (Texas SB 2420, Utah, Louisiana) and any age-gated feature. iOS, macOS and 
 - Google Play ignores the gates (configure the same bands in Play Console) and only answers for an app installed from
   Play. Errors by `BridgeException.Code`: `503 network|transient|not_available|store_unavailable`, `403 app_not_owned`,
   `409 invalid_account|no_user_interface`, `502 age_signals_failed`.
+
+## Barcodes
+
+`AddBarcodesBridge()` puts a barcode scanner behind `/_bridge/barcodes`: the Shiny.Maui.Controls modal scanner, shown full
+screen over the web app — Apple Vision on iOS, Mac Catalyst and macOS, ML Kit on Android, ZXing.Net on Windows. Linux
+answers `501`. It is the camera of the device running the app; the camera of the machine *showing* the page is the
+browser's `BarcodeDetector`, and driving the device camera with a viewfinder from elsewhere is `.Camera`.
+
+- `ScanAsync(new BarcodeScanRequest())` → `BarcodeScanResult { Barcodes, Reason }`, answered when the scanner closes. Each
+  `ScannedBarcode` has `Value`, `Format`, `Bounds` (normalized). **A refused permission, a dismissal or a timeout is a
+  `Reason`, not an exception** — switch on it (`MaxResults`, `Done`, `Dismissed`, `Timeout`, `Stopped`,
+  `PermissionDenied`, `CameraUnavailable`).
+- `MaxResults` is 1 by default (closes on the first read); `0` scans until the person taps ✓, `TimeoutSeconds` (idle)
+  passes or `StopScanAsync()` is called — then subscribe `OnDetectedAsync(...)` (`barcodes.detected`) to show codes as
+  they come. Also `Formats` (narrowing it is the biggest speed-up), `FilterDuplicates` (on), `ScanWindow`, `TorchOn`,
+  `Title`, `Instructions`.
+- **Distant codes:** `Mode: BarcodeScanMode.LongRange, AutoZoom: true` — shelf labels across an aisle, small, rotated or
+  soft codes. Tune with `MaxAutoZoom` (1–10), `FullFrameInterval` (0–30), `MaxNativeCropsPerFrame` (0–8),
+  `UncheckedConfirmations` (1–10); null keeps the scanner's defaults, and all are ignored in `Standard` mode. `Standard`
+  stays the default: it is quickest for a code held up to the lens.
+- `400` for a field out of range or `Unknown` in `Formats`; `409 scan_in_progress` — one scan at a time.
 
 ## Biometrics
 

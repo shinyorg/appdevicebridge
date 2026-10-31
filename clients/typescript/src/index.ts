@@ -4,6 +4,7 @@ export * from "./core.js";
 export * from "./age-signals.js";
 export * from "./ai-conversation.js";
 export * from "./audio.js";
+export * from "./barcodes.js";
 export * from "./beacons.js";
 export * from "./biometrics.js";
 export * from "./bluetooth-le.js";

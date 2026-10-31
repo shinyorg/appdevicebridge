@@ -5,6 +5,7 @@ using Shiny.AppDeviceBridge.Client;
 using AgeSignalsClient = Shiny.AppDeviceBridge.AgeSignals.Client;
 using AiClient = Shiny.AppDeviceBridge.AiConversation.Client;
 using AudioClient = Shiny.AppDeviceBridge.Audio.Client;
+using BarcodesClient = Shiny.AppDeviceBridge.Barcodes.Client;
 using BeaconsClient = Shiny.AppDeviceBridge.Beacons.Client;
 using BiometricsClient = Shiny.AppDeviceBridge.Biometrics.Client;
 using BleClient = Shiny.AppDeviceBridge.BluetoothLE.Client;
@@ -119,6 +120,7 @@ public static class BridgeCatalog
             Describe(typeof(AgeSignalsClient.IAgeSignalsBridge), AgeSignalsClient.AgeSignalsJsonContext.Default),
             Describe(typeof(AiClient.IAiConversationBridge), AiClient.AiConversationJsonContext.Default),
             Describe(typeof(AudioClient.IAudioBridge), AudioClient.AudioJsonContext.Default),
+            Describe(typeof(BarcodesClient.IBarcodesBridge), BarcodesClient.BarcodesJsonContext.Default),
             Describe(typeof(BeaconsClient.IBeaconsBridge), BeaconsClient.BeaconsJsonContext.Default),
             Describe(typeof(BiometricsClient.IBiometricsBridge), BiometricsClient.BiometricsJsonContext.Default),
             Describe(typeof(BleClient.IBluetoothLEBridge), BleClient.BleJsonContext.Default),

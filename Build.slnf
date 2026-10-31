@@ -41,6 +41,8 @@
             "src/Shiny.AppDeviceBridge.CallDirectory/Shiny.AppDeviceBridge.CallDirectory.csproj",
             "src/Shiny.AppDeviceBridge.AgeSignals.Client/Shiny.AppDeviceBridge.AgeSignals.Client.csproj",
             "src/Shiny.AppDeviceBridge.AgeSignals/Shiny.AppDeviceBridge.AgeSignals.csproj",
+            "src/Shiny.AppDeviceBridge.Barcodes.Client/Shiny.AppDeviceBridge.Barcodes.Client.csproj",
+            "src/Shiny.AppDeviceBridge.Barcodes/Shiny.AppDeviceBridge.Barcodes.csproj",
             "src/Shiny.AppDeviceBridge.Biometrics.Client/Shiny.AppDeviceBridge.Biometrics.Client.csproj",
             "src/Shiny.AppDeviceBridge.Biometrics/Shiny.AppDeviceBridge.Biometrics.csproj",
             "src/Shiny.AppDeviceBridge.Nfc.Client/Shiny.AppDeviceBridge.Nfc.Client.csproj",
