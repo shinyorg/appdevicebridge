@@ -17,6 +17,8 @@
     <PackageReference Include="Shiny.Geofencing.Regions.DocumentDb" />
     <!-- The AI page's model: any OpenAI-compatible endpoint, configured by environment variable. -->
     <PackageReference Include="Shiny.AiConversation.OpenAi" />
+    <!-- The Hubs page: hosting and joining between Apple devices with no shared network. -->
+    <PackageReference Include="Shiny.UniversalHubs.Multipeer" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,6 +29,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Calendar/Shiny.AppDeviceBridge.Calendar.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Contacts/Shiny.AppDeviceBridge.Contacts.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Discovery/Shiny.AppDeviceBridge.Discovery.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Hubs/Shiny.AppDeviceBridge.Hubs.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Folders/Shiny.AppDeviceBridge.Folders.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Database/Shiny.AppDeviceBridge.Database.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Health/Shiny.AppDeviceBridge.Health.csproj" />

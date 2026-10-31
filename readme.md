@@ -56,6 +56,8 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Printing` | the app | `AddPrintingBridge()`: the operating system's own printing — a PDF, image or HTML through AirPrint, Android's print dialog, the Windows spooler or CUPS |
 | `Shiny.AppDeviceBridge.Wifi` | the app | `AddWifiBridge(hotspot: false)`: current network and changes, scan, connect, known networks, radio, hotspot |
 | `Shiny.AppDeviceBridge.Discovery` | the app | `AddDiscoveryBridge(DiscoveryProtocols.All)`: mDNS/Bonjour, SSDP/UPnP, WS-Discovery search, browse, resolve and publish |
+| `Shiny.AppDeviceBridge.Hubs` | the app | `AddHubsBridge(server => server.AllowDynamicHubs(…))`: Universal Hubs over BLE, Wi-Fi and Multipeer whose logic lives in the web app, so it ships with a web app update |
+| `Shiny.AppDeviceBridge.Hubs.Client` | the page | `IHubsBridge`, and `WebAppHub` + `AddWebAppHub<THub>(…)` to write a hub's methods in C# |
 | `Shiny.AppDeviceBridge.Jobs` | the app | `AddWebAppJob(name, configure)`: background jobs handled by the page or `background.js` |
 | `Shiny.AppDeviceBridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
 | `Shiny.AppDeviceBridge.Wearables` | the app | `AddWearablesBridge()`: the companion Apple Watch or Wear OS app, through Shiny.Wearables — status, live messages the page or `background.js` answers, shared context, queued transfers and files through the file roots (iOS and Android; `501` elsewhere) |
@@ -91,7 +93,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.RpiCamera` | the app, or a headless Pi | `bridge.AddRpiCameraBridge()`, on a MAUI or headless bridge builder: Raspberry Pi cameras through libcamera — snapshots, captures into a file root, sensor controls and a shared live MJPEG stream; `camera.StreamToAsync(stream)` streams framed JPEGs into any `Stream`, such as a Bluetooth LE L2CAP channel, for `ReadFramesAsync` to read |
 
 AppLinks, ShareTarget, Camera, Barcodes, Photos, Folders and Desktop need MAUI: they reference
-`Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Wifi,
+`Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Hubs, Wifi,
 HttpTransfers, Database, Jobs, Gps, Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, AgeSignals, Biometrics, Nfc, Vpn, Speech, Audio, AiConversation, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
@@ -515,6 +517,8 @@ Bridges are device access, so every bridge route requires one authorization poli
   rebinding: a hostile site pointing its own name at the device arrives under that name.
 - **Origin header.** A browser call from another site running on this device carries that site's `Origin`, and
   the default policy refuses it.
+- **Hubs are not bridges.** With `Shiny.AppDeviceBridge.Hubs`, Universal Hubs are served at `/hubs` on the same server,
+  outside the bridge prefix and its policy, for other devices to join. Each hub's own rules govern them.
 - **Releases.** A release must pass five checks before it's served: signature, app id, a version
   newer than the installed one, host compatibility, then size and hash. An archive without its entry
   document is refused.
@@ -666,6 +670,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Printing | `GET printing/capabilities`, `GET printing/printers`, `POST printing/print`, `POST printing/print/{pdf,image}`, `POST printing/html-to-pdf` | |
 | OBD-II | `GET obd/status`, `GET obd/commands`, `POST obd/scan`, `GET obd/adapters`, `POST/DELETE obd/connection`, `POST obd/command`, `POST obd/raw`, `GET obd/vin`, `GET/DELETE obd/dtc`, `POST/DELETE obd/monitor` | `obd.reading`, `obd.disconnected` |
 | Wi-Fi | `GET wifi`, `POST wifi/access`, `GET wifi/networks`, `GET wifi/current`, `POST/DELETE wifi/connection`, `GET wifi/known`, `DELETE wifi/known?id=`, `GET/PUT wifi/radio`, `GET/POST/DELETE wifi/hotspot`, `GET wifi/hotspot/clients` | `wifi.changed`, `wifi.hotspot` |
+| Hubs | `GET/PUT hubs`, `DELETE hubs/{name}`, `POST hubs/{name}/start`, `POST hubs/{name}/stop`, `GET hubs/{name}/connections`, `DELETE hubs/{name}/connections/{id}`, `POST hubs/{name}/push`, `GET hubs/{name}/groups/{group}`, `PUT/DELETE hubs/{name}/groups/{group}/{id}`, `POST hubs/streams/{id}`, `POST hubs/streams/{id}/end`, `GET hubs/client.js`, `GET/POST hubs/clients`, `DELETE hubs/clients/{id}`, `POST/DELETE hubs/clients/{id}/discover`, `POST hubs/clients/{id}/{connect,disconnect,invoke,streams}`, `DELETE hubs/clients/{id}/streams/{s}`; native call `hub:{name}` | `hubs.stream`, `hubs.client.host`, `hubs.client.push`, `hubs.client.status`, `hubs.client.stream` |
 | Discovery | `POST discovery/{mdns,ssdp,wsd}/search`, `POST discovery/{mdns,ssdp,wsd}/browse`, `GET discovery/mdns/resolve`, `GET discovery/wsd/resolve`, `GET discovery/ssdp/description?udn=`, `POST discovery/{mdns,ssdp,wsd}/publications`, `GET discovery/browses`, `DELETE discovery/browses/{id}`, `GET discovery/publications`, `DELETE discovery/publications/{id}` | `discovery.mdns`, `discovery.ssdp`, `discovery.wsd`, `discovery.error`, `discovery.stopped` |
 | Notifications | `GET notifications`, `POST notifications/access`, `POST notifications/send`, `GET notifications/pending`, `DELETE notifications[?scope=]`, `DELETE notifications/{id}`, `GET/PUT notifications/badge`, `GET/POST notifications/channels`, `DELETE notifications/channels/{id}` | `notification.entry`, `notification.received` |
 | HTTP transfers | `GET/POST/DELETE transfers`, `GET/DELETE transfers/{id}`, `POST transfers/{id}/pause`, `POST transfers/{id}/resume` | `transfer.progress`, `transfer.completed`, `transfer.failed`, `transfer.cancelled` |
@@ -771,6 +776,34 @@ Android; the Access Wi-Fi Information and Hotspot Configuration entitlements on 
 - **Platform setup:** on iOS and Mac Catalyst, list every browsed service type in `NSBonjourServices`
   and set `NSLocalNetworkUsageDescription`. On Android, SSDP and WS-Discovery need
   `CHANGE_WIFI_MULTICAST_STATE`.
+
+**Hubs** (`Shiny.AppDeviceBridge.Hubs`, added by `AddHubsBridge(server => …)`): Universal Hubs the web app defines,
+starts and answers. The app serves them over BLE, Wi-Fi and Multipeer on its own server; other devices connect with an
+ordinary Universal Hubs client, and every call reaches the web app as the native call `hub:{name}` — the page while it's
+open, otherwise `background.js` — so a hub's behavior updates with the web app.
+- **The app fixes what hubs may use**, because the platforms fix it at build time: `server.AllowDynamicHubs(o =>
+  o.ServiceTypes.Add("_myapp._tcp"))` (iOS lists each in `NSBonjourServices`) and how many (`MaxHubs`, 6). The configure
+  callback is Universal Hubs' `AddUniversalServer` builder, so compiled hubs can sit beside the web app's.
+- **A Blazor page** derives from `WebAppHub`, maps its methods by name in `Map` with source-generated JSON metadata, and
+  registers it with `AddWebAppHub<GameHub>(new("game", uuid, "_myapp._tcp"))`; on every load, `WebAppHubs.DefineAsync()`
+  then `StartAsync("game")`. **Any other page** imports `hostHub` from `/_bridge/hubs/client.js`.
+- **Names are the contract:** method and event names, and the JSON shape, must match the clients' contract. Methods not
+  in the definition never reach the page. A thrown `HubException` keeps its type for the client.
+- Defining again with the same values keeps the hub and its clients; a changed characteristic, service type, client limit
+  or tunnel setting replaces it. With nothing to answer `hub:{name}`, clients are refused and calls fail with
+  `HubUnavailable`.
+- Wi-Fi on every head; BLE on Android, iOS and Mac Catalyst, and on Windows and macOS once the app calls
+  `services.AddBluetoothLeHosting()` (without it, `All` skips BLE); Multipeer on Apple with `Shiny.UniversalHubs.Multipeer`.
+  A transport that can't start is skipped; none answers `503`.
+- **Joining** another device's hub — compiled or a web app's — goes through `hubs/clients`: create a client for a
+  characteristic and service type, discover hosts on the transports you pick (`hubs.client.host`), connect by a found
+  host's name or an address with a `prefer`red and `allowed` set of transports, then invoke, stream and receive pushes
+  by name. The sample's Hubs page does both: a chat the page hosts, with the transports to broadcast on and to join over
+  as checkboxes.
+- **Security:** the hub routes are at `/hubs`, outside the bridge prefix, so the bridge policy doesn't cover them — each
+  hub's own rules do (`MaxClients`, the page refusing a client, `AllowTunnel`). Other devices reach them only when the
+  server listens past loopback; `/_bridge` stays on-device either way. Hub arguments come from other devices: treat them
+  as untrusted.
 
 **App** (`Shiny.AppDeviceBridge`, added by `AddAppBridge(store, startup)`): device info, culture and time zone from
 Shiny.Core's `IPlatform`; the screen and orientation from `IScreenInfo`; the store from Shiny.AppStore's `IAppStore`, whose

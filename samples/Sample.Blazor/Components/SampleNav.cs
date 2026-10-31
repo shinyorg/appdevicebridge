@@ -39,6 +39,7 @@ public static class SampleNav
             new NavItem("obd", "OBD", "car", "obd"),
             new NavItem("printing", "Printing", "printer", "printers", "printing"),
             new NavItem("discovery", "Discovery", "radar", "discovery"),
+            new NavItem("hubs", "Hubs", "users", "hubs"),
             new NavItem("transfers", "Transfers", "transfer", "transfers")),
         new("Messaging",
             new NavItem("push", "Push", "bell", "push"),

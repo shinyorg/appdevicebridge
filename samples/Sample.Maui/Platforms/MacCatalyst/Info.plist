@@ -54,6 +54,10 @@
 	<array>
 		<string>_http._tcp</string>
 		<string>_appdevicebridge._tcp</string>
+		<!-- the Hubs page: the chat hub over Wi-Fi, and Multipeer between Apple devices -->
+		<string>_adbsample._tcp</string>
+		<string>_adbsample-mc._tcp</string>
+		<string>_adbsample-mc._udp</string>
 		<!-- network receipt printers, for the printers bridge -->
 		<string>_pdl-datastream._tcp</string>
 		<string>_printer._tcp</string>

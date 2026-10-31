@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- net10.0 only: AddUniversalServer has one signature on every target, and each head's platform build of
+         Shiny.UniversalHubs.Host (with its BLE hosting stack) is what runs. No MAUI. -->
+    <RootNamespace>Shiny.AppDeviceBridge.Hubs</RootNamespace>
+    <Description>Universal Hubs whose logic lives in a Shiny.AppDeviceBridge web app: the app serves them over BLE, Wi-Fi and Multipeer on its own server, and every call reaches the web app — so a hub's behavior ships with a web app update. The web app also joins other devices' hubs, by name. One call: bridge.AddHubsBridge(server => …).</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Shiny.UniversalHubs.Host" />
+    <PackageReference Include="Shiny.UniversalHubs.Client" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
+    <ProjectReference Include="../Shiny.AppDeviceBridge.Hubs.Client/Shiny.AppDeviceBridge.Hubs.Client.csproj" />
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+</Project>

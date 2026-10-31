@@ -1,3 +1,4 @@
+using System.Net;
 using System.Reflection;
 using Shiny.Jobs;
 using Shiny.Locations;
@@ -10,6 +11,7 @@ using Shiny.AppDeviceBridge.Camera;
 using Shiny.AppDeviceBridge.Contacts;
 using Shiny.AppDeviceBridge.Database;
 using Shiny.AppDeviceBridge.Discovery;
+using Shiny.AppDeviceBridge.Hubs;
 using Shiny.AppDeviceBridge.Folders;
 using Shiny.AppDeviceBridge.Geofencing;
 using Shiny.AppDeviceBridge.Gps;
@@ -39,6 +41,8 @@ using Shiny.AppDeviceBridge.AiConversation;
 using Shiny.AppDeviceBridge.Wifi;
 using Shiny.AppDeviceBridge.Maui;
 using Shiny.AppDeviceBridge.WebView;
+using Shiny.Net.HttpServer;
+using Shiny.UniversalHubs;
 
 namespace Sample;
 
@@ -59,6 +63,11 @@ public static class SampleConfiguration
 #endif
 
         builder.Services.AddSampleGeoStore();
+
+        // Other devices join the Hubs page's chat over Wi-Fi, so the server listens past loopback. The bridges stay
+        // on-device in a release build; a DEBUG build admits any caller not arriving through a tunnel (the sample's
+        // development convenience), so in debug this puts the bridges on the network too - keep it to a trusted one.
+        builder.Services.AddShinyHttpServer(http => http.Options.Address = IPAddress.Any, autoStart: false);
 
         return builder
             .UseAppDeviceBridge(
@@ -103,6 +112,18 @@ public static class SampleConfiguration
                         .AddPrintingBridge()
                         .AddWifiBridge()
                         .AddDiscoveryBridge()
+
+                        // Universal Hubs whose logic is the page's (the Hubs page's chat), hosted over BLE, Wi-Fi and
+                        // Multipeer, and joined on other devices running the sample. The mDNS and Multipeer types are listed
+                        // in the Apple heads' NSBonjourServices.
+                        .AddHubsBridge(
+                            server => server
+                                // what other devices list this one as, over every transport
+                                .Ble(o => o.LocalName = HubHostName())
+                                .AllowDynamicHubs(o => o.ServiceTypes.Add("_adbsample._tcp"))
+                                .Multipeer("adbsample-mc"),
+                            clients => clients.Multipeer("adbsample-mc")
+                        )
                         .AddPushBridge(o => o.DispatchToWebApp = true)
 
                         // A paired Apple Watch or Wear OS companion app; the page or background.js answers what it sends.
@@ -237,6 +258,19 @@ public static class SampleConfiguration
         return new Uri(String.IsNullOrWhiteSpace(configured) ? $"http://{HostMachine}:5288" : configured);
     }
 #endif
+
+    static string HubHostName()
+    {
+        try
+        {
+            return DeviceInfo.Current.Name;
+        }
+        catch
+        {
+            // a head whose Essentials has no device name
+            return Environment.MachineName;
+        }
+    }
 
     static string ReadResource(string name)
     {

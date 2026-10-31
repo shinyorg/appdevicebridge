@@ -28,6 +28,7 @@ public static class WebAppHostClientExtensions
         services.AddScoped<WebAppBridge>();
         services.AddScoped<WebAppEvents>();
         services.AddScoped<WebAppNativeCalls>();
+        services.AddScoped<IWebAppNativeCalls>(sp => sp.GetRequiredService<WebAppNativeCalls>());
 
         // The built-in bridges are always there, so their clients are too.
         services.AddHostBridgeClient();
@@ -225,7 +226,7 @@ public sealed class WebAppEvents(IJSRuntime js) : IAsyncDisposable
 /// <c>PageInvocationTimeout</c> (25 seconds by default). A thrown exception is reported to the host as a failure.
 /// </para>
 /// </summary>
-public sealed class WebAppNativeCalls(IJSRuntime js) : IAsyncDisposable
+public sealed class WebAppNativeCalls(IJSRuntime js) : IWebAppNativeCalls, IAsyncDisposable
 {
     readonly Dictionary<string, Func<string, Task<string?>>> handlers = new(StringComparer.Ordinal);
     DotNetObjectReference<WebAppNativeCalls>? self;
@@ -261,6 +262,13 @@ public sealed class WebAppNativeCalls(IJSRuntime js) : IAsyncDisposable
             await handler(JsonSerializer.Deserialize(json, payloadType)!);
             return null;
         });
+    }
+
+    /// <summary>A call taken as JSON and answered as JSON — for a handler that reads its payload itself.</summary>
+    public Task<IAsyncDisposable> HandleAsync(string name, Func<string, Task<string?>> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return this.RegisterAsync(name, handler);
     }
 
     async Task<IAsyncDisposable> RegisterAsync(string name, Func<string, Task<string?>> handler)

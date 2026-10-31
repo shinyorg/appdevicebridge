@@ -15,6 +15,7 @@ using Shiny.AppDeviceBridge.Printing.Client;
 using Shiny.AppDeviceBridge.Notifications.Client;
 using Shiny.AppDeviceBridge.Desktop.Client;
 using Shiny.AppDeviceBridge.Discovery.Client;
+using Shiny.AppDeviceBridge.Hubs.Client;
 using Shiny.AppDeviceBridge.HttpTransfers.Client;
 using Shiny.AppDeviceBridge.Geofencing.Client;
 using Shiny.AppDeviceBridge.Gps.Client;
@@ -59,6 +60,9 @@ builder.Services
     .AddDeviceBridgeClient()
     .AddSensorsBridgeClient()
     .AddDiscoveryBridgeClient()
+
+    // The Hubs page's chat, served from this page; it registers the hubs bridge client too.
+    .AddWebAppHub<ChatHub>(new(ChatHub.HubName, ChatHub.Characteristic, ChatHub.ServiceType) { MaxClients = 8 })
     .AddTransfersBridgeClient()
     .AddGpsBridgeClient()
     .AddGeofencesBridgeClient()

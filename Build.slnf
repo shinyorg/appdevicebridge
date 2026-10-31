@@ -24,6 +24,8 @@
             "src/Shiny.AppDeviceBridge.Database/Shiny.AppDeviceBridge.Database.csproj",
             "src/Shiny.AppDeviceBridge.Discovery.Client/Shiny.AppDeviceBridge.Discovery.Client.csproj",
             "src/Shiny.AppDeviceBridge.Discovery/Shiny.AppDeviceBridge.Discovery.csproj",
+            "src/Shiny.AppDeviceBridge.Hubs.Client/Shiny.AppDeviceBridge.Hubs.Client.csproj",
+            "src/Shiny.AppDeviceBridge.Hubs/Shiny.AppDeviceBridge.Hubs.csproj",
             "src/Shiny.AppDeviceBridge.Folders.Client/Shiny.AppDeviceBridge.Folders.Client.csproj",
             "src/Shiny.AppDeviceBridge.Folders/Shiny.AppDeviceBridge.Folders.csproj",
             "src/Shiny.AppDeviceBridge.Health.Client/Shiny.AppDeviceBridge.Health.Client.csproj",

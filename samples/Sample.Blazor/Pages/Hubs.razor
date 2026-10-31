@@ -1,0 +1,308 @@
+@page "/hubs"
+@using System.Text.Json
+@inherits BridgePage
+@inject IHubsBridge HubsBridge
+@inject WebAppHubs WebAppHubs
+
+<h1>Hubs</h1>
+<p class="muted">
+    A chat hub whose logic is this page's (<code>ChatHub</code>), hosted by the app over Bluetooth LE, Wi-Fi and Multipeer.
+    Run the sample on another device and join from its Hubs page, or join this one from here.
+</p>
+
+<h2>Host — broadcast on</h2>
+<div class="form">
+    <div class="provider-row">
+        <label><input type="checkbox" @bind="hostBle" disabled="@hosting" /> Bluetooth LE</label>
+        <label><input type="checkbox" @bind="hostWifi" disabled="@hosting" /> Wi-Fi</label>
+        <label><input type="checkbox" @bind="hostMultipeer" disabled="@hosting" /> Multipeer</label>
+    </div>
+    @if (hosting)
+    {
+        <button @onclick="StopHosting">Stop hosting</button>
+    }
+    else
+    {
+        <button @onclick="StartHosting" disabled="@(HostTransports == HubTransports.None)">Start hosting</button>
+    }
+</div>
+@if (hub is not null)
+{
+    <p class="muted">
+        Running on <strong>@Describe(hub.RunningTransports)</strong> · @hub.Connections client(s)
+        <button @onclick="RefreshHost">Refresh</button>
+    </p>
+}
+@if (hosting)
+{
+    <div class="actions">
+        <input @bind="hostMessage" @bind:event="oninput" placeholder="Say something to everyone" />
+        <button @onclick="SayAsHost" disabled="@String.IsNullOrWhiteSpace(hostMessage)">Say</button>
+    </div>
+}
+
+<h2>Join — look on</h2>
+<div class="form">
+    <div class="provider-row">
+        <label><input type="checkbox" @bind="findBle" /> Bluetooth LE</label>
+        <label><input type="checkbox" @bind="findWifi" /> Wi-Fi (mDNS)</label>
+        <label><input type="checkbox" @bind="findMultipeer" /> Multipeer</label>
+    </div>
+    <button @onclick="Discover" disabled="@(FindTransports == HubTransports.None)">@(discovering ? "Look again" : "Look for hosts")</button>
+    @if (discovering)
+    {
+        <button @onclick="StopDiscovering">Stop looking</button>
+    }
+</div>
+
+<h2>Join — connect with</h2>
+<div class="form">
+    <input @bind="myName" placeholder="Your name" />
+    <div class="provider-row">
+        <label>Prefer
+            <select @bind="prefer">
+                <option value="@HubTransports.Http">Wi-Fi</option>
+                <option value="@HubTransports.Multipeer">Multipeer</option>
+                <option value="@HubTransports.Ble">Bluetooth LE</option>
+            </select>
+        </label>
+        <span class="muted">Allow</span>
+        <label><input type="checkbox" @bind="allowBle" /> Bluetooth LE</label>
+        <label><input type="checkbox" @bind="allowWifi" /> Wi-Fi</label>
+        <label><input type="checkbox" @bind="allowMultipeer" /> Multipeer</label>
+    </div>
+    <div class="provider-row">
+        <input @bind="address" placeholder="Or an address: http://192.168.1.20:5780" />
+        <button @onclick="() => Join(null, address)" disabled="@(String.IsNullOrWhiteSpace(address) || Joined)">Join by address</button>
+    </div>
+</div>
+
+@if (hosts.Count > 0)
+{
+    <div class="form">
+        @foreach (var seen in hosts.Values.OrderBy(x => x.Name))
+        {
+            <div class="provider-row">
+                <span class="provider-name">@seen.Name</span>
+                <span class="muted">@Describe(seen.Transports)@(seen.Rssi is { } rssi ? $" · {rssi} dBm" : "")</span>
+                <button @onclick="() => Join(seen.Name, null)" disabled="@Joined">Join</button>
+            </div>
+        }
+    </div>
+}
+
+@if (client is not null && Joined)
+{
+    <p class="muted">Joined <strong>@client.HostName</strong> over <strong>@Describe(client.Transport)</strong></p>
+    <div class="actions">
+        <input @bind="message" @bind:event="oninput" placeholder="Message" />
+        <button @onclick="Send" disabled="@String.IsNullOrWhiteSpace(message)">Send</button>
+        <button @onclick="Who">Who's here</button>
+        <button @onclick="Countdown">Countdown</button>
+        <button @onclick="Leave">Leave</button>
+    </div>
+}
+
+<Output Value="@Output" Error="@Error" />
+<pre class="log">@log</pre>
+
+@code {
+    static HubsJsonContext Json => HubsJsonContext.Default;
+
+    // hosting
+    bool hostBle = true, hostWifi = true, hostMultipeer = true;
+    bool hosting;
+    HubInfo? hub;
+    string hostMessage = "";
+
+    // joining
+    bool findBle = true, findWifi = true, findMultipeer = true;
+    bool allowBle = true, allowWifi = true, allowMultipeer = true;
+    HubTransports prefer = HubTransports.Http;
+    bool discovering;
+    string myName = "Sample";
+    string address = "";
+    string message = "";
+    HubClientInfo? client;
+    readonly Dictionary<string, HubHostSeen> hosts = new(StringComparer.OrdinalIgnoreCase);
+
+    string log = String.Empty;
+
+    HubTransports HostTransports => Flags(hostBle, hostWifi, hostMultipeer);
+    HubTransports FindTransports => Flags(findBle, findWifi, findMultipeer);
+    HubTransports AllowTransports => Flags(allowBle, allowWifi, allowMultipeer);
+    bool Joined => client?.Status == HubClientStatus.Connected;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await this.Run(async () =>
+        {
+            // every load: defining again keeps the hub (and its clients) as it is
+            hub = (await WebAppHubs.DefineAsync()).Single(x => x.Name == ChatHub.HubName);
+            hosting = hub.RunningTransports != HubTransports.None;
+            if (WebAppHubs.Hubs[ChatHub.HubName] is ChatHub chat)
+                chat.Said += OnSaid;
+
+            client = await HubsBridge.CreateClientAsync(new HubClientRequest(ChatHub.Characteristic, ChatHub.ServiceType));
+            return hub;
+        }, Json.HubInfo);
+
+        await Listen<HubHostSeen>(HubsBridge.OnHostAsync, seen =>
+        {
+            if (seen.ClientId != client?.Id)
+                return;
+
+            if (seen.Transports == HubTransports.None)
+                hosts.Remove(seen.Name);
+            else
+                hosts[seen.Name] = seen;
+        });
+
+        await Listen<HubClientPush>(HubsBridge.OnPushAsync, push =>
+        {
+            if (push.ClientId == client?.Id && push.Event == "Message" && push.Arguments.Count == 2)
+                log = Prepend(log, $"{push.Arguments[0].GetString()}: {push.Arguments[1].GetString()}");
+        });
+
+        await Listen<HubClientChanged>(HubsBridge.OnClientChangedAsync, changed =>
+        {
+            if (changed.ClientId != client?.Id || client is null)
+                return;
+
+            client = client with { Status = changed.Status, Transport = changed.Transport };
+            log = Prepend(log, changed.Reason is { } reason
+                ? $"— {changed.Status}: {reason}{(changed.Message is { } m ? $" ({m})" : "")}"
+                : $"— {changed.Status}{(changed.Transport != HubTransports.None ? $" over {Describe(changed.Transport)}" : "")}");
+        });
+
+        await Listen<HubClientStreamItem>(HubsBridge.OnStreamItemAsync, item =>
+        {
+            if (item.ClientId != client?.Id)
+                return;
+
+            log = Prepend(log, item.End
+                ? item.Error is { } e ? $"countdown failed: {e.Type}: {e.Message}" : "countdown done"
+                : $"countdown {item.Item?.GetInt32()}");
+        });
+    }
+
+    // ---- hosting
+
+    Task StartHosting() => Run(async () =>
+    {
+        hub = await WebAppHubs.StartAsync(ChatHub.HubName, HostTransports);
+        hosting = true;
+        return hub;
+    }, Json.HubInfo);
+
+    Task StopHosting() => Run(async () =>
+    {
+        hub = await WebAppHubs.StopAsync(ChatHub.HubName, "The host stopped");
+        hosting = false;
+        return hub;
+    }, Json.HubInfo);
+
+    Task RefreshHost() => Run(async () =>
+    {
+        hub = (await HubsBridge.GetHubsAsync()).Single(x => x.Name == ChatHub.HubName);
+        return await HubsBridge.GetConnectionsAsync(ChatHub.HubName);
+    }, Json.IReadOnlyListHubConnectionInfo);
+
+    async Task SayAsHost()
+    {
+        var text = hostMessage;
+        hostMessage = "";
+        await Run(() => ((ChatHub)WebAppHubs.Hubs[ChatHub.HubName]).SayAsHostAsync(text), "Said");
+    }
+
+    void OnSaid(string from, string text) => InvokeAsync(() =>
+    {
+        // the host's own view of its chat; a client that joined sees the same through its pushes
+        log = Prepend(log, $"[hosting] {from}: {text}");
+        StateHasChanged();
+    });
+
+    // ---- joining
+
+    Task Discover() => Run(async () =>
+    {
+        hosts.Clear();
+        await HubsBridge.DiscoverAsync(client!.Id, new HubDiscoverRequest(FindTransports));
+        discovering = true;
+    }, $"Looking on {Describe(FindTransports)}");
+
+    Task StopDiscovering() => Run(async () =>
+    {
+        await HubsBridge.StopDiscoveringAsync(client!.Id);
+        discovering = false;
+    }, "Stopped looking");
+
+    Task Join(string? host, string? url) => Run(async () =>
+    {
+        client = await HubsBridge.ConnectAsync(client!.Id, new HubConnectRequest(
+            Host: host,
+            Url: url,
+            Name: String.IsNullOrWhiteSpace(myName) ? null : myName,
+            Prefer: prefer,
+            Allowed: AllowTransports
+        ));
+        return client;
+    }, Json.HubClientInfo);
+
+    async Task Send()
+    {
+        var text = message;
+        message = "";
+        await Call("Send", JsonSerializer.SerializeToElement(text, ChatJson.Default.String));
+    }
+
+    Task Who() => Call("Who");
+
+    Task Countdown() => Run(() => HubsBridge.StreamAsync(client!.Id, new HubInvokeRequest(
+        "Countdown",
+        [JsonSerializer.SerializeToElement(5, ChatJson.Default.Int32)]
+    )), Json.HubClientStream);
+
+    Task Call(string method, params JsonElement[] arguments)
+        => Run(() => HubsBridge.InvokeAsync(client!.Id, new HubInvokeRequest(method, arguments)), Json.HubInvokeResult);
+
+    Task Leave() => Run(async () =>
+    {
+        client = await HubsBridge.DisconnectClientAsync(client!.Id);
+        return client;
+    }, Json.HubClientInfo);
+
+    static HubTransports Flags(bool ble, bool wifi, bool multipeer)
+        => (ble ? HubTransports.Ble : HubTransports.None)
+           | (wifi ? HubTransports.Http : HubTransports.None)
+           | (multipeer ? HubTransports.Multipeer : HubTransports.None);
+
+    static string Describe(HubTransports transports) => transports == HubTransports.None
+        ? "nothing"
+        : String.Join(", ", new[]
+        {
+            transports.HasFlag(HubTransports.Ble) ? "Bluetooth LE" : null,
+            transports.HasFlag(HubTransports.Http) ? "Wi-Fi" : null,
+            transports.HasFlag(HubTransports.Multipeer) ? "Multipeer" : null
+        }.Where(x => x is not null));
+
+    public override async ValueTask DisposeAsync()
+    {
+        if (WebAppHubs.Hubs.TryGetValue(ChatHub.HubName, out var defined) && defined is ChatHub chat)
+            chat.Said -= OnSaid;
+
+        // the client goes with the page; the hub keeps running for whoever joined it
+        if (client is not null)
+        {
+            try
+            {
+                await HubsBridge.RemoveClientAsync(client.Id);
+            }
+            catch
+            {
+            }
+        }
+
+        await base.DisposeAsync();
+    }
+}

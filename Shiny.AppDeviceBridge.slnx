@@ -33,6 +33,7 @@
     <Project Path="src/Shiny.AppDeviceBridge.Wifi/Shiny.AppDeviceBridge.Wifi.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Database/Shiny.AppDeviceBridge.Database.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Discovery/Shiny.AppDeviceBridge.Discovery.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.Hubs/Shiny.AppDeviceBridge.Hubs.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Push/Shiny.AppDeviceBridge.Push.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Wearables/Shiny.AppDeviceBridge.Wearables.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.InAppPurchases/Shiny.AppDeviceBridge.InAppPurchases.csproj"/>
@@ -84,6 +85,7 @@
     <Project Path="src/Shiny.AppDeviceBridge.Desktop.Client/Shiny.AppDeviceBridge.Desktop.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Database.Client/Shiny.AppDeviceBridge.Database.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Discovery.Client/Shiny.AppDeviceBridge.Discovery.Client.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.Hubs.Client/Shiny.AppDeviceBridge.Hubs.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.HttpTransfers.Client/Shiny.AppDeviceBridge.HttpTransfers.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.RegionGeofencing.Client/Shiny.AppDeviceBridge.RegionGeofencing.Client.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Geofencing.Client/Shiny.AppDeviceBridge.Geofencing.Client.csproj"/>

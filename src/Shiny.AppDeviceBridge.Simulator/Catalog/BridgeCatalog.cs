@@ -16,6 +16,7 @@ using ContactsClient = Shiny.AppDeviceBridge.Contacts.Client;
 using DatabaseClient = Shiny.AppDeviceBridge.Database.Client;
 using DesktopClient = Shiny.AppDeviceBridge.Desktop.Client;
 using DiscoveryClient = Shiny.AppDeviceBridge.Discovery.Client;
+using HubsClient = Shiny.AppDeviceBridge.Hubs.Client;
 using GameCenterClient = Shiny.AppDeviceBridge.GameCenter.Client;
 using RegionGeofencingClient = Shiny.AppDeviceBridge.RegionGeofencing.Client;
 using FoldersClient = Shiny.AppDeviceBridge.Folders.Client;
@@ -136,6 +137,7 @@ public static class BridgeCatalog
             Describe(typeof(FoldersClient.IFoldersBridge), FoldersClient.FoldersJsonContext.Default),
             Describe(typeof(GameCenterClient.IGameCenterBridge), GameCenterClient.GameCenterJsonContext.Default),
             Describe(typeof(HealthClient.IHealthBridge), HealthClient.HealthJsonContext.Default),
+            Describe(typeof(HubsClient.IHubsBridge), HubsClient.HubsJsonContext.Default),
             Describe(typeof(InAppPurchasesClient.IInAppPurchasesBridge), InAppPurchasesClient.InAppPurchasesJsonContext.Default),
             Describe(typeof(LiveActivitiesClient.ILiveActivitiesBridge), LiveActivitiesClient.LiveActivitiesJsonContext.Default),
             Describe(typeof(TransfersClient.ITransfersBridge), TransfersClient.TransfersJsonContext.Default),

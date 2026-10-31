@@ -44,6 +44,9 @@ sealed class TestApp : IAsyncDisposable
 
     readonly List<ServiceProvider> containers = [];
 
+    /// <summary>The container of the host or server built last — for a bridge that resolves its services from it.</summary>
+    public IServiceProvider? Services { get; private set; }
+
     /// <summary>Options pointing at the TestServer. Each host gets its own provider, since the host disposes the one it is given.</summary>
     public WebAppHostOptions Options(Func<HttpMessageHandler>? handler = null) => new()
     {
@@ -133,6 +136,8 @@ sealed class TestApp : IAsyncDisposable
         var provider = services.BuildServiceProvider();
         lock (this.containers)
             this.containers.Add(provider);
+
+        this.Services = provider;
 
         return provider;
     }

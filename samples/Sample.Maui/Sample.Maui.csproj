@@ -36,8 +36,11 @@
     (org.shinylib.appdevicebridge.sample). To run the sample under your own team, change ApplicationId, enable the
     capability on your App ID in the Apple developer portal and download a fresh development profile - or comment out
     the entitlement for a bridge you don't need: a profile without the capability fails the signing step.
+
+    Or deploy under your team's wildcard profile with both left out: -p:SampleWildcardSigning=true. Health and NFC then
+    fail on the device; everything else works.
   -->
-  <ItemGroup Condition="$(TargetFramework.Contains('-ios'))">
+  <ItemGroup Condition="$(TargetFramework.Contains('-ios')) And '$(SampleWildcardSigning)' != 'true'">
     <!-- Health bridge: HealthKit capability. (healthkit.access is only for clinical health records, which it doesn't read.) -->
     <CustomEntitlements Include="com.apple.developer.healthkit" Type="Boolean" Value="true" Visible="false" />
 

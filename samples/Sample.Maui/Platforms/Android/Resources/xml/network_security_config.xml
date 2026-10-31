@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
+    <!-- The Hubs page joins other devices' hubs over Wi-Fi: plain HTTP to whatever LAN address mDNS finds, which a
+         domain list can't name. A sample convenience; an app joining only known hosts lists them instead. -->
+    <base-config cleartextTrafficPermitted="true" />
+
     <domain-config cleartextTrafficPermitted="true">
         <!-- The web app itself. Required by every Shiny.AppDeviceBridge app on API 28+. -->
         <domain includeSubdomains="false">127.0.0.1</domain>

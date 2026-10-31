@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Blazor/Shiny.AppDeviceBridge.Blazor.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Hubs.Client/Shiny.AppDeviceBridge.Hubs.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Calendar.Client/Shiny.AppDeviceBridge.Calendar.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Camera.Client/Shiny.AppDeviceBridge.Camera.Client.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Photos.Client/Shiny.AppDeviceBridge.Photos.Client.csproj" />

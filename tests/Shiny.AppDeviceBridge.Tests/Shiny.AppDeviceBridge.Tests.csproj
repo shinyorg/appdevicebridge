@@ -23,6 +23,9 @@
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <!-- a real Universal Hubs client for the hubs bridge; Shiny.BluetoothLE.Hubs directly, for its proxy generator -->
+    <PackageReference Include="Shiny.UniversalHubs.Client" />
+    <PackageReference Include="Shiny.BluetoothLE.Hubs" />
   </ItemGroup>
 
   <!--
@@ -45,6 +48,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.WebView/Shiny.AppDeviceBridge.WebView.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Database/Shiny.AppDeviceBridge.Database.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Discovery/Shiny.AppDeviceBridge.Discovery.csproj" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Hubs/Shiny.AppDeviceBridge.Hubs.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Notifications/Shiny.AppDeviceBridge.Notifications.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Desktop/Shiny.AppDeviceBridge.Desktop.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.RpiCamera/Shiny.AppDeviceBridge.RpiCamera.csproj" />

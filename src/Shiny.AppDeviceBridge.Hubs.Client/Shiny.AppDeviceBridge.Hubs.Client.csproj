@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="../BridgeClient.props" />
+
+  <PropertyGroup>
+    <RootNamespace>Shiny.AppDeviceBridge.Hubs.Client</RootNamespace>
+    <Description>Typed client and contracts for the Shiny.AppDeviceBridge hubs bridge — Universal Hubs (BLE, Wi-Fi and Multipeer) whose logic lives in the web app hosted by Shiny.AppDeviceBridge, so it updates with the web app. Write a hub with WebAppHub and register it with services.AddWebAppHub&lt;THub&gt;(definition), or call the bridge directly with services.AddHubsBridgeClient().</Description>
+  </PropertyGroup>
+
+</Project>
