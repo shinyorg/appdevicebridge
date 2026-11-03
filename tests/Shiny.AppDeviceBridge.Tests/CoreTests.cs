@@ -126,9 +126,22 @@ public class WebAppReleaseSignatureTests
     [Fact]
     public void BuildsCheckUri()
     {
-        var uri = WebAppProtocol.BuildCheckUri(new Uri("https://api.test/webapps/"), "demo", "1.0.0-beta.1", "ios", "2.0", "beta");
-        Assert.Equal("https://api.test/webapps/demo/check?version=1.0.0-beta.1&platform=ios&host=2.0&channel=beta", uri.AbsoluteUri);
+        var uri = WebAppProtocol.BuildCheckUri(new Uri("https://api.test/webapps/"), "demo", "1.0.0-beta.1", "ios", "2.0", "beta", "fr-CA");
+        Assert.Equal("https://api.test/webapps/demo/check?version=1.0.0-beta.1&platform=ios&host=2.0&channel=beta&culture=fr-CA", uri.AbsoluteUri);
     }
+
+    [Theory]
+    [InlineData("https://apps.apple.com/app/id1", true)]
+    [InlineData("itms-apps://apps.apple.com/app/id1", true)]
+    [InlineData("market://details?id=com.acme", true)]
+    [InlineData("ms-windows-store://pdp/?productid=9N", true)]
+    [InlineData("http://apps.apple.com/app/id1", false)]
+    [InlineData("javascript:alert(1)", false)]
+    [InlineData("file:///etc/passwd", false)]
+    [InlineData("not a url", false)]
+    [InlineData(null, false)]
+    public void OnlyOpensStoreUrlsThatAreHttpsOrAStore(string? url, bool allowed)
+        => Assert.Equal(allowed, WebAppProtocol.IsAllowedStoreUrl(url));
 }
 
 public class WebAppUpdatePlannerTests

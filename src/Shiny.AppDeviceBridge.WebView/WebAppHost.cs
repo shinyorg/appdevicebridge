@@ -23,18 +23,53 @@ public enum WebAppHostState
     Downloading,
 
     Ready,
-    Failed
+    Failed,
+
+    /// <summary>
+    /// The server no longer accepts this native app: nothing is shown but the way to the store. See
+    /// <see cref="WebAppHostStatus.HostUpdate"/>.
+    /// </summary>
+    HostUpdateRequired
 }
 
+/// <summary>Where startup is, for a splash screen to show.</summary>
+/// <param name="State">The step startup is on.</param>
+/// <param name="Package">The build being served, or about to be.</param>
+/// <param name="Progress">How far a required download has got.</param>
+/// <param name="Error">Why startup failed.</param>
+/// <param name="Update">The web app release being installed — its version and release notes.</param>
+/// <param name="HostUpdate">A native app update in the store; when required, the reason for <see cref="WebAppHostState.HostUpdateRequired"/>.</param>
 public sealed record WebAppHostStatus(
     WebAppHostState State,
     WebAppPackage? Package = null,
     WebAppDownloadProgress? Progress = null,
-    string? Error = null
+    string? Error = null,
+    UpdateInfo? Update = null,
+    HostUpdateInfo? HostUpdate = null
 );
 
 /// <summary>Thrown when there is no web app to show: nothing bundled, nothing installed, and no way to get one.</summary>
 public sealed class WebAppUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
+
+/// <summary>Thrown by <see cref="WebAppHost.StartAsync"/> when the server requires a newer native app from the store.</summary>
+public sealed class WebAppHostUpdateRequiredException(HostUpdateInfo update)
+    : Exception($"This version of the app is no longer supported. Update to {update.MinimumVersion ?? "the latest version"} from the store.")
+{
+    public HostUpdateInfo Update { get; } = update;
+}
+
+/// <summary>
+/// Downloads optional releases somewhere other than in-process — <c>Shiny.AppDeviceBridge.AutoUpdate</c> registers one that
+/// hands them to an OS background transfer. Registered in the container, the host offers it every optional release it finds.
+/// </summary>
+public interface IWebAppUpdateDownloader
+{
+    /// <summary>
+    /// Takes the release, or declines it with false — the host then downloads it in-process as it would without a
+    /// downloader. Whatever it downloads goes through <see cref="WebAppHost.InstallDownloadedAsync"/>.
+    /// </summary>
+    Task<bool> QueueAsync(WebAppHost host, UpdateInfo update, CancellationToken cancellationToken);
+}
 
 /// <summary>
 /// Serves the web app and keeps it current.
@@ -58,16 +93,23 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
     readonly ConcurrentDictionary<string, bool> reportedVariants = new(StringComparer.Ordinal);
     readonly SemaphoreSlim gate = new(1, 1);
     readonly CancellationTokenSource lifetime = new();
+    readonly TaskCompletionSource pageReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    readonly IServiceProvider? services;
 
     volatile Uri? devServer;
     HttpClient? devClient;
+    string? pendingReleaseNotes;
     int disposed;
 
+    /// <param name="services">
+    /// Where the optional pieces come from: Shiny's <c>IAppStore</c>, the main thread, an <see cref="IWebAppUpdateDownloader"/>.
+    /// </param>
     public WebAppHost(
         WebAppHostOptions options,
         AppDeviceBridgeServer server,
         WebAppSession session,
-        ILoggerFactory? loggerFactory = null
+        ILoggerFactory? loggerFactory = null,
+        IServiceProvider? services = null
     )
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -79,6 +121,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
         this.options = options;
         this.server = server;
         this.session = session;
+        this.services = services;
         this.logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<WebAppHost>();
 
         this.store = new WebAppInstallStore(options.ResolveInstallDirectory(server.Options), this.logger);
@@ -153,6 +196,21 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
     public WebAppPackage? PendingPackage { get; private set; }
 
     public WebAppUpdateCheckResult? LastCheck { get; private set; }
+
+    /// <summary>
+    /// A native app update in the store, from the last check — or, when that check could not reach the server, the one it
+    /// last required.
+    /// </summary>
+    public HostUpdateInfo? HostUpdate { get; private set; }
+
+    /// <summary>
+    /// Completes when the page says it has rendered — <c>POST /_bridge/host/ready</c>. The splash screen waits on it, up to
+    /// <see cref="WebAppHostOptions.PageReadyTimeout"/>.
+    /// </summary>
+    public Task PageReady => this.pageReady.Task;
+
+    /// <summary>Completes <see cref="PageReady"/>. Further calls do nothing.</summary>
+    public void SignalPageReady() => this.pageReady.TrySetResult();
 
     /// <summary><c>http://127.0.0.1:{port}/</c> once started.</summary>
     public Uri? Origin => this.server.Origin;
@@ -233,6 +291,14 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
                 var check = await this.Updater.CheckAsync(active?.Version, cancellationToken).ConfigureAwait(false);
                 this.LastCheck = check;
 
+                // Before any web app download: a native app the server no longer accepts gets nothing but the way to the store.
+                if (this.TrackHostUpdate(check) is { IsRequired: true } required)
+                {
+                    this.logger.LogWarning("The server requires native app {Minimum}; this is {Host}", required.MinimumVersion, this.server.Options.HostVersion);
+                    this.SetStatus(new WebAppHostStatus(WebAppHostState.HostUpdateRequired, active, HostUpdate: required));
+                    throw new WebAppHostUpdateRequiredException(required);
+                }
+
                 if (check.Status == WebAppUpdateStatus.Available)
                 {
                     if (active is null || !check.Update!.IsOptional)
@@ -249,10 +315,10 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
                         : "No web app is installed and none could be downloaded."
                 );
 
-            this.SetStatus(new WebAppHostStatus(WebAppHostState.Ready, this.source.Package));
+            this.SetStatus(new WebAppHostStatus(WebAppHostState.Ready, this.source.Package, HostUpdate: this.HostUpdate));
             return this.BuildStartUri();
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (ex is not OperationCanceledException and not WebAppHostUpdateRequiredException)
         {
             this.logger.LogError(ex, "Web app host failed to start");
             this.SetStatus(new WebAppHostStatus(WebAppHostState.Failed, this.source.Package, Error: ex.Message));
@@ -271,6 +337,103 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
     public Task<bool> EnsureServerRunningAsync(CancellationToken cancellationToken = default)
         => this.server.Origin is null ? Task.FromResult(false) : this.server.EnsureRunningAsync(cancellationToken);
 
+    /// <summary>
+    /// Checks for an update outside startup — from a background job, or a page that wants to know. Compares against the newest
+    /// build already here (served, waiting, or installed for the next launch), so a release already downloaded is not offered
+    /// again, and refreshes <see cref="HostUpdate"/>. Installs nothing.
+    /// </summary>
+    public async Task<WebAppUpdateCheckResult> CheckForUpdateAsync(CancellationToken cancellationToken = default)
+    {
+        var check = await this.Updater.CheckAsync(await this.GetNewestVersionAsync(cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+        this.TrackHostUpdate(check);
+        return check;
+    }
+
+    /// <summary>
+    /// Installs a release some other downloader fetched (see <see cref="IWebAppUpdateDownloader"/>), verified as any download
+    /// is. While the app is running it becomes <see cref="PendingPackage"/> and raises <see cref="UpdateInstalled"/>; in a
+    /// background wake-up it is simply what the next launch serves. The file is consumed either way.
+    /// </summary>
+    public async Task<WebAppPackage> InstallDownloadedAsync(UpdateInfo update, string downloadedFile, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+
+        var current = await this.GetNewestVersionAsync(cancellationToken).ConfigureAwait(false);
+        var package = await this.Updater.InstallDownloadedAsync(update, downloadedFile, current, cancellationToken).ConfigureAwait(false);
+
+        this.OnInstalledInBackground(package, update);
+        return package;
+    }
+
+    /// <summary>The newest build on the device: served, waiting, installed for the next launch, or bundled.</summary>
+    async Task<WebAppVersion?> GetNewestVersionAsync(CancellationToken cancellationToken)
+    {
+        var active = await this.EnsureActivatedAsync(cancellationToken).ConfigureAwait(false);
+        WebAppVersion? newest = active?.Version;
+
+        foreach (var candidate in new[] { this.PendingPackage?.Version, this.store.ReadInstalled()?.Version })
+        {
+            if (candidate is { } version && (newest is not { } known || version > known))
+                newest = version;
+        }
+
+        return newest;
+    }
+
+    /// <summary>
+    /// What the check says about the native app, remembered across launches when it is a requirement — so turning the
+    /// network off does not step around it — and forgotten when the server answers without one. A check that did not reach
+    /// the server, or whose answer was rejected, falls back to what was remembered.
+    /// </summary>
+    HostUpdateInfo? TrackHostUpdate(WebAppUpdateCheckResult check)
+    {
+        HostUpdateInfo? update;
+
+        if (check.Status is WebAppUpdateStatus.UpToDate or WebAppUpdateStatus.Available)
+        {
+            update = check.HostUpdate;
+            this.store.SaveHostRequirement(update);
+        }
+        else
+        {
+            update = check.HostUpdate ?? this.store.ReadHostRequirement(this.server.Options.HostVersion);
+        }
+
+        this.HostUpdate = update;
+        return update;
+    }
+
+    /// <summary>
+    /// Opens the store for <see cref="HostUpdate"/>: <see cref="WebAppHostOptions.OpenStore"/> when set; otherwise Shiny's
+    /// <c>IAppStore</c> when the app registers it, then the store URL the server sent. False when none of them opened.
+    /// </summary>
+    public async Task<bool> OpenStoreAsync()
+    {
+        var update = this.HostUpdate;
+
+        try
+        {
+            if (this.options.OpenStore is { } custom)
+                return await custom(update).ConfigureAwait(false);
+
+            if (this.services?.GetService<Shiny.AppStore.IAppStore>() is { } appStore && await this.OnMainThreadAsync(appStore.OpenStore).ConfigureAwait(false))
+                return true;
+
+            if (update?.StoreUri is { } uri)
+                return await this.OnMainThreadAsync(() => Launcher.Default.TryOpenAsync(uri)).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // A platform without a launcher, a store app that is not installed: the button does nothing, the app does not crash.
+            this.logger.LogWarning(ex, "Could not open the store");
+        }
+
+        return false;
+    }
+
+    Task<bool> OnMainThreadAsync(Func<Task<bool>> action)
+        => this.services?.GetService<IWebAppMainThread>() is { } mainThread ? mainThread.InvokeAsync(action) : action();
+
     /// <summary>Starts serving <see cref="PendingPackage"/> now. The caller reloads the WebView.</summary>
     public bool ApplyPendingUpdate()
     {
@@ -279,6 +442,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
 
         this.Activate(pending);
         this.PendingPackage = null;
+        this.pendingReleaseNotes = null;
         this.SetStatus(new WebAppHostStatus(WebAppHostState.Ready, pending));
 
         return true;
@@ -344,11 +508,17 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
 
     async Task<WebAppPackage?> InstallRequiredAsync(WebAppUpdateCheckResult check, WebAppPackage? active, CancellationToken cancellationToken)
     {
-        var progress = new StatusProgress(this, active);
+        var progress = new StatusProgress(this, active, check.Update!, this.HostUpdate);
 
         try
         {
-            this.SetStatus(new WebAppHostStatus(WebAppHostState.Downloading, active, new WebAppDownloadProgress(0, check.Update!.FileSize ?? 0)));
+            this.SetStatus(new WebAppHostStatus(
+                WebAppHostState.Downloading,
+                active,
+                new WebAppDownloadProgress(0, check.Update!.FileSize ?? 0),
+                Update: check.Update,
+                HostUpdate: this.HostUpdate
+            ));
 
             var package = await this.Updater.InstallAsync(check, progress, cancellationToken).ConfigureAwait(false);
             this.Activate(package);
@@ -362,7 +532,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
             // check: run what is installed and try again next launch — unless there is nothing
             // installed, or the app asked to be strict.
             if (active is null || this.options.BlockOnRequiredUpdateFailure)
-                throw new WebAppUnavailableException("A required update could not be installed.", ex);
+                throw new WebAppUnavailableException($"A required update ({check.Update!.Version}) could not be installed. Check your connection and try again.", ex);
 
             this.logger.LogWarning(ex, "Required update failed; serving {Version} until the next launch", active.Version);
             return active;
@@ -373,9 +543,14 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
     {
         try
         {
+            // A downloader that survives the process — an OS background transfer — rather than a download the user's next
+            // swipe away cancels.
+            if (this.services?.GetService<IWebAppUpdateDownloader>() is { } downloader
+                && await downloader.QueueAsync(this, check.Update!, this.lifetime.Token).ConfigureAwait(false))
+                return;
+
             var package = await this.Updater.InstallAsync(check, null, this.lifetime.Token).ConfigureAwait(false);
-            this.PendingPackage = package;
-            this.UpdateInstalled?.Invoke(this, package);
+            this.OnInstalledInBackground(package, check.Update!);
         }
         catch (OperationCanceledException) when (this.lifetime.IsCancellationRequested)
         {
@@ -384,6 +559,18 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
         {
             this.logger.LogWarning(ex, "Background update to {Version} failed; it will be retried next launch", check.Update?.Version);
         }
+    }
+
+    void OnInstalledInBackground(WebAppPackage package, UpdateInfo update)
+    {
+        // Not started — a background wake-up, where only background.js was activated: the next launch picks the installed
+        // build up by itself.
+        if (this.Status.State != WebAppHostState.Ready || this.source.Package is not { } active || package.Version <= active.Version)
+            return;
+
+        this.PendingPackage = package;
+        this.pendingReleaseNotes = update.WhatsNew;
+        this.UpdateInstalled?.Invoke(this, package);
     }
 
     /// <summary>
@@ -403,6 +590,12 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
         : null;
 
     string? IWebAppStatus.PendingVersion => this.PendingPackage?.Version.ToString();
+
+    string? IWebAppStatus.PendingReleaseNotes => this.PendingPackage is null ? null : this.pendingReleaseNotes;
+
+    StoreUpdate? IWebAppStatus.StoreUpdate => this.HostUpdate is { } update
+        ? new StoreUpdate(update.IsRequired, update.MinimumVersion, update.LatestVersion, update.WhatsNew)
+        : null;
 
     bool HasSession(HttpContext context)
         => BridgeCallers.IsLocalConnection(context)
@@ -794,7 +987,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
     }
 
     /// <summary>Turns download progress into status updates, at most one per percent.</summary>
-    sealed class StatusProgress(WebAppHost host, WebAppPackage? active) : IProgress<WebAppDownloadProgress>
+    sealed class StatusProgress(WebAppHost host, WebAppPackage? active, UpdateInfo update, HostUpdateInfo? hostUpdate) : IProgress<WebAppDownloadProgress>
     {
         int lastPercent = -1;
 
@@ -805,7 +998,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
                 return;
 
             this.lastPercent = percent;
-            host.SetStatus(new WebAppHostStatus(WebAppHostState.Downloading, active, value));
+            host.SetStatus(new WebAppHostStatus(WebAppHostState.Downloading, active, value, Update: update, HostUpdate: hostUpdate));
         }
     }
 }

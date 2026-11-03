@@ -124,7 +124,7 @@ public interface IAppDeviceBridgeServerExtension
 
 /// <summary>
 /// What a web app host tells the page about itself through <c>/_bridge/host</c>. Implemented by the WebView host; without
-/// one, those fields are null and <c>apply-update</c> has nothing to apply.
+/// one, those fields are null, <c>apply-update</c> has nothing to apply, <c>ready</c> does nothing and <c>open-store</c> opens nothing.
 /// </summary>
 public interface IWebAppStatus
 {
@@ -138,4 +138,16 @@ public interface IWebAppStatus
 
     /// <summary>Starts serving a downloaded update. False when none is waiting.</summary>
     bool ApplyPendingUpdate();
+
+    /// <summary>What the waiting update changes.</summary>
+    string? PendingReleaseNotes { get; }
+
+    /// <summary>A newer native app in the store, from the last update check.</summary>
+    Client.StoreUpdate? StoreUpdate { get; }
+
+    /// <summary>The page has rendered: take the splash screen down.</summary>
+    void SignalPageReady();
+
+    /// <summary>Opens the native app's store page. False when there is no way to.</summary>
+    Task<bool> OpenStoreAsync();
 }

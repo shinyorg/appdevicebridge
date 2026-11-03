@@ -436,7 +436,9 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
                 status?.WebAppOrigin,
                 status?.PendingVersion,
                 [.. this.bridges.Select(x => new BridgeCapability(x.Name, x.IsSupported))],
-                status?.DevServer?.AbsoluteUri
+                status?.DevServer?.AbsoluteUri,
+                status?.PendingReleaseNotes,
+                status?.StoreUpdate
             );
 
             return WebAppBridgeResults.Json(context, info, AppDeviceBridgeJsonContext.Default.HostInfo);
@@ -454,6 +456,19 @@ public sealed class AppDeviceBridgeServer : IAsyncDisposable
                 new ApplyUpdateResult(applied, applied ? version : null),
                 AppDeviceBridgeJsonContext.Default.ApplyUpdateResult
             );
+        }).RequireAuthorization(AppDeviceBridgePolicies.Bridges);
+
+        // The page has drawn its first screen: the host can take its splash screen down.
+        server.MapPost($"{this.Paths.Bridge}/host/ready", context =>
+        {
+            this.extensions.OfType<IWebAppStatus>().FirstOrDefault()?.SignalPageReady();
+            return WebAppBridgeResults.NoContent(context);
+        }).RequireAuthorization(AppDeviceBridgePolicies.Bridges);
+
+        server.MapPost($"{this.Paths.Bridge}/host/open-store", async context =>
+        {
+            var opened = this.extensions.OfType<IWebAppStatus>().FirstOrDefault() is { } status && await status.OpenStoreAsync();
+            await WebAppBridgeResults.Json(context, new OpenStoreResult(opened), AppDeviceBridgeJsonContext.Default.OpenStoreResult);
         }).RequireAuthorization(AppDeviceBridgePolicies.Bridges);
     }
 

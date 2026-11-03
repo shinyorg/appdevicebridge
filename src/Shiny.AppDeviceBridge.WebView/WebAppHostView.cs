@@ -5,23 +5,34 @@ using MauiWebView = Microsoft.Maui.Controls.WebView;
 namespace Shiny.AppDeviceBridge.WebView;
 
 /// <summary>
-/// The web app, full size, with a progress screen in front of it until it can load.
+/// The web app, full size, with a splash screen in front of it until the page has rendered.
 /// <code>
 /// public App() => MainPage = new ContentPage { Content = new WebAppHostView() };
 /// </code>
 /// <para>
-/// Starts the host when it first appears, shows download progress while a required update installs,
-/// offers a retry when there is nothing to show, and restarts the loopback server when the window
-/// resumes.
+/// Starts the host when it first appears. The splash checks for updates, shows a required web app update installing with
+/// its release notes and progress, and stops with a message when the app cannot go on — the native app must update from
+/// the store (with an <b>Update</b> button), or a required update failed (with <b>Try again</b>). Once the page has loaded it
+/// waits for the page's <c>ready</c> signal, up to <see cref="WebAppHostOptions.PageReadyTimeout"/>, so the user never sees a
+/// half-drawn page. Restarts the loopback server when the window resumes.
+/// </para>
+/// <para>
+/// Replace the look with <see cref="SplashTemplate"/>, bound to a <see cref="WebAppSplashContext"/>; change the words with
+/// <see cref="SplashText"/>.
 /// </para>
 /// </summary>
 public class WebAppHostView : ContentView
 {
-    readonly ActivityIndicator spinner = new() { IsRunning = true, HorizontalOptions = LayoutOptions.Center };
-    readonly ProgressBar progressBar = new() { IsVisible = false, WidthRequest = 240, HorizontalOptions = LayoutOptions.Center };
-    readonly Label statusLabel = new() { HorizontalTextAlignment = TextAlignment.Center, HorizontalOptions = LayoutOptions.Center };
-    readonly Button retryButton = new() { Text = "Try again", IsVisible = false, HorizontalOptions = LayoutOptions.Center };
-    readonly VerticalStackLayout loading;
+    /// <summary>The splash screen, bound to a <see cref="WebAppSplashContext"/>. Null shows the built-in one.</summary>
+    public static readonly BindableProperty SplashTemplateProperty = BindableProperty.Create(
+        nameof(SplashTemplate),
+        typeof(DataTemplate),
+        typeof(WebAppHostView),
+        propertyChanged: (b, _, _) => ((WebAppHostView)b).BuildSplash()
+    );
+
+    readonly ContentView splash = new();
+    readonly Grid root;
 
     WebAppHost? host;
     WebAppHostOptions? options;
@@ -29,29 +40,49 @@ public class WebAppHostView : ContentView
     bool attached;
     bool started;
     bool starting;
+    TaskCompletionSource? navigated;
 
     public WebAppHostView()
     {
-        this.WebView = new MauiWebView { IsVisible = false };
+        // Never hidden: the splash screen covers it until the page is ready. Visibility changes are not applied to the native
+        // view by every backend — the maui-labs AppKit one left the WKWebView hidden after IsVisible went back to true.
+        this.WebView = new MauiWebView();
 
         // The WebView's handler can arrive before this view's, and a new one arrives with every reconnect.
         this.WebView.HandlerChanged += (_, _) => WebAppWebViewPermissions.Attach(this.WebView);
+        this.WebView.Navigated += (_, _) => this.navigated?.TrySetResult();
 
-        this.loading = new VerticalStackLayout
-        {
-            Spacing = 12,
-            Padding = new Thickness(24),
-            VerticalOptions = LayoutOptions.Center,
-            Children = { this.spinner, this.progressBar, this.statusLabel, this.retryButton }
-        };
+        this.Splash = new WebAppSplashContext(
+            this.SplashText,
+            new Command(async () => await this.StartAsync()),
+            new Command(async () => await this.OpenStoreAsync())
+        );
 
-        this.retryButton.Clicked += async (_, _) => await this.StartAsync();
+        this.splash.BindingContext = this.Splash;
+        this.BuildSplash();
 
-        this.Content = new Grid { Children = { this.WebView, this.loading } };
+        // The splash sits over the WebView, which loads underneath it: some platforms will not load a hidden WebView.
+        this.root = new Grid { Children = { this.WebView, this.splash } };
+        this.Content = this.root;
 
         this.Loaded += this.OnLoaded;
         this.Unloaded += this.OnUnloaded;
     }
+
+    public DataTemplate? SplashTemplate
+    {
+        get => (DataTemplate?)this.GetValue(SplashTemplateProperty);
+        set => this.SetValue(SplashTemplateProperty, value);
+    }
+
+    /// <summary>The words the splash screen uses. Change them before the view appears.</summary>
+    public WebAppSplashText SplashText { get; } = new();
+
+    /// <summary>What the splash screen shows. A <see cref="SplashTemplate"/> binds to it.</summary>
+    public WebAppSplashContext Splash { get; }
+
+    /// <summary>Raised on the UI thread when the splash screen comes down and the page shows.</summary>
+    public event EventHandler? SplashDismissed;
 
     /// <summary>The WebView the app loads into, for handler customisation.</summary>
     public MauiWebView WebView { get; }
@@ -172,20 +203,26 @@ public class WebAppHostView : ContentView
             return;
 
         this.starting = true;
-        this.retryButton.IsVisible = false;
-        this.spinner.IsRunning = true;
-        this.spinner.IsVisible = true;
+        this.Splash.Restart();
+        this.ShowSplash();
 
         try
         {
+            this.navigated = new(TaskCreationOptions.RunContinuationsAsynchronously);
             var uri = await this.host.StartAsync();
 
             this.WebView.Source = new UrlWebViewSource { Url = uri.AbsoluteUri };
-            this.WebView.IsVisible = true;
-            this.loading.IsVisible = false;
             this.started = true;
 
             this.Ready?.Invoke(this, uri);
+
+            await this.WaitForPageAsync();
+            this.HideSplash();
+        }
+        catch (WebAppHostUpdateRequiredException ex)
+        {
+            this.Splash.ShowHostUpdateRequired(ex.Update);
+            this.ShowSplash();
         }
         catch (Exception ex)
         {
@@ -195,6 +232,104 @@ public class WebAppHostView : ContentView
         {
             this.starting = false;
         }
+    }
+
+    /// <summary>
+    /// The page's own <c>ready</c> signal when <see cref="WebAppHostOptions.WaitForPageReady"/> is on, the WebView finishing
+    /// its navigation when it is off — either way no longer than <see cref="WebAppHostOptions.PageReadyTimeout"/>.
+    /// </summary>
+    async Task WaitForPageAsync()
+    {
+        var timeout = this.options?.PageReadyTimeout ?? TimeSpan.FromSeconds(15);
+        var signal = this.options?.WaitForPageReady != false ? this.host!.PageReady : this.navigated!.Task;
+
+        await Task.WhenAny(signal, Task.Delay(timeout));
+    }
+
+    async Task OpenStoreAsync()
+    {
+        if (this.host is not null)
+            await this.host.OpenStoreAsync();
+    }
+
+    // Added and removed rather than hidden: the maui-labs AppKit backend leaves a native view drawn when its IsVisible goes
+    // false, which left a white splash over a loaded page.
+    void ShowSplash()
+    {
+        if (!this.root.Children.Contains(this.splash))
+            this.root.Children.Add(this.splash);
+    }
+
+    void HideSplash()
+    {
+        if (!this.root.Children.Remove(this.splash))
+            return;
+
+        this.SplashDismissed?.Invoke(this, EventArgs.Empty);
+    }
+
+    void BuildSplash()
+        => this.splash.Content = this.SplashTemplate?.CreateContent() as View ?? CreateDefaultSplash(this.Splash);
+
+    /// <summary>
+    /// A spinner, the message, the release notes, progress, and the buttons — over the page's background. Each optional piece
+    /// is added to the layout when it applies and removed when it does not, rather than hidden: not every backend applies a
+    /// visibility change to the native view.
+    /// </summary>
+    static View CreateDefaultSplash(WebAppSplashContext context)
+    {
+        var spinner = new ActivityIndicator { HorizontalOptions = LayoutOptions.Center, IsRunning = true };
+
+        var message = new Label { HorizontalTextAlignment = TextAlignment.Center, HorizontalOptions = LayoutOptions.Center, FontSize = 16 };
+        message.SetBinding(Label.TextProperty, static (WebAppSplashContext c) => c.Message);
+
+        var progress = new ProgressBar { WidthRequest = 240, HorizontalOptions = LayoutOptions.Center };
+        progress.SetBinding(ProgressBar.ProgressProperty, static (WebAppSplashContext c) => c.Progress);
+
+        // Set by hand: the binding generator emits a setter for a nullable property even one way, and warns about it.
+        var notes = new Label { HorizontalTextAlignment = TextAlignment.Start, FontSize = 13, Opacity = 0.8 };
+        var notesScroll = new ScrollView { Content = notes, MaximumHeightRequest = 240, MaximumWidthRequest = 480 };
+
+        var store = new Button { HorizontalOptions = LayoutOptions.Center };
+        store.SetBinding(Button.TextProperty, static (WebAppSplashContext c) => c.Text.OpenStore);
+        store.SetBinding(Button.CommandProperty, static (WebAppSplashContext c) => c.OpenStoreCommand);
+
+        var retry = new Button { HorizontalOptions = LayoutOptions.Center };
+        retry.SetBinding(Button.TextProperty, static (WebAppSplashContext c) => c.Text.Retry);
+        retry.SetBinding(Button.CommandProperty, static (WebAppSplashContext c) => c.RetryCommand);
+
+        var stack = new VerticalStackLayout { Spacing = 12, Padding = new Thickness(24), VerticalOptions = LayoutOptions.Center };
+
+        // In display order, each with when it shows.
+        (View View, Func<WebAppSplashContext, bool> Shows)[] pieces =
+        [
+            (spinner, static c => c.IsBusy),
+            (message, static _ => true),
+            (progress, static c => c.IsProgressVisible),
+            (notesScroll, static c => c.HasReleaseNotes),
+            (store, static c => c.CanOpenStore),
+            (retry, static c => c.CanRetry)
+        ];
+
+        void Arrange()
+        {
+            notes.Text = context.ReleaseNotes;
+
+            var wanted = pieces.Where(x => x.Shows(context)).Select(x => x.View).ToList();
+            if (stack.Children.Cast<View>().SequenceEqual(wanted))
+                return;
+
+            stack.Children.Clear();
+            foreach (var view in wanted)
+                stack.Children.Add(view);
+        }
+
+        Arrange();
+        context.PropertyChanged += (_, _) => Arrange();
+
+        var root = new Grid { Children = { stack } };
+        root.SetAppThemeColor(BackgroundColorProperty, Colors.White, Colors.Black);
+        return root;
     }
 
     async void OnResumed(object? sender, EventArgs e)
@@ -227,31 +362,18 @@ public class WebAppHostView : ContentView
 
     void OnStatusChanged(object? sender, WebAppHostStatus status) => this.Dispatcher.Dispatch(() =>
     {
-        // Once the page is up, background activity is the page's business, not an overlay's.
+        // Once the page is up, background activity is the page's business, not the splash screen's.
         if (this.started)
             return;
 
-        this.progressBar.IsVisible = status.Progress is not null;
-        this.progressBar.Progress = status.Progress?.Fraction ?? 0;
-
-        this.statusLabel.Text = status.State switch
-        {
-            WebAppHostState.CheckingForUpdate => "Checking for updates…",
-            WebAppHostState.Downloading => status.Progress is { } p ? $"Downloading update… {p.Fraction:P0}" : "Downloading update…",
-            WebAppHostState.Failed => status.Error,
-            _ => String.Empty
-        };
+        this.Splash.Apply(status);
     });
 
     void ShowError(string? message)
     {
-        this.loading.IsVisible = true;
-        this.WebView.IsVisible = false;
-        this.spinner.IsRunning = false;
-        this.spinner.IsVisible = false;
-        this.progressBar.IsVisible = false;
-        this.statusLabel.Text = message;
-        this.retryButton.IsVisible = this.host is not null;
+        this.started = false;
+        this.Splash.Stop(message ?? String.Empty);
+        this.ShowSplash();
     }
 }
 

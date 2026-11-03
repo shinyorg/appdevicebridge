@@ -4,6 +4,7 @@ using Shiny.Jobs;
 using Shiny.Locations;
 using Shiny.AppDeviceBridge;
 using Shiny.AppDeviceBridge.AppLinks;
+using Shiny.AppDeviceBridge.AutoUpdate;
 using Shiny.AppDeviceBridge.Beacons;
 using Shiny.AppDeviceBridge.BluetoothLE;
 using Shiny.AppDeviceBridge.Calendar;
@@ -215,7 +216,11 @@ public static class SampleConfiguration
                         })
 
                         // Handled as "job:sync" by the page when it is open, by background.js when it is not.
-                        .AddWebAppJob("sync", job => job.WithInternet(InternetAccess.Any));
+                        .AddWebAppJob("sync", job => job.WithInternet(InternetAccess.Any))
+
+                        // Checks the release server in the background and downloads new builds as OS transfers, so the next
+                        // launch already has them — a required update rarely makes anyone wait at the splash screen.
+                        .AddWebAppAutoUpdate();
 
                     headBridges?.Invoke(bridge);
                 },

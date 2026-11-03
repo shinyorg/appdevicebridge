@@ -52,21 +52,22 @@ public sealed class ReleaseServerUpdateProvider(Uri server, string publicKey, Fu
         this.hostVersion = bridge.HostVersion;
     }
 
-    public async Task<UpdateInfo?> GetUpdateInfoAsync(Version currentHostVersion, WebAppVersion? currentAppVersion, CancellationToken cancellationToken)
+    public async Task<UpdateOffer> CheckAsync(UpdateRequest request, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(currentHostVersion);
+        ArgumentNullException.ThrowIfNull(request);
 
         if (String.IsNullOrWhiteSpace(this.AppId))
             throw new InvalidOperationException("ReleaseServerUpdateProvider.AppId is not set.");
 
-        var host = this.hostVersion ?? currentHostVersion.ToString();
+        var host = this.hostVersion ?? request.HostVersion.ToString();
         var uri = WebAppProtocol.BuildCheckUri(
             this.Server,
             this.AppId,
-            currentAppVersion?.ToString(),
+            request.AppVersion?.ToString(),
             this.Platform ?? String.Empty,
             host,
-            this.Channel
+            this.Channel,
+            String.IsNullOrEmpty(request.Culture.Name) ? null : request.Culture.Name
         );
 
         using var message = await this.http.Value
@@ -79,23 +80,45 @@ public sealed class ReleaseServerUpdateProvider(Uri server, string publicKey, Fu
             .ReadFromJsonAsync(WebAppJsonContext.Default.WebAppUpdateResponse, cancellationToken)
             .ConfigureAwait(false);
 
+        var hostUpdate = ToHostUpdate(response?.Host);
+
         if (response is null || response.Kind == WebAppUpdateKind.None || response.Release is not { } release)
-            return null;
+            return new UpdateOffer(null, hostUpdate);
 
         if (this.Verify(response, host, uri) is { } rejection)
             throw new InvalidDataException(rejection);
 
-        return new ReleaseServerUpdateInfo
-        {
-            Version = WebAppVersion.Parse(release.Version),
-            IsOptional = response.Kind == WebAppUpdateKind.Optional,
-            WhatsNew = release.ReleaseNotes,
-            ReleaseDate = release.PublishedAt,
-            FileSize = release.Size,
-            Sha256 = release.Sha256,
-            DownloadUri = new Uri(uri, response.DownloadUrl)
-        };
+        return new UpdateOffer(
+            new ReleaseServerUpdateInfo
+            {
+                Version = WebAppVersion.Parse(release.Version),
+                IsOptional = response.Kind == WebAppUpdateKind.Optional,
+                WhatsNew = release.ReleaseNotes,
+                ReleaseDate = release.PublishedAt,
+                FileSize = release.Size,
+                Sha256 = release.Sha256,
+                DownloadUri = new Uri(uri, response.DownloadUrl)
+            },
+            hostUpdate
+        );
     }
+
+    /// <summary>A store URL the server sent is dropped unless it is https or a store's own scheme.</summary>
+    static HostUpdateInfo? ToHostUpdate(WebAppHostUpdate? update)
+        => update is null || update.Kind == WebAppUpdateKind.None
+            ? null
+            : new HostUpdateInfo
+            {
+                IsRequired = update.Kind == WebAppUpdateKind.Required,
+                MinimumVersion = update.MinimumVersion,
+                LatestVersion = update.LatestVersion,
+                StoreUri = WebAppProtocol.IsAllowedStoreUrl(update.StoreUrl) ? new Uri(update.StoreUrl!) : null,
+                WhatsNew = update.ReleaseNotes
+            };
+
+    /// <summary>The release's own URL: the size and hash it is checked against were signed, wherever the bytes come from.</summary>
+    public UpdateDownloadRequest? GetDownloadRequest(UpdateInfo update)
+        => update is ReleaseServerUpdateInfo { DownloadUri: { } uri } ? new UpdateDownloadRequest(uri) : null;
 
     string? Verify(WebAppUpdateResponse response, string host, Uri checkUri)
     {

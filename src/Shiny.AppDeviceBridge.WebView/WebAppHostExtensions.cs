@@ -89,7 +89,8 @@ public static class WebAppHostExtensions
             options,
             sp.GetRequiredService<AppDeviceBridgeServer>(),
             sp.GetRequiredService<WebAppSession>(),
-            sp.GetService<ILoggerFactory>()
+            sp.GetService<ILoggerFactory>(),
+            sp
         ));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppDeviceBridgeServerExtension, WebAppHost>(sp => sp.GetRequiredService<WebAppHost>()));
         services.TryAddSingleton<IWebAppBackgroundInvoker>(sp => new WebAppScriptEngine(

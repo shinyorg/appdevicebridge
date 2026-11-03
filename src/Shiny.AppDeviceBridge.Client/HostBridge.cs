@@ -3,7 +3,10 @@ using System.Text.Json.Serialization;
 
 namespace Shiny.AppDeviceBridge.Client;
 
-/// <summary>The host itself: what is serving the page, which bridges it has, and a pending web app update.</summary>
+/// <summary>
+/// The host itself: what is serving the page, which bridges it has, a pending web app update, a native app update in the
+/// store, and the page telling the host it has finished loading.
+/// </summary>
 [BridgeClient("host", typeof(AppDeviceBridgeJsonContext))]
 public interface IHostBridge
 {
@@ -17,7 +20,36 @@ public interface IHostBridge
     /// </summary>
     [BridgePost("apply-update")]
     Task<ApplyUpdateResult> ApplyUpdateAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tells the host the page has rendered, so it takes its splash screen down. The Blazor client sends this by itself once
+    /// Blazor has started; any other page calls it when its first screen is up. Until it arrives — or the host's timeout
+    /// passes — the user sees the splash screen, not a half-drawn page. Calling it again does nothing.
+    /// </summary>
+    [BridgePost("ready")]
+    Task ReadyAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Opens the native app's store page, for <see cref="HostInfo.StoreUpdate"/>: through Shiny's <c>IAppStore</c> when the
+    /// app registers it, otherwise the store URL the update server sent.
+    /// </summary>
+    [BridgePost("open-store")]
+    Task<OpenStoreResult> OpenStoreAsync(CancellationToken cancellationToken = default);
 }
+
+/// <summary>A newer native app in the store, from the update server.</summary>
+/// <param name="IsRequired">
+/// True when this native app is below the server's minimum. A page never sees that in practice — the host stops at its splash
+/// screen instead — but a page already open when a background check finds it does.
+/// </param>
+/// <param name="MinimumVersion">The oldest native app version the server accepts.</param>
+/// <param name="LatestVersion">The version in the store.</param>
+/// <param name="ReleaseNotes">What the store build changes, in the user's language when the server has it.</param>
+public sealed record StoreUpdate(bool IsRequired, string? MinimumVersion, string? LatestVersion, string? ReleaseNotes);
+
+/// <summary>The outcome of opening the store.</summary>
+/// <param name="Opened">False when the host has neither a store lookup nor a store URL, or the store would not open.</param>
+public sealed record OpenStoreResult(bool Opened);
 
 /// <summary>Where the web app being served came from.</summary>
 public enum WebAppOrigin
@@ -43,6 +75,8 @@ public sealed record BridgeCapability(string Name, bool IsSupported);
 /// <param name="PendingVersion">A downloaded update waiting for <see cref="IHostBridge.ApplyUpdateAsync"/>.</param>
 /// <param name="Bridges">Every registered bridge.</param>
 /// <param name="DevServer">The dev server pages are proxied from, in a debug build that uses one.</param>
+/// <param name="PendingReleaseNotes">What <paramref name="PendingVersion"/> changes, in the user's language when the server has it.</param>
+/// <param name="StoreUpdate">A newer native app in the store, from the last update check.</param>
 public sealed record HostInfo(
     string AppId,
     string HostVersion,
@@ -51,7 +85,9 @@ public sealed record HostInfo(
     WebAppOrigin? WebAppOrigin,
     string? PendingVersion,
     IReadOnlyList<BridgeCapability> Bridges,
-    string? DevServer
+    string? DevServer,
+    string? PendingReleaseNotes,
+    StoreUpdate? StoreUpdate
 );
 
 /// <summary>The outcome of applying an update.</summary>
@@ -67,6 +103,7 @@ public sealed record JobRun(string Name);
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true, PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(HostInfo))]
 [JsonSerializable(typeof(ApplyUpdateResult))]
+[JsonSerializable(typeof(OpenStoreResult))]
 [JsonSerializable(typeof(AppLink))]
 [JsonSerializable(typeof(SettingsList))]
 [JsonSerializable(typeof(JsonElement))]

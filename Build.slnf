@@ -30,6 +30,7 @@
             "src/Shiny.AppDeviceBridge.Folders/Shiny.AppDeviceBridge.Folders.csproj",
             "src/Shiny.AppDeviceBridge.Health.Client/Shiny.AppDeviceBridge.Health.Client.csproj",
             "src/Shiny.AppDeviceBridge.Health/Shiny.AppDeviceBridge.Health.csproj",
+            "src/Shiny.AppDeviceBridge.AutoUpdate/Shiny.AppDeviceBridge.AutoUpdate.csproj",
             "src/Shiny.AppDeviceBridge.HttpTransfers.Client/Shiny.AppDeviceBridge.HttpTransfers.Client.csproj",
             "src/Shiny.AppDeviceBridge.HttpTransfers/Shiny.AppDeviceBridge.HttpTransfers.csproj",
             "src/Shiny.AppDeviceBridge.Jobs/Shiny.AppDeviceBridge.Jobs.csproj",

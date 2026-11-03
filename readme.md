@@ -6,8 +6,10 @@ app, served from the device itself, updated from your own server, and able to ca
 - **Served locally.** A loopback [Shiny.Net.HttpServer](https://shinylib.net/httpserver) serves the app
   straight out of its zip. Nothing is extracted, and it works offline.
 - **Updated from your server.** At launch the host asks a Shiny.AppDeviceBridge.AspNetCore server whether the
-  installed version is still acceptable. A required update downloads before the app shows. An optional
-  one downloads in the background and applies next launch.
+  installed version is still acceptable. A required update downloads on the splash screen, with its release notes in
+  the user's language and its progress, before the app shows. An optional one downloads in the background and applies
+  next launch. With `Shiny.AppDeviceBridge.AutoUpdate`, releases also arrive while the app is closed. A native app the
+  server no longer accepts stops at the splash screen with a link to the store.
 - **Verified.** Every release is signed with ECDSA P-256 and checked against a public key compiled
   into the app, then checked against its SHA-256 and size before it can be served. Old releases are
   never reinstalled.
@@ -59,6 +61,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Hubs` | the app | `AddHubsBridge(server => server.AllowDynamicHubs(…))`: Universal Hubs over BLE, Wi-Fi and Multipeer whose logic lives in the web app, so it ships with a web app update |
 | `Shiny.AppDeviceBridge.Hubs.Client` | the page | `IHubsBridge`, and `WebAppHub` + `AddWebAppHub<THub>(…)` to write a hub's methods in C# |
 | `Shiny.AppDeviceBridge.Jobs` | the app | `AddWebAppJob(name, configure)`: background jobs handled by the page or `background.js` |
+| `Shiny.AppDeviceBridge.AutoUpdate` | the app | `AddWebAppAutoUpdate()`: web app updates while the app is closed, from a Shiny.Jobs check and Shiny.Net.Http background transfers, verified and served next launch |
 | `Shiny.AppDeviceBridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
 | `Shiny.AppDeviceBridge.Wearables` | the app | `AddWearablesBridge()`: the companion Apple Watch or Wear OS app, through Shiny.Wearables — status, live messages the page or `background.js` answers, shared context, queued transfers and files through the file roots (iOS and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.LiveActivities` | the app | `AddLiveActivitiesBridge()`: iOS Live Activities and Android 16 Live Updates, through Shiny.Mobile.LiveActivities — start, update and end them from the page, with their push tokens handed to the page or `background.js` (iOS and Android; `501` elsewhere) |
@@ -253,7 +256,11 @@ and shows it in `WebAppHostView`. One delegate registers the bridges alone; a se
 | `UseBaseline(...)` | | The zip compiled into the app, served offline on first launch. |
 | `UpdateProvider` | none | Where releases come from: the release server, GitHub releases, or your own. See [Update providers](#update-providers). |
 | `CheckTimeout` | 5 s | After this, the installed version is shown anyway. |
-| `BlockOnRequiredUpdateFailure` | `false` | By default, a required download that fails midway is treated as offline. |
+| `BlockOnRequiredUpdateFailure` | `true` | A required update that fails to install stops the splash screen with the error and **Try again**. Off serves the installed build and retries next launch. |
+| `Culture` | `CurrentUICulture` | Sent with every update check, for release notes in the user's language. |
+| `WaitForPageReady` | `true` | Keep the splash screen up until the page posts `host/ready` (the Blazor client does it by itself). |
+| `PageReadyTimeout` | 15 s | The longest the splash screen waits for that. |
+| `OpenStore` | none | Opens the store for a native app update; by default Shiny's `IAppStore`, then the server's store URL. |
 | `ApplyOptionalUpdatesImmediately` | `false` | Swap to an optional update and reload as soon as it lands. |
 | `DevServer` | none | Take pages from `dotnet watch` in development. See below. |
 | `ServeWebAppRemotely` | `false` | Serve the pages to other machines too, when the server is bound past loopback. |
@@ -415,14 +422,18 @@ on assets uploaded since mid-2025). Beyond that, trust rests on HTTPS to GitHub 
 the repository. Drafts are never offered. Only the newest 100 releases are read, and GitHub Enterprise
 Server URLs work too. Unauthenticated API calls are limited to 60 an hour per IP address.
 
-Anything else — a manifest file, an endpoint of your own — is two methods:
+Anything else — a manifest file, an endpoint of your own — is two methods, and an optional third:
 
 ```csharp
 public interface IUpdateProvider
 {
-    // Null when there is nothing newer. currentAppVersion is null when no build is bundled or installed.
-    Task<UpdateInfo?> GetUpdateInfoAsync(Version currentHostVersion, WebAppVersion? currentAppVersion, CancellationToken ct);
+    // UpdateOffer.None when there is nothing newer; the offer's Host is a native app update, if you know of one.
+    // request carries HostVersion, AppVersion (null when nothing is bundled or installed) and Culture.
+    Task<UpdateOffer> CheckAsync(UpdateRequest request, CancellationToken ct);
     Task<Stream> DownloadAsync(UpdateInfo update, CancellationToken ct);
+
+    // A plain GET for background transfers (Shiny.AppDeviceBridge.AutoUpdate). Null downloads in-process.
+    UpdateDownloadRequest? GetDownloadRequest(UpdateInfo update) => null;
 }
 
 public class UpdateInfo   // derive to carry a download URL
@@ -458,8 +469,9 @@ Publishing a release means copying a file:
 
 ```
 /srv/webapps/field-app/
-    app.json              { "minimumVersion": "1.2.0" }
+    app.json              { "minimumVersion": "1.2.0", "hosts": { "ios": { "minimumVersion": "2.0", "storeUrl": "https://apps.apple.com/app/id1" } } }
     1.2.0.zip
+    1.2.0.json            { "releaseNotes": { "*": "Faster sync.", "fr": "Synchronisation plus rapide." } }
     1.3.0-beta.1.zip
     1.3.0-beta.1.json     { "channel": "beta", "minimumHostVersion": "2.1", "platforms": ["ios", "android"] }
 ```
@@ -478,7 +490,11 @@ openssl ec -in private.pem -pubout > public.pem
 ### Update rules
 
 - **Nothing installed:** any compatible release is required.
-- **Below `minimumVersion`:** required, and it installs before the app shows.
+- **Below `minimumVersion`:** required, and it installs on the splash screen before the app shows. If it fails,
+  the splash screen stops with the error and **Try again** (`BlockOnRequiredUpdateFailure`).
+- **Native app below its platform's `hosts.minimumVersion`:** the splash screen stops with a message and **Update**,
+  which opens the store. Remembered while offline. Below `latestVersion`, the page sees `storeUpdate` in
+  `GET /_bridge/host` and can call `POST /_bridge/host/open-store`.
 - **Newer release available:** optional. It downloads in the background and applies next launch, or
   when the page calls `POST /_bridge/host/apply-update`.
 - **Release needs a newer native app:** skipped. Set `minimumHostVersion` when a web build depends
@@ -487,6 +503,20 @@ openssl ec -in private.pem -pubout > public.pem
 
 With another provider, the provider decides which release is newest and whether it's required (`IsOptional`).
 Nothing installed still means required, and offline still means the newer of the bundled and installed builds.
+
+Release notes follow the user's language: the check sends `culture`, and `releaseNotes` may be an object keyed by
+culture, resolved through parent cultures to `*`. The splash screen (`WebAppHostView`) stays up until the page posts
+`POST /_bridge/host/ready`; replace its look with `SplashTemplate`, bound to `WebAppSplashContext`.
+
+### Background updates
+
+```csharp
+bridge.AddWebAppAutoUpdate(o => o.RequiredInternetAccess = InternetAccess.Unmetered);
+```
+
+`Shiny.AppDeviceBridge.AutoUpdate` checks from a Shiny.Jobs job and downloads every newer release as a Shiny.Net.Http
+background transfer that survives the app being killed. Each is verified like any download and served next launch, so a
+required update is usually already on the device. It shares one transfer manager with `AddHttpTransfersBridge`.
 
 ## Security model
 
@@ -653,7 +683,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 
 | Bridge | Routes | Events |
 | --- | --- | --- |
-| host (built in) | `GET /_bridge/host`, `POST /_bridge/host/apply-update` | |
+| host (built in) | `GET /_bridge/host`, `POST /_bridge/host/apply-update`, `POST /_bridge/host/ready`, `POST /_bridge/host/open-store` | |
 | settings (built in) | `GET/DELETE settings/{local\|secure}`, `GET/PUT/DELETE settings/{scope}/{key}` | |
 | files (built in) | `GET files`, `GET files/{root}/list`, `GET files/{root}/info`, `GET/PUT files/{root}/content`, `POST files/{root}/append`, `POST files/{root}/directory`, `DELETE files/{root}/entry`, `POST files/{root}/move`, `POST files/{root}/copy`, with paths in `?path=` | |
 | App | `GET app/info`, `POST/DELETE app/orientation`, `GET app/screen`, `POST app/settings`, `GET app/store`, `POST app/store/open`, `POST app/store/review`, `POST app/store/review-page`, `GET app/startup`, `POST/DELETE app/startup/registration`, `POST app/startup/settings`, `GET app/battery`, `GET app/connectivity` | `app.orientation`, `app.screen`, `app.culture`, `app.timezone`, `app.battery`, `app.connectivity` |

@@ -61,6 +61,60 @@ public static class WebAppUpdatePlanner
         return new WebAppUpdatePlan(required ? WebAppUpdateKind.Required : WebAppUpdateKind.Optional, latest, minimumText);
     }
 
+    /// <summary>
+    /// What to tell a native app about its own version on <paramref name="platform"/>, from <see cref="WebAppPolicy.Hosts"/> —
+    /// that platform's rule, or <c>*</c>.
+    /// <list type="bullet">
+    /// <item>Below <see cref="WebAppHostPolicy.MinimumVersion"/>: required — the host stops at its splash screen.</item>
+    /// <item>Below <see cref="WebAppHostPolicy.LatestVersion"/>: optional — the host offers it.</item>
+    /// <item>Otherwise, or a host that did not say its version, or no rule: null.</item>
+    /// </list>
+    /// A version in the policy that does not parse is ignored rather than treated as a minimum nobody meets: a typo in
+    /// <c>app.json</c> must not lock every user out.
+    /// </summary>
+    public static WebAppHostUpdate? PlanHost(WebAppPolicy? policy, string platform, WebAppVersion? hostVersion, string? culture)
+    {
+        if (hostVersion is not { } host || FindHostPolicy(policy?.Hosts, platform) is not { } rule)
+            return null;
+
+        WebAppUpdateKind kind;
+
+        if (WebAppVersion.TryParse(rule.MinimumVersion, out var minimum) && host < minimum)
+            kind = WebAppUpdateKind.Required;
+        else if (WebAppVersion.TryParse(rule.LatestVersion, out var latest) && host < latest)
+            kind = WebAppUpdateKind.Optional;
+        else
+            return null;
+
+        return new WebAppHostUpdate
+        {
+            Kind = kind,
+            MinimumVersion = rule.MinimumVersion,
+            LatestVersion = rule.LatestVersion,
+            StoreUrl = WebAppProtocol.IsAllowedStoreUrl(rule.StoreUrl) ? rule.StoreUrl : null,
+            ReleaseNotes = rule.ReleaseNotes?.Resolve(culture)
+        };
+    }
+
+    static WebAppHostPolicy? FindHostPolicy(IReadOnlyDictionary<string, WebAppHostPolicy>? hosts, string platform)
+    {
+        if (hosts is not { Count: > 0 })
+            return null;
+
+        WebAppHostPolicy? any = null;
+
+        foreach (var (name, rule) in hosts)
+        {
+            if (String.Equals(name, platform, StringComparison.OrdinalIgnoreCase))
+                return rule;
+
+            if (name == "*")
+                any = rule;
+        }
+
+        return any;
+    }
+
     /// <summary>Stable releases are seen by everyone; a named channel only by hosts that ask for it.</summary>
     static bool MatchesChannel(string? releaseChannel, string? hostChannel)
         => String.IsNullOrWhiteSpace(releaseChannel)

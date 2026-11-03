@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using Shiny.Net.HttpServer;
 using Shiny.Net.HttpServer.StaticFiles;
@@ -27,6 +28,33 @@ public sealed class WebAppHostOptions
     /// <summary>How long the startup check may take before the installed version is shown anyway.</summary>
     public TimeSpan CheckTimeout { get; set; } = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// The user's language, sent with every update check so release notes — the web app's and the store's — come back in it
+    /// when the server has them. <see cref="CultureInfo.CurrentUICulture"/> by default.
+    /// </summary>
+    public Func<CultureInfo> Culture { get; set; } = () => CultureInfo.CurrentUICulture;
+
+    /// <summary>
+    /// Keep the splash screen up until the page says it has rendered — <c>POST /_bridge/host/ready</c>, which the Blazor
+    /// client sends by itself once Blazor has started — rather than taking it down the moment the WebView is handed the URL.
+    /// On by default; turn it off for a page that never calls it, and the splash comes down when the WebView finishes
+    /// navigating.
+    /// </summary>
+    public bool WaitForPageReady { get; set; } = true;
+
+    /// <summary>
+    /// How long the splash screen waits for <see cref="WaitForPageReady"/>'s signal before showing the page anyway: a page
+    /// that throws during startup, or one built before it knew to call, must not leave the user looking at a splash forever.
+    /// </summary>
+    public TimeSpan PageReadyTimeout { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
+    /// Opens the store for a native app update — the splash screen's <b>Update</b> button and <c>POST /_bridge/host/open-store</c>.
+    /// Null, the default, uses Shiny's <c>IAppStore</c> when the app registers it (<c>AddAppSupportBridge</c>'s
+    /// <c>appStore</c> argument does), then the server's store URL. Receives the update the server sent, if any.
+    /// </summary>
+    public Func<HostUpdateInfo?, Task<bool>>? OpenStore { get; set; }
+
     /// <summary>The page to load, and the file an archive must contain to be accepted.</summary>
     public string EntryDocument { get; set; } = "index.html";
 
@@ -43,11 +71,12 @@ public sealed class WebAppHostOptions
     public string? ArchiveBasePath { get; set; }
 
     /// <summary>
-    /// When a required update fails to download, show an error instead of the installed build. Off by
-    /// default: a failed download mid-way is treated like being offline at the check, and the update is
-    /// retried next launch.
+    /// When a required update fails to download, the splash screen stops with the error and a <b>Try again</b> button instead
+    /// of showing the installed build. On by default: the server said the installed build is no longer acceptable. Turn it
+    /// off to treat a failed download like being offline at the check — the installed build is served and the update is
+    /// retried next launch. With nothing installed at all, a failure always stops.
     /// </summary>
-    public bool BlockOnRequiredUpdateFailure { get; set; }
+    public bool BlockOnRequiredUpdateFailure { get; set; } = true;
 
     /// <summary>
     /// Switch to an optional update the moment it finishes downloading, reloading the WebView. Off by
@@ -198,6 +227,11 @@ public sealed class WebAppHostOptions
     {
         if (this.UpdateProvider is null && this.Baseline is null && this.DevServer is null)
             throw new InvalidOperationException("Set a Baseline, an UpdateProvider or a DevServer — otherwise there is nothing to serve.");
+
+        if (this.PageReadyTimeout <= TimeSpan.Zero)
+            throw new InvalidOperationException("WebAppHostOptions.PageReadyTimeout must be positive.");
+
+        ArgumentNullException.ThrowIfNull(this.Culture, nameof(this.Culture));
 
         if (this.BackgroundScriptTimeout <= TimeSpan.Zero)
             throw new InvalidOperationException("WebAppHostOptions.BackgroundScriptTimeout must be positive.");

@@ -21,10 +21,19 @@ public enum WebAppUpdateStatus
     Rejected
 }
 
+/// <summary>An update check's outcome.</summary>
+/// <param name="Status">What became of the web app release.</param>
+/// <param name="Update">The web app release, when <see cref="WebAppUpdateStatus.Available"/>.</param>
+/// <param name="Error">Why the check was unavailable or the release rejected.</param>
+/// <param name="HostUpdate">
+/// A native app update in the store — independent of <paramref name="Status"/>: a web app can be up to date on a native app
+/// the server no longer accepts.
+/// </param>
 public sealed record WebAppUpdateCheckResult(
     WebAppUpdateStatus Status,
     UpdateInfo? Update = null,
-    string? Error = null
+    string? Error = null,
+    HostUpdateInfo? HostUpdate = null
 );
 
 public readonly record struct WebAppDownloadProgress(long BytesReceived, long TotalBytes)
@@ -76,12 +85,18 @@ public sealed class WebAppUpdater : IDisposable
         };
     }
 
+    /// <summary>The folder installed builds are kept in, for a downloader of the app's own to stage files under.</summary>
+    public string InstallDirectory => this.store.RootDirectory;
+
+    /// <summary>The configured provider, for a downloader that needs <see cref="IUpdateProvider.GetDownloadRequest"/>.</summary>
+    public IUpdateProvider? Provider => this.provider;
+
     public async Task<WebAppUpdateCheckResult> CheckAsync(WebAppVersion? current, CancellationToken cancellationToken = default)
     {
         if (this.provider is null)
             return new WebAppUpdateCheckResult(WebAppUpdateStatus.Disabled);
 
-        UpdateInfo? update;
+        UpdateOffer offer;
 
         using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
         {
@@ -89,9 +104,8 @@ public sealed class WebAppUpdater : IDisposable
 
             try
             {
-                update = await this.provider
-                    .GetUpdateInfoAsync(ToHostVersion(this.bridge.HostVersion), current, timeout.Token)
-                    .ConfigureAwait(false);
+                var request = new UpdateRequest(ToHostVersion(this.bridge.HostVersion), current, this.options.Culture());
+                offer = await this.provider.CheckAsync(request, timeout.Token).ConfigureAwait(false) ?? UpdateOffer.None;
             }
             catch (InvalidDataException ex)
             {
@@ -106,16 +120,18 @@ public sealed class WebAppUpdater : IDisposable
             }
         }
 
-        if (update is null)
-            return new WebAppUpdateCheckResult(WebAppUpdateStatus.UpToDate);
+        var host = offer.Host;
+
+        if (offer.WebApp is not { } update)
+            return new WebAppUpdateCheckResult(WebAppUpdateStatus.UpToDate, HostUpdate: host);
 
         if (Verify(update, current) is { } rejection)
         {
             this.logger.LogWarning("Rejected release {Version} from {Provider}: {Reason}", update.Version, this.provider.GetType().Name, rejection);
-            return new WebAppUpdateCheckResult(WebAppUpdateStatus.Rejected, Error: rejection);
+            return new WebAppUpdateCheckResult(WebAppUpdateStatus.Rejected, Error: rejection, HostUpdate: host);
         }
 
-        return new WebAppUpdateCheckResult(WebAppUpdateStatus.Available, update);
+        return new WebAppUpdateCheckResult(WebAppUpdateStatus.Available, update, HostUpdate: host);
     }
 
     static string? Verify(UpdateInfo update, WebAppVersion? current)
@@ -192,22 +208,70 @@ public sealed class WebAppUpdater : IDisposable
                 sha256 = Convert.ToHexStringLower(hash.GetHashAndReset());
             }
 
-            if (update.Sha256 is { } declared && !String.Equals(sha256, declared, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException($"Download of {update.Version} does not match its SHA-256.");
-
-            // Opened once before it can become the installed build, so an archive that downloads
-            // but is unservable fails here instead of at the next launch.
-            WebAppArchive.Open(pending, this.options);
-
-            var package = this.store.Commit(pending, update.Version, sha256, total);
-            this.logger.LogInformation("Installed web app {Version}", update.Version);
-            return package;
+            return this.VerifyAndCommit(pending, update, sha256, total);
         }
         catch
         {
             TryDelete(pending);
             throw;
         }
+    }
+
+    /// <summary>
+    /// Verifies and installs a release some other downloader fetched — an OS background transfer, say — exactly as
+    /// <see cref="InstallAsync"/> verifies its own: the version must be newer than <paramref name="current"/>, and the size,
+    /// SHA-256 and archive must check out. The file is moved into the install store, or deleted when it fails.
+    /// </summary>
+    /// <param name="update">The release from <see cref="CheckAsync"/> the file is meant to be.</param>
+    /// <param name="downloadedFile">The downloaded zip. Consumed either way.</param>
+    /// <param name="current">The newest build already installed or bundled, which the release must be newer than.</param>
+    public async Task<WebAppPackage> InstallDownloadedAsync(
+        UpdateInfo update,
+        string downloadedFile,
+        WebAppVersion? current,
+        CancellationToken cancellationToken = default
+    )
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        ArgumentException.ThrowIfNullOrWhiteSpace(downloadedFile);
+
+        try
+        {
+            if (Verify(update, current) is { } rejection)
+                throw new InvalidDataException(rejection);
+
+            var info = new FileInfo(downloadedFile);
+            if (!info.Exists)
+                throw new FileNotFoundException("The downloaded release is not there.", downloadedFile);
+
+            if (update.FileSize is { } size && info.Length != size)
+                throw new InvalidDataException($"Download of {update.Version} is {info.Length} bytes, not {size}.");
+
+            string sha256;
+            await using (var stream = new FileStream(downloadedFile, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.Asynchronous | FileOptions.SequentialScan))
+                sha256 = Convert.ToHexStringLower(await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false));
+
+            return this.VerifyAndCommit(downloadedFile, update, sha256, info.Length);
+        }
+        catch
+        {
+            TryDelete(downloadedFile);
+            throw;
+        }
+    }
+
+    WebAppPackage VerifyAndCommit(string file, UpdateInfo update, string sha256, long size)
+    {
+        if (update.Sha256 is { } declared && !String.Equals(sha256, declared, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"Download of {update.Version} does not match its SHA-256.");
+
+        // Opened once before it can become the installed build, so an archive that downloads
+        // but is unservable fails here instead of at the next launch.
+        WebAppArchive.Open(file, this.options);
+
+        var package = this.store.Commit(file, update.Version, sha256, size);
+        this.logger.LogInformation("Installed web app {Version}", update.Version);
+        return package;
     }
 
     static void TryDelete(string path)

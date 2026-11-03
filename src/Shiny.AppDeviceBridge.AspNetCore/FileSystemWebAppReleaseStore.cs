@@ -9,7 +9,7 @@ namespace Shiny.AppDeviceBridge.AspNetCore;
 /// <code>
 /// releases/
 ///   myapp/
-///     app.json          { "minimumVersion": "1.2.0" }               optional
+///     app.json          { "minimumVersion": "1.2.0", "hosts": { "ios": { "minimumVersion": "2.0" } } }   optional
 ///     1.2.0.zip
 ///     1.3.0-beta.1.zip
 ///     1.3.0-beta.1.json { "channel": "beta", "minimumHostVersion": "2.0" }   optional
@@ -21,7 +21,12 @@ namespace Shiny.AppDeviceBridge.AspNetCore;
 /// </para>
 /// <para>
 /// Sidecar <c>{version}.json</c> fields: <c>channel</c>, <c>platforms</c>, <c>minimumHostVersion</c>,
-/// <c>releaseNotes</c>, <c>publishedAt</c>, <c>downloadUrl</c>.
+/// <c>releaseNotes</c>, <c>publishedAt</c>, <c>downloadUrl</c>. <c>releaseNotes</c> is a string, or an object keyed by culture —
+/// see <see cref="WebAppLocalizedText"/>.
+/// </para>
+/// <para>
+/// <c>app.json</c> is a <see cref="WebAppPolicy"/>: <c>minimumVersion</c> for the web app, and <c>hosts</c> for the native app,
+/// keyed by platform, each with <c>minimumVersion</c>, <c>latestVersion</c>, <c>storeUrl</c> and <c>releaseNotes</c>.
 /// </para>
 /// </summary>
 public sealed class FileSystemWebAppReleaseStore : IWebAppReleaseStore
@@ -65,12 +70,13 @@ public sealed class FileSystemWebAppReleaseStore : IWebAppReleaseStore
                     Sha256 = sha256,
                     Size = info.Length,
                     MinimumHostVersion = metadata?.MinimumHostVersion,
-                    ReleaseNotes = metadata?.ReleaseNotes,
+                    ReleaseNotes = metadata?.ReleaseNotes?.Resolve(null),
                     PublishedAt = metadata?.PublishedAt ?? new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero)
                 },
                 metadata?.Channel,
                 metadata?.Platforms,
-                metadata?.DownloadUrl
+                metadata?.DownloadUrl,
+                metadata?.ReleaseNotes
             ));
         }
 
@@ -148,7 +154,7 @@ sealed record ReleaseMetadata
     public string? Channel { get; init; }
     public List<string>? Platforms { get; init; }
     public string? MinimumHostVersion { get; init; }
-    public string? ReleaseNotes { get; init; }
+    public WebAppLocalizedText? ReleaseNotes { get; init; }
     public DateTimeOffset? PublishedAt { get; init; }
     public string? DownloadUrl { get; init; }
 }

@@ -9,6 +9,7 @@ namespace Shiny.AppDeviceBridge.WebView;
 /// <code>
 /// {root}/
 ///   current.json            which build is installed
+///   host-update.json        a native app update the server last required, for launches that cannot reach it
 ///   releases/{sha256}.zip   the build itself, named by its hash
 ///   pending/*.download      in-flight downloads, cleared at startup
 /// </code>
@@ -22,12 +23,14 @@ namespace Shiny.AppDeviceBridge.WebView;
 sealed class WebAppInstallStore(string rootDirectory, ILogger logger)
 {
     const string StateFileName = "current.json";
+    const string HostRequirementFileName = "host-update.json";
 
     readonly string root = Path.GetFullPath(rootDirectory);
 
     string ReleasesDirectory => Path.Combine(this.root, "releases");
     string PendingDirectory => Path.Combine(this.root, "pending");
     string StatePath => Path.Combine(this.root, StateFileName);
+    string HostRequirementPath => Path.Combine(this.root, HostRequirementFileName);
 
     public string RootDirectory => this.root;
 
@@ -147,6 +150,68 @@ sealed class WebAppInstallStore(string rootDirectory, ILogger logger)
         }
     }
 
+    /// <summary>
+    /// The native app update the server last required, so a launch with the network off cannot step around it. Null when
+    /// there is none, or this native app has since reached the minimum it named — it was updated from the store.
+    /// </summary>
+    public HostUpdateInfo? ReadHostRequirement(string hostVersion)
+    {
+        try
+        {
+            if (!File.Exists(this.HostRequirementPath))
+                return null;
+
+            var saved = JsonSerializer.Deserialize(File.ReadAllBytes(this.HostRequirementPath), ClientJsonContext.Default.HostRequirement);
+
+            if (saved is null
+                || !WebAppVersion.TryParse(saved.MinimumVersion, out var minimum)
+                || !WebAppVersion.TryParse(hostVersion, out var host)
+                || host >= minimum)
+                return null;
+
+            return new HostUpdateInfo
+            {
+                IsRequired = true,
+                MinimumVersion = saved.MinimumVersion,
+                LatestVersion = saved.LatestVersion,
+                StoreUri = WebAppProtocol.IsAllowedStoreUrl(saved.StoreUrl) ? new Uri(saved.StoreUrl!) : null,
+                WhatsNew = saved.WhatsNew
+            };
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(ex, "Could not read the native app requirement at {Path}", this.HostRequirementPath);
+            return null;
+        }
+    }
+
+    /// <summary>Records what the server just said about the native app: a requirement to remember, or none to forget.</summary>
+    public void SaveHostRequirement(HostUpdateInfo? update)
+    {
+        try
+        {
+            if (update is not { IsRequired: true, MinimumVersion: { } minimum })
+            {
+                if (File.Exists(this.HostRequirementPath))
+                    File.Delete(this.HostRequirementPath);
+
+                return;
+            }
+
+            Directory.CreateDirectory(this.root);
+
+            var temp = $"{this.HostRequirementPath}.{Guid.NewGuid():n}.tmp";
+            var saved = new HostRequirement(minimum, update.LatestVersion, update.StoreUri?.AbsoluteUri, update.WhatsNew);
+
+            File.WriteAllBytes(temp, JsonSerializer.SerializeToUtf8Bytes(saved, ClientJsonContext.Default.HostRequirement));
+            File.Move(temp, this.HostRequirementPath, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning(ex, "Could not save the native app requirement at {Path}", this.HostRequirementPath);
+        }
+    }
+
     InstallState? ReadState()
     {
         try
@@ -166,6 +231,9 @@ sealed class WebAppInstallStore(string rootDirectory, ILogger logger)
 
 sealed record InstallState(string Version, string Sha256, long Size, DateTimeOffset InstalledAt);
 
+sealed record HostRequirement(string MinimumVersion, string? LatestVersion, string? StoreUrl, string? WhatsNew);
+
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(InstallState))]
+[JsonSerializable(typeof(HostRequirement))]
 partial class ClientJsonContext : JsonSerializerContext;

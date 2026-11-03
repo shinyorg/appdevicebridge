@@ -66,14 +66,18 @@ public static class HttpTransfersBridgeExtensions
         configure?.Invoke(options);
         bridge.Services.TryAddSingleton(options);
 
+        // One manager, whoever registers it first — Shiny.AppDeviceBridge.AutoUpdate shares it. Two would each run their own
+        // NSURLSession or foreground service.
+        var register = options.RegisterTransferService && !bridge.Services.Any(x => x.ServiceType == typeof(IHttpTransferManager));
+
 #if ANDROID || IOS || MACCATALYST || WINDOWS
-        if (options.RegisterTransferService)
+        if (register)
             bridge.Services.AddHttpTransfers<WebAppTransferDelegate>();
         else
             AddDelegate(bridge.Services);
 #elif MACOS
         // Shiny.Net.Http has no macOS build, so the net10.0 one's managed loop runs over Shiny.Core's connectivity.
-        if (options.RegisterTransferService)
+        if (register)
         {
             bridge.Services.AddConnectivity();
             bridge.Services.AddHttpClientTransfers<WebAppTransferDelegate>();
@@ -85,7 +89,7 @@ public static class HttpTransfersBridgeExtensions
 #elif TRANSFERS_LINUX
         if (OperatingSystem.IsLinux())
         {
-            if (options.RegisterTransferService)
+            if (register)
             {
                 bridge.Services.AddConnectivity();
                 bridge.Services.AddHttpClientTransfers<WebAppTransferDelegate>();

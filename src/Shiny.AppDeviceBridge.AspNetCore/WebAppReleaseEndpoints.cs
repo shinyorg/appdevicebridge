@@ -158,19 +158,33 @@ public static class WebAppReleaseExtensions
             query[WebAppProtocol.ChannelQuery].ToString()
         );
 
-        var response = plan.Entry is not { } entry
-            ? new WebAppUpdateResponse { Kind = WebAppUpdateKind.None, MinimumVersion = plan.MinimumVersion }
-            : new WebAppUpdateResponse
+        var culture = query[WebAppProtocol.CultureQuery].ToString();
+        var hostUpdate = WebAppUpdatePlanner.PlanHost(policy, platform, host, culture);
+
+        WebAppUpdateResponse response;
+
+        if (plan.Entry is not { } entry)
+        {
+            response = new WebAppUpdateResponse { Kind = WebAppUpdateKind.None, MinimumVersion = plan.MinimumVersion, Host = hostUpdate };
+        }
+        else
+        {
+            // Release notes sit outside the signed fields, so they can follow the host's language without a signature per culture.
+            var release = entry.ReleaseNotes?.Resolve(culture) is { } notes ? entry.Release with { ReleaseNotes = notes } : entry.Release;
+
+            response = new WebAppUpdateResponse
             {
                 Kind = plan.Kind,
-                Release = entry.Release,
-                Signature = context.RequestServices.GetRequiredService<WebAppReleaseSigner>().Sign(entry.Release),
+                Release = release,
+                Signature = context.RequestServices.GetRequiredService<WebAppReleaseSigner>().Sign(release),
 
                 // Relative, so it resolves against wherever the check was answered from — the same
                 // host behind any proxy or path prefix, with nothing to configure.
-                DownloadUrl = entry.DownloadUrl ?? $"releases/{Uri.EscapeDataString(entry.Release.Version)}/download",
-                MinimumVersion = plan.MinimumVersion
+                DownloadUrl = entry.DownloadUrl ?? $"releases/{Uri.EscapeDataString(release.Version)}/download",
+                MinimumVersion = plan.MinimumVersion,
+                Host = hostUpdate
             };
+        }
 
         context.Response.Headers.CacheControl = "no-store";
         await context.Response.WriteAsJsonAsync(response, WebAppJsonContext.Default.WebAppUpdateResponse, cancellationToken: ct);

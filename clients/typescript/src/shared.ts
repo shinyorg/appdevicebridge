@@ -179,6 +179,10 @@ export interface HostInfo {
     bridges: BridgeCapability[];
     /** The dev server pages are proxied from, in a debug build that uses one. */
     devServer: string | null;
+    /** What `pendingVersion` changes, in the user's language when the server has it. */
+    pendingReleaseNotes: string | null;
+    /** A newer native app in the store, from the last update check. */
+    storeUpdate: StoreUpdate | null;
 }
 
 export interface KeepAwakeStatus {
@@ -200,6 +204,12 @@ export interface OpenMapRequest {
     latitude: number;
     longitude: number;
     navigationMode?: NavigationMode;
+}
+
+/** The outcome of opening the store. */
+export interface OpenStoreResult {
+    /** False when the host has neither a store lookup nor a store URL, or the store would not open. */
+    opened: boolean;
 }
 
 export interface OrientationChanged {
@@ -298,6 +308,18 @@ export interface StartupStatus {
     supported: boolean;
     /** Read back from the OS every time: the user can turn it off there. */
     state: StartupState;
+}
+
+/** A newer native app in the store, from the update server. */
+export interface StoreUpdate {
+    /** True when this native app is below the server's minimum. A page never sees that in practice — the host stops at its splash screen instead — but a page already open when a background check finds it does. */
+    isRequired: boolean;
+    /** The oldest native app version the server accepts. */
+    minimumVersion: string | null;
+    /** The version in the store. */
+    latestVersion: string | null;
+    /** What the store build changes, in the user's language when the server has it. */
+    releaseNotes: string | null;
 }
 
 export interface TimeZoneChanged {
@@ -575,7 +597,7 @@ export class FilesBridge {
     }
 }
 
-/** The host itself: what is serving the page, which bridges it has, and a pending web app update. */
+/** The host itself: what is serving the page, which bridges it has, a pending web app update, a native app update in the store, and the page telling the host it has finished loading. */
 export class HostBridge {
     constructor(private readonly transport: BridgeTransport = browserTransport()) {}
 
@@ -587,6 +609,16 @@ export class HostBridge {
     /** Switches to a downloaded update, if one is waiting. The page reloads itself afterwards; the host never reloads it out from under the user. */
     applyUpdate(options?: { signal?: AbortSignal }): Promise<ApplyUpdateResult> {
         return call<ApplyUpdateResult>(this.transport, "POST", `host/apply-update`, { signal: options?.signal });
+    }
+
+    /** Tells the host the page has rendered, so it takes its splash screen down. The Blazor client sends this by itself once Blazor has started; any other page calls it when its first screen is up. Until it arrives — or the host's timeout passes — the user sees the splash screen, not a half-drawn page. Calling it again does nothing. */
+    ready(options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "POST", `host/ready`, { signal: options?.signal });
+    }
+
+    /** Opens the native app's store page, for `storeUpdate`: through Shiny's `IAppStore` when the app registers it, otherwise the store URL the update server sent. */
+    openStore(options?: { signal?: AbortSignal }): Promise<OpenStoreResult> {
+        return call<OpenStoreResult>(this.transport, "POST", `host/open-store`, { signal: options?.signal });
     }
 }
 

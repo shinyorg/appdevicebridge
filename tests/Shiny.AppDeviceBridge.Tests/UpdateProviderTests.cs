@@ -199,8 +199,13 @@ sealed class MemoryUpdateProvider : IUpdateProvider, IDisposable
     public Exception? Failure { get; set; }
     public TimeSpan Delay { get; set; }
 
+    public HostUpdateInfo? HostUpdate { get; set; }
+    public UpdateDownloadRequest? DownloadRequest { get; set; }
+
     public Version? LastHostVersion { get; private set; }
     public WebAppVersion? LastAppVersion { get; private set; }
+    public System.Globalization.CultureInfo? LastCulture { get; private set; }
+    public int Checks { get; private set; }
     public bool Disposed { get; private set; }
 
     public static MemoryUpdateInfo Release(string version, byte[] zip) => new()
@@ -211,10 +216,12 @@ sealed class MemoryUpdateProvider : IUpdateProvider, IDisposable
         Sha256 = Convert.ToHexStringLower(SHA256.HashData(zip))
     };
 
-    public async Task<UpdateInfo?> GetUpdateInfoAsync(Version currentHostVersion, WebAppVersion? currentAppVersion, CancellationToken cancellationToken)
+    public async Task<UpdateOffer> CheckAsync(UpdateRequest request, CancellationToken cancellationToken)
     {
-        this.LastHostVersion = currentHostVersion;
-        this.LastAppVersion = currentAppVersion;
+        this.Checks++;
+        this.LastHostVersion = request.HostVersion;
+        this.LastAppVersion = request.AppVersion;
+        this.LastCulture = request.Culture;
 
         if (this.Delay > TimeSpan.Zero)
             await Task.Delay(this.Delay, cancellationToken);
@@ -222,8 +229,10 @@ sealed class MemoryUpdateProvider : IUpdateProvider, IDisposable
         if (this.Failure is { } failure)
             throw failure;
 
-        return this.Offer;
+        return new UpdateOffer(this.Offer, this.HostUpdate);
     }
+
+    public UpdateDownloadRequest? GetDownloadRequest(UpdateInfo update) => this.DownloadRequest;
 
     public Task<Stream> DownloadAsync(UpdateInfo update, CancellationToken cancellationToken)
         => Task.FromResult<Stream>(new MemoryStream(((MemoryUpdateInfo)update).Zip));

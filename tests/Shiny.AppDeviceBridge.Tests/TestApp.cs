@@ -42,6 +42,9 @@ sealed class TestApp : IAsyncDisposable
         await this.server.StartAsync();
     }
 
+    /// <summary>A handler onto the TestServer, for a handler of the test's own to wrap.</summary>
+    public HttpMessageHandler ReleaseServerHandler() => this.server!.GetTestServer().CreateHandler();
+
     readonly List<ServiceProvider> containers = [];
 
     /// <summary>The container of the host or server built last — for a bridge that resolves its services from it.</summary>
@@ -197,7 +200,7 @@ sealed class MemoryReleaseStore : IWebAppReleaseStore
 
     public WebAppPolicy? Policy { get; set; }
 
-    public WebAppRelease Add(string version, byte[] zip, string? minimumHostVersion = null, string? sha256 = null)
+    public WebAppRelease Add(string version, byte[] zip, string? minimumHostVersion = null, string? sha256 = null, WebAppLocalizedText? releaseNotes = null)
     {
         var release = new WebAppRelease
         {
@@ -209,7 +212,7 @@ sealed class MemoryReleaseStore : IWebAppReleaseStore
         };
 
         lock (this.releases)
-            this.releases.Add((new WebAppReleaseEntry(release), zip));
+            this.releases.Add((new WebAppReleaseEntry(release, ReleaseNotes: releaseNotes), zip));
 
         return release;
     }

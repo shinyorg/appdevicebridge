@@ -72,6 +72,40 @@ public sealed record WebAppUpdateResponse
 
     /// <summary>The lowest version the server still accepts, for display. The decision is already in <see cref="Kind"/>.</summary>
     public string? MinimumVersion { get; init; }
+
+    /// <summary>
+    /// What the server says about the native app itself — a store update to offer, or one the host must have before it shows
+    /// anything. Null when the server has no rule for this platform, or the native app is current.
+    /// </summary>
+    public WebAppHostUpdate? Host { get; init; }
+}
+
+/// <summary>
+/// A native app update, which only an app store can deliver. The web app updates over the air; this is for when the native
+/// half has to move too — a bridge the web app now needs, a security fix, an end of support.
+/// </summary>
+public sealed record WebAppHostUpdate
+{
+    /// <summary>
+    /// <see cref="WebAppUpdateKind.Required"/> blocks the app at its splash screen until the store update is installed;
+    /// <see cref="WebAppUpdateKind.Optional"/> is offered. Never <see cref="WebAppUpdateKind.None"/> on the wire: the server
+    /// sends no host update at all instead.
+    /// </summary>
+    public WebAppUpdateKind Kind { get; init; }
+
+    /// <summary>The oldest native app version the server accepts on this platform.</summary>
+    public string? MinimumVersion { get; init; }
+
+    /// <summary>The newest native app version in the store for this platform.</summary>
+    public string? LatestVersion { get; init; }
+
+    /// <summary>
+    /// The store page, for a host with no store lookup of its own. Only <c>https</c> and the stores' own schemes are opened.
+    /// </summary>
+    public string? StoreUrl { get; init; }
+
+    /// <summary>What changed, in the culture the host asked for when the server has it.</summary>
+    public string? ReleaseNotes { get; init; }
 }
 
 /// <summary>The wire names both sides use, so neither has to guess the other's spelling.</summary>
@@ -81,23 +115,26 @@ public static class WebAppProtocol
     public const string PlatformQuery = "platform";
     public const string HostVersionQuery = "host";
     public const string ChannelQuery = "channel";
+    public const string CultureQuery = "culture";
 
     /// <summary>
-    /// The check URL for an app: <c>{baseUri}/{appId}/check?version=…&amp;platform=…&amp;host=…&amp;channel=…</c>.
+    /// The check URL for an app: <c>{baseUri}/{appId}/check?version=…&amp;platform=…&amp;host=…&amp;channel=…&amp;culture=…</c>.
     /// </summary>
+    /// <param name="culture">The UI culture's name, such as <c>fr-CA</c>, for release notes in the user's language.</param>
     public static Uri BuildCheckUri(
         Uri baseUri,
         string appId,
         string? currentVersion,
         string platform,
         string hostVersion,
-        string? channel
+        string? channel,
+        string? culture
     )
     {
         ArgumentNullException.ThrowIfNull(baseUri);
         ArgumentException.ThrowIfNullOrWhiteSpace(appId);
 
-        var query = new List<string>(4);
+        var query = new List<string>(6);
         if (!String.IsNullOrWhiteSpace(currentVersion))
             query.Add($"{VersionQuery}={Uri.EscapeDataString(currentVersion)}");
 
@@ -106,6 +143,9 @@ public static class WebAppProtocol
 
         if (!String.IsNullOrWhiteSpace(channel))
             query.Add($"{ChannelQuery}={Uri.EscapeDataString(channel)}");
+
+        if (!String.IsNullOrWhiteSpace(culture))
+            query.Add($"{CultureQuery}={Uri.EscapeDataString(culture)}");
 
         var root = baseUri.AbsoluteUri.TrimEnd('/');
         return new Uri($"{root}/{Uri.EscapeDataString(appId)}/check?{String.Join('&', query)}");
@@ -117,6 +157,14 @@ public static class WebAppProtocol
            && appId.Length <= 100
            && appId.All(c => Char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_')
            && appId is not "." and not "..";
+
+    /// <summary>
+    /// Whether a store URL from the server may be opened: <c>https</c>, or one of the stores' own schemes. Never plain
+    /// <c>http</c>, <c>file</c>, <c>javascript</c> or anything else a hostile response could turn against the device.
+    /// </summary>
+    public static bool IsAllowedStoreUrl(string? url)
+        => Uri.TryCreate(url, UriKind.Absolute, out var uri)
+           && uri.Scheme.ToLowerInvariant() is "https" or "itms-apps" or "itms-appss" or "macappstore" or "market" or "ms-windows-store" or "appstream";
 }
 
 [JsonSourceGenerationOptions(
@@ -127,4 +175,5 @@ public static class WebAppProtocol
 [JsonSerializable(typeof(WebAppRelease))]
 [JsonSerializable(typeof(List<WebAppRelease>))]
 [JsonSerializable(typeof(WebAppUpdateResponse))]
+[JsonSerializable(typeof(WebAppHostUpdate))]
 public partial class WebAppJsonContext : JsonSerializerContext;

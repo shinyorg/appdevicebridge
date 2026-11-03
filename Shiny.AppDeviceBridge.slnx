@@ -29,6 +29,7 @@
     <Project Path="src/Shiny.AppDeviceBridge.Tunnel/Shiny.AppDeviceBridge.Tunnel.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.BluetoothLE/Shiny.AppDeviceBridge.BluetoothLE.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Jobs/Shiny.AppDeviceBridge.Jobs.csproj"/>
+    <Project Path="src/Shiny.AppDeviceBridge.AutoUpdate/Shiny.AppDeviceBridge.AutoUpdate.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Simulator/Shiny.AppDeviceBridge.Simulator.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Wifi/Shiny.AppDeviceBridge.Wifi.csproj"/>
     <Project Path="src/Shiny.AppDeviceBridge.Database/Shiny.AppDeviceBridge.Database.csproj"/>

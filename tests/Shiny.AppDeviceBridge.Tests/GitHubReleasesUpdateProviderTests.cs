@@ -6,6 +6,15 @@ namespace Shiny.AppDeviceBridge.Tests;
 
 public class GitHubReleasesUpdateProviderTests
 {
+    static async Task<UpdateInfo?> CheckAsync(GitHubReleasesUpdateProvider provider, WebAppVersion? current)
+    {
+        var offer = await provider.CheckAsync(new UpdateRequest(Host, current, System.Globalization.CultureInfo.InvariantCulture), CancellationToken.None);
+
+        // GitHub knows nothing of the native app.
+        Assert.Null(offer.Host);
+        return offer.WebApp;
+    }
+
     static readonly Version Host = new(1, 0);
 
     [Theory]
@@ -41,7 +50,7 @@ public class GitHubReleasesUpdateProviderTests
         api.Release("not-a-version", "webapp.zip");
 
         using var provider = api.CreateProvider();
-        var update = Assert.IsType<GitHubUpdateInfo>(await provider.GetUpdateInfoAsync(Host, WebAppVersion.Parse("1.0.0"), CancellationToken.None));
+        var update = Assert.IsType<GitHubUpdateInfo>(await CheckAsync(provider, WebAppVersion.Parse("1.0.0")));
 
         Assert.Equal(WebAppVersion.Parse("1.2.0"), update.Version);
         Assert.Equal("v1.2.0", update.TagName);
@@ -63,7 +72,7 @@ public class GitHubReleasesUpdateProviderTests
         api.Release("v1.2.0", "webapp.zip");
 
         using var provider = api.CreateProvider();
-        Assert.Null(await provider.GetUpdateInfoAsync(Host, WebAppVersion.Parse("1.2.0"), CancellationToken.None));
+        Assert.Null(await CheckAsync(provider, WebAppVersion.Parse("1.2.0")));
     }
 
     [Fact]
@@ -76,7 +85,7 @@ public class GitHubReleasesUpdateProviderTests
         using var provider = api.CreateProvider();
         provider.IncludePrereleases = true;
 
-        var update = await provider.GetUpdateInfoAsync(Host, null, CancellationToken.None);
+        var update = await CheckAsync(provider, null);
         Assert.Equal(WebAppVersion.Parse("1.1.0-beta.1"), update!.Version);
     }
 
@@ -91,7 +100,7 @@ public class GitHubReleasesUpdateProviderTests
         provider.TagPrefix = "webapp-";
         provider.AssetName = "field-app-*.zip";
 
-        var update = Assert.IsType<GitHubUpdateInfo>(await provider.GetUpdateInfoAsync(Host, null, CancellationToken.None));
+        var update = Assert.IsType<GitHubUpdateInfo>(await CheckAsync(provider, null));
         Assert.Equal(WebAppVersion.Parse("2.0.0"), update.Version);
         Assert.Equal("field-app-2.0.0.zip", update.AssetName);
     }
@@ -107,8 +116,8 @@ public class GitHubReleasesUpdateProviderTests
         using var provider = api.CreateProvider();
         provider.RequiredWhen = x => x.WhatsNew?.Contains("[required]") == true;
 
-        Assert.False((await provider.GetUpdateInfoAsync(Host, WebAppVersion.Parse("1.0.0"), CancellationToken.None))!.IsOptional);
-        Assert.True((await provider.GetUpdateInfoAsync(Host, WebAppVersion.Parse("1.1.0"), CancellationToken.None))!.IsOptional);
+        Assert.False((await CheckAsync(provider, WebAppVersion.Parse("1.0.0")))!.IsOptional);
+        Assert.True((await CheckAsync(provider, WebAppVersion.Parse("1.1.0")))!.IsOptional);
     }
 
     [Fact]
@@ -120,7 +129,7 @@ public class GitHubReleasesUpdateProviderTests
         using var provider = api.CreateProvider();
         provider.Token = "secret";
 
-        var update = await provider.GetUpdateInfoAsync(Host, null, CancellationToken.None);
+        var update = await CheckAsync(provider, null);
         await using var stream = await provider.DownloadAsync(update!, CancellationToken.None);
         using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer);

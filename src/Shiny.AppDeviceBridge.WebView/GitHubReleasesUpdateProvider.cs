@@ -93,15 +93,18 @@ public sealed class GitHubReleasesUpdateProvider : IUpdateProvider, IDisposable
     /// </summary>
     public Func<GitHubUpdateInfo, bool>? RequiredWhen { get; set; }
 
-    public async Task<UpdateInfo?> GetUpdateInfoAsync(Version currentHostVersion, WebAppVersion? currentAppVersion, CancellationToken cancellationToken)
+    public async Task<UpdateOffer> CheckAsync(UpdateRequest request, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(request);
+        var currentAppVersion = request.AppVersion;
+
         var uri = new Uri(
             this.ApiBaseAddress,
             $"repos/{Uri.EscapeDataString(this.Owner)}/{Uri.EscapeDataString(this.Repository)}/releases?per_page=100"
         );
 
-        using var request = this.CreateRequest(uri, "application/vnd.github+json");
-        using var response = await this.http.Value.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var message = this.CreateRequest(uri, "application/vnd.github+json");
+        using var response = await this.http.Value.SendAsync(message, cancellationToken).ConfigureAwait(false);
         response.EnsureSuccessStatusCode();
 
         var releases = await response.Content
@@ -116,12 +119,28 @@ public sealed class GitHubReleasesUpdateProvider : IUpdateProvider, IDisposable
             .ToList();
 
         if (newer.Count == 0)
-            return null;
+            return UpdateOffer.None;
 
         var latest = newer[0];
         latest.IsOptional = this.RequiredWhen is not { } required || !newer.Any(required);
-        return latest;
+
+        // GitHub knows nothing of the native app.
+        return new UpdateOffer(latest);
     }
+
+    /// <summary>
+    /// The asset URL, for a public repository. With a <see cref="Token"/> there is none: a background transfer would carry the
+    /// token across GitHub's redirect to its storage host, so a private repository's releases download in-process instead.
+    /// </summary>
+    public UpdateDownloadRequest? GetDownloadRequest(UpdateInfo update)
+        => update is GitHubUpdateInfo { AssetUrl: { } uri } && String.IsNullOrWhiteSpace(this.Token)
+            ? new UpdateDownloadRequest(uri, new Dictionary<string, string>
+            {
+                ["Accept"] = "application/octet-stream",
+                ["User-Agent"] = "Shiny.AppDeviceBridge",
+                ["X-GitHub-Api-Version"] = "2022-11-28"
+            })
+            : null;
 
     GitHubUpdateInfo? ToUpdateInfo(GitHubRelease release)
     {
