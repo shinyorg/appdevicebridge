@@ -5,7 +5,7 @@
          Android) and NuGet picks its build for the app's head. Everywhere else it registers no manager and the bridge
          answers 501. -->
     <RootNamespace>Shiny.AppDeviceBridge.Wearables</RootNamespace>
-    <Description>The companion Apple Watch or Wear OS app for a Shiny.AppDeviceBridge web app, backed by Shiny.Wearables — status, live messages answered by the page or background.js, shared context, queued transfers and file transfers through the file roots. One call: bridge.AddWearablesBridge().</Description>
+    <Description>The companion Apple Watch or Wear OS app for a Shiny.AppDeviceBridge web app, backed by Shiny.Wearables — status, live messages answered by the page, shared context, queued transfers and file transfers through the file roots. One call: bridge.AddWearablesBridge().</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -3,9 +3,10 @@
 @inject IAppBridge AppBridge
 @inject ITrayBridge TrayBridge
 @inject IQuickEntryBridge QuickEntry
+@inject IWindowBridge Window
 
 <h1>Desktop</h1>
-<p class="muted">Launch at login, the system tray and quick entry. All answer <code>501</code> on Android and iOS.</p>
+<p class="muted">Launch at login, the system tray, the app's window and quick entry. All answer <code>501</code> on Android and iOS.</p>
 
 <h2>Launch at login</h2>
 <div class="actions">
@@ -30,11 +31,23 @@
     <button @onclick="@(() => Run(() => TrayBridge.RemoveAsync(TrayId), "Removed."))">Remove</button>
 </div>
 
+<h2>Window</h2>
+<p class="muted">
+    Run as a tray app: put the tray icon up first, then hide the window or close it. The app leaves the taskbar (and the
+    Dock on macOS) and this page keeps running — the tray menu's <b>Open the app</b> brings it back and <b>Quit</b> quits.
+    Mac Catalyst answers <code>501</code>.
+</p>
+<div class="actions">
+    <button @onclick="@(() => Run(() => Window.GetStatusAsync(), WindowJson.WindowStatus))">Status</button>
+    <button @onclick="@(() => Run(() => Window.HideAsync(), "Hidden."))">Hide window</button>
+    <button @onclick="@(() => Run(() => Window.QuitAsync(), "Quitting."))">Quit</button>
+</div>
+
 <h2>Clicks</h2>
 <pre>@(clicks.Length == 0 ? "Click the tray icon or pick something from its menu." : clicks)</pre>
 
 <h2>Quick entry</h2>
-<p class="muted">A prompt that opens over other applications. Press <kbd>Ctrl+Alt+Space</kbd> anywhere, or use the buttons. Submissions are answered by the page while it is open and by <code>background.js</code> when it is not.</p>
+<p class="muted">A prompt that opens over other applications. Press <kbd>Ctrl+Alt+Space</kbd> anywhere, or use the buttons. Submissions are answered by the page while it is open; native code answers them with <code>QuickEntryBridge.SetPromptAsync</code>.</p>
 <div class="form">
     <input @bind="placeholder" placeholder="Placeholder" />
 </div>
@@ -57,6 +70,7 @@
     static TrayJsonContext Json => TrayJsonContext.Default;
     static AppJsonContext AppJson => AppJsonContext.Default;
     static QuickEntryJsonContext QuickJson => QuickEntryJsonContext.Default;
+    static WindowJsonContext WindowJson => WindowJsonContext.Default;
 
     // PUT rather than POST, so a hot reload adopts the icon it made last time instead of adding another.
     const string TrayId = "main";

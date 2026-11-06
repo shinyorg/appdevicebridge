@@ -93,11 +93,6 @@ public static class WebAppHostExtensions
             sp
         ));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IAppDeviceBridgeServerExtension, WebAppHost>(sp => sp.GetRequiredService<WebAppHost>()));
-        services.TryAddSingleton<IWebAppBackgroundInvoker>(sp => new WebAppScriptEngine(
-            options,
-            () => sp.GetRequiredService<WebAppHost>(),
-            (sp.GetService<ILoggerFactory>() ?? NullLoggerFactory.Instance).CreateLogger<WebAppScriptEngine>()
-        ));
 
         http.AddAuthentication().AddScheme(sp => new WebAppSessionAuthenticationHandler(sp.GetRequiredService<WebAppSession>()));
         http.AddAuthorization(o => o.AddPolicy(WebAppPolicies.Session, p => p.RequireClaim(WebAppSessionAuthenticationHandler.SessionClaim)));

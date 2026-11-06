@@ -235,10 +235,10 @@ public class NativeCallTests
     {
         await using var calls = new WebAppNativeCalls(new NoScriptRuntime());
 
-        await calls.HandleAsync("job:sync", AppDeviceBridgeJsonContext.Default.JobRun, ClientTestJson.Default.Theme, job =>
-            Task.FromResult(new Theme(job.Name == "sync", 12)));
+        await calls.HandleAsync("theme", ClientTestJson.Default.Theme, ClientTestJson.Default.Theme, theme =>
+            Task.FromResult(theme with { FontSize = theme.FontSize * 2 }));
 
-        Assert.Equal("""{"dark":true,"fontSize":12}""", await calls.OnCall("job:sync", """{"name":"sync"}"""));
+        Assert.Equal("""{"dark":true,"fontSize":12}""", await calls.OnCall("theme", """{"dark":true,"fontSize":6}"""));
     }
 
     [Fact]

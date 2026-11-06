@@ -21,7 +21,7 @@ namespace Shiny.AppDeviceBridge.Gps;
 /// events: gps.reading
 /// </code>
 /// <c>gps.reading</c> hooks the listener's readings only while a page listens to it. Leaving does not stop the
-/// listener: <see cref="WebAppGpsDelegate"/> still hands its readings to background.js.
+/// listener: the app's own Shiny GPS delegate keeps receiving its readings.
 /// </summary>
 public sealed class GpsBridge(IServiceProvider services) : IWebAppBridge
 {
@@ -159,7 +159,7 @@ public sealed class GpsBridge(IServiceProvider services) : IWebAppBridge
 
 /// <summary>
 /// Hands readings from Shiny's GPS delegate — what runs when the OS delivers them in the background — to
-/// the web app's <c>gps</c> handler: the page if it is listening, background.js otherwise. The live
+/// the page's <c>gps</c> handler while it is open and listening; with no page, nothing in the web app runs. The live
 /// <c>gps.reading</c> event is separate and unchanged. Registered by
 /// <see cref="GpsBridgeExtensions.AddGpsBridge"/>.
 /// </summary>

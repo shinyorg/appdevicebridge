@@ -2,67 +2,47 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shiny.Net.HttpServer;
 
 namespace Shiny.AppDeviceBridge;
 
-public enum WebAppInvocationTarget
-{
-    /// <summary>Nothing handles the call: the page is not listening for it and background.js does not register it.</summary>
-    None,
-
-    Page,
-    BackgroundScript
-}
-
+/// <param name="Handled">The page took the call. False when it is closed, not listening for the name, or did not accept in time.</param>
 /// <param name="ResultJson">What the handler returned, as JSON. Null for undefined or nothing.</param>
 public sealed record WebAppInvocationResult(
-    WebAppInvocationTarget Target,
+    bool Handled,
     bool Succeeded,
     string? ResultJson = null,
     string? Error = null
 )
 {
-    public bool Handled => this.Target != WebAppInvocationTarget.None;
-
-    public static WebAppInvocationResult NotHandled { get; } = new(WebAppInvocationTarget.None, false);
+    public static WebAppInvocationResult NotHandled { get; } = new(false, false);
 }
 
 /// <summary>
-/// Takes a native call when no page can: the WebView host runs the web app's background.js. Without one registered, a
-/// call no page takes is reported as not handled.
-/// </summary>
-public interface IWebAppBackgroundInvoker
-{
-    Task<WebAppInvocationResult> InvokeAsync(string handler, string payloadJson, CancellationToken cancellationToken);
-}
-
-/// <summary>
-/// Calls into the web app from native code — a background job, a GPS reading, a geofence transition, a
-/// push — wherever the web app currently is.
+/// Calls into the open page from native code — a GPS reading, a geofence transition, a push, a watch message — so the
+/// web app can react while it is running.
 /// <code>
 /// await invoker.InvokeAsync("geofence", new { identifier, state }, MyJson.Default.GeofencePayload, ct);
 /// </code>
 /// <para>
-/// <b>The page first</b>, when it is open, listening, and has declared a handler for the name. The call goes
-/// out on the event stream; the page must accept it within <see cref="AppDeviceBridgeOptions.PageAcceptTimeout"/>
-/// and then post its result. <b>Otherwise</b> the <see cref="IWebAppBackgroundInvoker"/> takes it — background.js,
-/// with the WebView host — which is also what happens when the page does not accept in time, since a WebView that is
-/// present but suspended by the OS looks just like a listening one until it fails to answer.
+/// The call goes to the page only when it is open, listening, and has declared a handler for the name. It goes out on the
+/// event stream; the page must accept it within <see cref="AppDeviceBridgeOptions.PageAcceptTimeout"/> and then post its
+/// result. Otherwise the result is <see cref="WebAppInvocationResult.NotHandled"/> — nothing runs in its place. Work that
+/// has to happen with the app in the background belongs in the app's own native code: a Shiny delegate or job, which runs
+/// alongside the bridge's whether or not a page is open.
 /// </para>
 /// <para>
-/// The acceptance step is what keeps a call from running twice. Once the host gives up on the page the call
-/// is marked expired, and a late accept is refused — so the page never starts work background.js has already
-/// done. A page that accepted and then runs out of time is reported as a failure, not retried elsewhere.
+/// A WebView that is present but suspended by the OS looks just like a listening one until it fails to accept. Once the
+/// host gives up the call is marked expired and a late accept is refused, so a page never starts work after the caller was
+/// told it was not handled. A page that accepted and then runs out of time is reported as a failure.
 /// </para>
 /// <para>
 /// The page side is <c>/_bridge/invoke/client.js</c>:
 /// <code>
 /// import { on } from "/_bridge/invoke/client.js";
-/// on("job:sync", async ({ name }) => { … });
+/// on("gps", async reading => { … });
 /// </code>
 /// </para>
 /// </summary>
@@ -72,22 +52,16 @@ public sealed class WebAppInvoker : IWebAppBridge
 
     readonly AppDeviceBridgeOptions options;
     readonly WebAppEventSource<WebAppInvokeEvent> calls = new();
-    readonly Func<IWebAppBackgroundInvoker?> background;
     readonly ILogger logger;
     readonly Lock gate = new();
     readonly ConcurrentDictionary<string, PendingInvocation> pending = new(StringComparer.Ordinal);
     HashSet<string> pageHandlers = new(StringComparer.Ordinal);
 
-    /// <param name="background">
-    /// What takes a call the page cannot — background.js, with the WebView host. Resolved per call, and lazily, because
-    /// it commonly depends on the server that maps this bridge.
-    /// </param>
-    public WebAppInvoker(AppDeviceBridgeOptions options, Func<IWebAppBackgroundInvoker?>? background = null, ILoggerFactory? loggerFactory = null)
+    public WebAppInvoker(AppDeviceBridgeOptions options, ILoggerFactory? loggerFactory = null)
     {
         ArgumentNullException.ThrowIfNull(options);
 
         this.options = options;
-        this.background = background ?? (() => null);
         this.logger = (loggerFactory ?? NullLoggerFactory.Instance).CreateLogger<WebAppInvoker>();
     }
 
@@ -115,7 +89,7 @@ public sealed class WebAppInvoker : IWebAppBridge
         return this.InvokeAsync(handler, JsonSerializer.Serialize(payload, typeInfo), cancellationToken);
     }
 
-    /// <param name="handler">The name the web app registered, such as <c>job:sync</c> or <c>gps</c>.</param>
+    /// <param name="handler">The name the page registered, such as <c>gps</c> or <c>geofence</c>.</param>
     /// <param name="payloadJson">The argument the handler receives, as JSON.</param>
     public async Task<WebAppInvocationResult> InvokeAsync(string handler, string payloadJson, CancellationToken cancellationToken = default)
     {
@@ -124,16 +98,20 @@ public sealed class WebAppInvoker : IWebAppBridge
 
         ArgumentException.ThrowIfNullOrWhiteSpace(payloadJson);
 
-        if (this.IsPageHandling(handler)
+        if (this.IsPageListening(handler)
             && await this.InvokePageAsync(handler, payloadJson, cancellationToken).ConfigureAwait(false) is { } fromPage)
             return fromPage;
 
-        return this.background() is { } fallback
-            ? await fallback.InvokeAsync(handler, payloadJson, cancellationToken).ConfigureAwait(false)
-            : WebAppInvocationResult.NotHandled;
+        return WebAppInvocationResult.NotHandled;
     }
 
-    bool IsPageHandling(string handler)
+    /// <summary>
+    /// Whether an open page has declared a handler for <paramref name="handler"/> right now. For the app's own native code
+    /// when only one side should act on an event — finishing a purchase, replying to a watch — and the page takes it while it
+    /// is open. A page can still fail to accept in time, so code that must act exactly once calls <see cref="InvokeAsync"/>
+    /// itself and acts when the result is not <see cref="WebAppInvocationResult.Handled"/>.
+    /// </summary>
+    public bool IsPageListening(string handler)
     {
         if (!this.calls.HasListeners)
             return false;
@@ -142,7 +120,7 @@ public sealed class WebAppInvoker : IWebAppBridge
             return this.pageHandlers.Contains(handler);
     }
 
-    /// <summary>Null when the page did not accept in time, meaning the call is free to run elsewhere.</summary>
+    /// <summary>Null when the page did not accept in time, meaning it did not take the call.</summary>
     async Task<WebAppInvocationResult?> InvokePageAsync(string handler, string payloadJson, CancellationToken cancellationToken)
     {
         var invocation = new PendingInvocation();
@@ -166,7 +144,7 @@ public sealed class WebAppInvoker : IWebAppBridge
                     // Lost the race only if the page accepted in the same instant — then it owns the call.
                     if (invocation.TryExpire())
                     {
-                        this.logger.LogDebug("The page did not accept {Handler} in time; running background.js", handler);
+                        this.logger.LogDebug("The page did not accept {Handler} in time", handler);
                         return null;
                     }
                 }
@@ -181,7 +159,7 @@ public sealed class WebAppInvoker : IWebAppBridge
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                return new WebAppInvocationResult(WebAppInvocationTarget.Page, false, Error: "The page accepted the call but did not finish in time.");
+                return new WebAppInvocationResult(true, false, Error: "The page accepted the call but did not finish in time.");
             }
         }
         finally
@@ -196,7 +174,7 @@ public sealed class WebAppInvoker : IWebAppBridge
 
         if (body?.Handlers is not { } names || names.Any(x => !IsValidHandlerName(x)))
         {
-            await WebAppBridgeResults.BadRequest(context, "Expected { \"handlers\": [\"job:sync\", \"gps\"] }.");
+            await WebAppBridgeResults.BadRequest(context, "Expected { \"handlers\": [\"gps\", \"geofence\"] }.");
             return;
         }
 
@@ -239,7 +217,7 @@ public sealed class WebAppInvoker : IWebAppBridge
         }
 
         var result = reply.Result is { ValueKind: not (JsonValueKind.Undefined or JsonValueKind.Null) } value ? value.GetRawText() : null;
-        invocation.Completed.TrySetResult(new WebAppInvocationResult(WebAppInvocationTarget.Page, reply.Ok, result, reply.Ok ? null : reply.Error ?? "The handler failed."));
+        invocation.Completed.TrySetResult(new WebAppInvocationResult(true, reply.Ok, result, reply.Ok ? null : reply.Error ?? "The handler failed."));
 
         await WebAppBridgeResults.NoContent(context);
     }
@@ -295,13 +273,12 @@ public sealed class WebAppInvoker : IWebAppBridge
     }
 
     const string ClientScript = """
-        // Shiny.AppDeviceBridge: answer native calls — background jobs, GPS, geofences, push — from the page.
+        // Shiny.AppDeviceBridge: answer native calls — GPS, geofences, push, watch messages — from the page.
         //
         //   import { on } from "{bridge}/invoke/client.js";
-        //   const off = on("job:sync", async ({ name }) => { ... });
+        //   const off = on("gps", async reading => { ... });
         //
-        // While the page is open and listening, calls come here. Otherwise the host runs background.js, which
-        // registers the same names with appdevicebridge.on(name, fn).
+        // Calls come here only while the page is open and listening; with the page closed, nothing in the web app runs.
 
         const handlers = new Map();
         let events;
@@ -349,8 +326,8 @@ public sealed class WebAppInvoker : IWebAppBridge
             if (!fn)
                 return;
 
-            // Accept before doing anything. A refusal means the host stopped waiting and ran background.js,
-            // and doing the work here as well would do it twice.
+            // Accept before doing anything. A refusal means the host stopped waiting and told the caller the page did not
+            // take it, so doing the work now would surprise native code that has already acted on that.
             const accepted = await fetch(`{bridge}/invoke/${id}/accept`, { method: "POST" });
             if (accepted.status !== 204)
                 return;
@@ -375,7 +352,7 @@ public sealed class WebAppInvoker : IWebAppBridge
 public sealed record WebAppHandlerDeclaration(List<string>? Handlers);
 
 /// <summary>A native call offered to the page, as the <c>host.invoke</c> event.</summary>
-/// <param name="AcceptWithinMs">How long the page has to accept before the host runs background.js instead.</param>
+/// <param name="AcceptWithinMs">How long the page has to accept before the host treats the call as not handled.</param>
 public sealed record WebAppInvokeEvent(string Id, string Handler, JsonElement Payload, long AcceptWithinMs);
 
 public sealed record WebAppInvocationReply(bool Ok, JsonElement? Result = null, string? Error = null);

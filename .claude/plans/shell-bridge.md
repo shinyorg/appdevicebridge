@@ -120,7 +120,7 @@ applying `[ShellProperty]`.
 
 Subscribe to `INavigator.Navigated` when the bridge is created, and map it to `ShellNavigated(ToUri, type)`
 through `routes.Events.Source(...)`. Parameters and the ViewModel aren't forwarded: parameters can hold
-arbitrary native objects, and page events are for observing, not for passing data. Don't call a background.js
+arbitrary native objects, and page events are for observing, not for passing data. Don't call the app's native code
 handler; navigation only matters when a page is showing.
 
 ## Registration
@@ -194,7 +194,7 @@ public enum WebAppCoveredBehavior
     /// <summary>The page keeps running and handles calls itself — today's behavior.</summary>
     KeepRunning,
 
-    /// <summary>The page is paused where the platform allows it, and handler calls go to background.js.</summary>
+    /// <summary>The page is paused where the platform allows it, and handler calls go to the app's native code.</summary>
     Pause
 }
 
@@ -207,10 +207,10 @@ public WebAppCoveredBehavior WhenCovered { get; set; } = WebAppCoveredBehavior.K
   the maui-labs AppKit and GTK4 backends raise both events. They don't raise `Loaded`, so this may need the same
   handler-based fallback `WebAppHostView` already uses.
 - **`KeepRunning`:** changes nothing. Background jobs, GPS and other `WebAppInvoker` calls go to the page
-  while it keeps listening, and to background.js when it doesn't — both as today.
+  while it keeps listening, and to the app's native code when it doesn't — both as today.
 - **`Pause`:**
   - **Routing (all platforms):** the invoker treats the page as not handling calls, so background jobs, GPS and
-    other handler calls go straight to background.js instead of waiting out `PageAcceptTimeout` (2 s) for a page
+    other handler calls go straight to the app's native code instead of waiting out `PageAcceptTimeout` (2 s) for a page
     that can't answer. This needs a hook on `WebAppInvoker` in `Shiny.AppDeviceBridge` (e.g.
     `SetPageAvailable(bool)`, checked in `IsPageHandling`). It has to be public: the WebView package isn't in
     `InternalsVisibleTo`, and adding a friend assembly for this isn't worth it.
@@ -222,17 +222,17 @@ public WebAppCoveredBehavior WhenCovered { get; set; } = WebAppCoveredBehavior.K
     was paused may be lost. Check what the event stream delivers after an Android `OnResume()`, and tell pages
     to re-read state on `shell.navigated` back to their route.
 - **What it covers:** every caller of `WebAppInvoker.InvokeAsync`, because the switch sits in `IsPageHandling`:
-  jobs (`job:*`, all four job kinds), `gps`, `geofence`, `motion`, HTTP transfer completed/failed, push,
+  `gps`, `geofence`, `motion`, HTTP transfer completed/failed, push,
   `notification.entry`/`.received`, and the tray icon and quick entry (Desktop). A new delegate that goes
   through the invoker is covered automatically.
 - **What it doesn't cover:** page events. Those delegates also `Publish` to the event stream, and that path
   doesn't go through the invoker. Under `Pause`, the event is still sent (to a paused Android WebView it may be
-  buffered or lost), while background.js does the work — the same split the delegates already rely on, so
+  buffered or lost), while the app's native code does the work — the same split the delegates already rely on, so
   nothing is handled twice.
 - **Not a security change:** the setting only moves who handles calls; nothing new is admitted.
 - **Tests:** a fake covered/uncovered signal through the host view → invoker skips the page immediately (no
   accept wait) under `Pause`, and keeps today's behavior under `KeepRunning`. Check on a real Android device
-  that background jobs and GPS go to background.js while a native page is pushed, and back to the page after
+  that background jobs and GPS go to the app's native code while a native page is pushed, and back to the page after
   pop.
 - **Docs:** add `WhenCovered` to the hosting page (defaults and per-platform table) and link it from the Shell
   page. Add its own `<RN type="feature">` line.

@@ -10,7 +10,7 @@
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
     <RootNamespace>Shiny.AppDeviceBridge.Notifications</RootNamespace>
-    <Description>Local notifications for a Shiny.AppDeviceBridge web app, backed by Shiny.Notifications — send now or on a schedule, pending notifications, badges, channels, and taps handed to the page or background.js. One call: bridge.AddNotificationsBridge().</Description>
+    <Description>Local notifications for a Shiny.AppDeviceBridge web app, backed by Shiny.Notifications — send now or on a schedule, pending notifications, badges, channels, and taps handed to the page. One call: bridge.AddNotificationsBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>

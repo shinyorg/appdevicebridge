@@ -1,0 +1,24 @@
+@page "/native-calls"
+@inherits BridgePage
+@inject NativeCallHandlers Handlers
+
+<h1>Native calls</h1>
+<p class="muted">
+    GPS readings, geofence transitions, pushes, notification taps and watch messages that native code hands to the page
+    while it is open, listed below. With the page closed nothing in the web app runs: work that has to happen then lives
+    in the app's own native code — a Shiny delegate or job — which runs alongside these whether or not the page is open.
+</p>
+
+<pre class="log">@String.Join("\n", Handlers.Calls)</pre>
+
+@code {
+    protected override void OnInitialized() => Handlers.Changed += OnChanged;
+
+    void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public override ValueTask DisposeAsync()
+    {
+        Handlers.Changed -= OnChanged;
+        return base.DisposeAsync();
+    }
+}

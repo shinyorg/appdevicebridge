@@ -11,7 +11,7 @@
     <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
 
     <RootNamespace>Shiny.AppDeviceBridge.RegionGeofencing</RootNamespace>
-    <Description>Region geofencing endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Geofencing.Regions — GPS-driven monitoring of an unlimited number of polygon, proximity and reverse-geocoded regions, the regions the device is in, and enter/exit changes delivered to the page as events and to background.js. One call: bridge.AddRegionGeofenceBridge(cfg => cfg.AddRegionSet(…)).</Description>
+    <Description>Region geofencing endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Geofencing.Regions — GPS-driven monitoring of an unlimited number of polygon, proximity and reverse-geocoded regions, the regions the device is in, and enter/exit changes delivered to the page as events and handler calls. One call: bridge.AddRegionGeofenceBridge(cfg => cfg.AddRegionSet(…)).</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">26.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>

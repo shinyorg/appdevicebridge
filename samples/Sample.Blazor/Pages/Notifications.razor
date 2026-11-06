@@ -3,7 +3,7 @@
 @inject INotificationsBridge NotificationsBridge
 
 <h1>Notifications</h1>
-<p class="muted">Tap a notification and <code>notification.entry</code> arrives here, or in background.js when the app is closed. Apple platforms also report notifications that arrive while the app is open.</p>
+<p class="muted">Tap a notification and <code>notification.entry</code> arrives here while the page is open. Apple platforms also report notifications that arrive while the app is open.</p>
 
 <div class="actions">
     <button @onclick="@(() => Run(() => NotificationsBridge.GetStatusAsync(), Json.NotificationStatus))">Status</button>

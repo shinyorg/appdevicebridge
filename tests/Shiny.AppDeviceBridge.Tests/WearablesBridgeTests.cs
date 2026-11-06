@@ -245,19 +245,21 @@ public class WearablesBridgeTests
     public async Task A_watch_message_is_answered_by_the_web_apps_handler()
     {
         await using var app = new TestApp();
-        var (host, invoker) = await BackgroundHostAsync(app, """
-            appdevicebridge.on("wearables.message", ({ path, data, expectsReply }) => ({ path, echo: data, expectsReply }));
-            """);
+        var (host, invoker) = await FakePage.CreateHostAsync(app);
         await using var _ = host;
+        await using var page = await FakePage.OpenAsync(host, "wearables.message");
 
         var events = new WebAppEventHub();
         var d = CreateDelegate(events, invoker, new WebAppFileRoots(app.BridgeOptions()));
 
-        var reply = await d.OnMessageReceived(new Native.WearableMessage("workout/start", Encoding.UTF8.GetBytes("""{"kind":"run"}"""), "n1", true));
+        // The page echoes what it was handed: its return value is the watch's reply.
+        var received = d.OnMessageReceived(new Native.WearableMessage("workout/start", Encoding.UTF8.GetBytes("""{"kind":"run"}"""), "n1", true));
+        await page.AnswerAsync(message => message);
+        var reply = await received.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         using var doc = JsonDocument.Parse(reply!);
         Assert.Equal("workout/start", doc.RootElement.GetProperty("path").GetString());
-        Assert.Equal("run", doc.RootElement.GetProperty("echo").GetProperty("kind").GetString());
+        Assert.Equal("run", doc.RootElement.GetProperty("data").GetProperty("kind").GetString());
         Assert.True(doc.RootElement.GetProperty("expectsReply").GetBoolean());
     }
 
@@ -265,17 +267,18 @@ public class WearablesBridgeTests
     public async Task A_watch_message_sent_as_text_reaches_the_handler_as_a_string()
     {
         await using var app = new TestApp();
-        var (host, invoker) = await BackgroundHostAsync(app, """
-            appdevicebridge.on("wearables.message", ({ data, binary }) => ({ type: typeof data, data, binary }));
-            """);
+        var (host, invoker) = await FakePage.CreateHostAsync(app);
         await using var _ = host;
+        await using var page = await FakePage.OpenAsync(host, "wearables.message");
 
         var d = CreateDelegate(new WebAppEventHub(), invoker, new WebAppFileRoots(app.BridgeOptions()));
 
-        var reply = await d.OnMessageReceived(new Native.WearableMessage("note", Native.WearableData.FromString("hello watch"), "n1", true));
+        var received = d.OnMessageReceived(new Native.WearableMessage("note", Native.WearableData.FromString("hello watch"), "n1", true));
+        await page.AnswerAsync(message => message);
+        var reply = await received.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         using var doc = JsonDocument.Parse(reply!);
-        Assert.Equal("string", doc.RootElement.GetProperty("type").GetString());
+        Assert.Equal(JsonValueKind.String, doc.RootElement.GetProperty("data").ValueKind);
         Assert.Equal("hello watch", doc.RootElement.GetProperty("data").GetString());
         Assert.False(doc.RootElement.GetProperty("binary").GetBoolean());
     }
@@ -379,24 +382,6 @@ public class WearablesBridgeTests
 
     static WebAppWearableDelegate CreateDelegate(WebAppEventHub events, WebAppInvoker invoker, WebAppFileRoots roots)
         => new(events, invoker, roots, new WearablesBridgeOptions());
-
-    /// <summary>The web app's background.js with nothing else: the host a background wake-up from the watch gets.</summary>
-    static async Task<(WebAppHost Host, WebAppInvoker Invoker)> BackgroundHostAsync(TestApp app, string script)
-    {
-        app.Store.Add("1.0.0", TestApp.Zip("1.0.0", backgroundScript: script));
-        await app.StartReleaseServerAsync();
-
-        await using (var first = app.CreateHost())
-            await first.StartAsync();
-
-        var options = app.Options();
-        var bridgeOptions = app.BridgeOptions();
-        WebAppHost host = null!;
-        var engine = new WebAppScriptEngine(options, () => host, NullLogger.Instance);
-        var invoker = new WebAppInvoker(bridgeOptions, () => engine);
-        host = app.CreateHost(options, bridgeOptions, new WebAppEventHub(), [invoker]);
-        return (host, invoker);
-    }
 
     sealed class WearablesFixture : IAsyncDisposable
     {

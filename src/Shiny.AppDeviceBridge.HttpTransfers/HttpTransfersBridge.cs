@@ -13,8 +13,7 @@ public sealed class WebAppTransferOptions
 {
     /// <summary>
     /// Hands finished transfers to the web app's <c>transfer.completed</c> and <c>transfer.failed</c> handlers —
-    /// in the page if it is listening, in background.js otherwise. On by default: the page queued the transfer,
-    /// so the page is who needs to know, even after the app was suspended.
+    /// while the page is open and listening. On by default: the page queued the transfer, so the page is who needs to know.
     /// </summary>
     public bool DispatchToWebApp { get; set; } = true;
 
@@ -510,8 +509,7 @@ public sealed class HttpTransfersBridge : IWebAppBridge
 
 /// <summary>
 /// Moves finished downloads into place, and tells the web app — <c>transfer.completed</c> and
-/// <c>transfer.failed</c>, as events for a listening page and as handler calls that reach background.js when there
-/// is none. Transfers the native app queued are ignored. Subclass to decide per transfer.
+/// <c>transfer.failed</c>, as events and handler calls for a listening page. Transfers the native app queued are ignored. Subclass to decide per transfer.
 /// </summary>
 public partial class WebAppTransferDelegate(
     AppDeviceBridgeOptions hostOptions,

@@ -104,7 +104,7 @@ public sealed class AppDeviceBridgeOptions
     public string? DataDirectory { get; set; }
 
     /// <summary>
-    /// How long a page that declared a native call handler has to accept a call before it goes elsewhere. Short, because
+    /// How long a page that declared a native call handler has to accept a call before it is treated as not handled. Short, because
     /// a page that cannot accept promptly is usually a WebView the OS has suspended.
     /// </summary>
     public TimeSpan PageAcceptTimeout { get; set; } = TimeSpan.FromSeconds(2);

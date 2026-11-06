@@ -5,7 +5,7 @@ Status: proposed · Target: unscheduled · Depends on: a new `Shiny.Mobile.Widge
 ## Goal
 
 Let a hosted web app put live content on the home screen (iOS and Android first, then the Windows widget board) and
-keep it current: from the page while it is open, from `background.js` when it isn't, and from a push.
+keep it current: from the page while it is open, from the app's native code when it isn't, and from a push.
 
 ## The constraint that shapes everything
 
@@ -26,7 +26,7 @@ That's the same split as AppFunctions and Live Activities:
 | | Owned by | Ships with |
 |---|---|---|
 | Widget kinds, sizes and layouts (SwiftUI, `RemoteViews` / Glance, Adaptive Card templates) | the app project | the store build |
-| What each widget instance shows, and when it changes | the page or `background.js` | the web app zip (OTA) |
+| What each widget instance shows, and when it changes | the page, or the app's native code with no page open | the web app zip (OTA) for the page; the store build for the app's native code |
 | Where a tap goes | the page, as a route | the web app zip |
 
 An OTA update can change what a widget says, but not add a new kind of widget or change its layout. The docs have to
@@ -66,7 +66,7 @@ app could use too.
    and the widget kind.
 
 Push-driven updates use what already exists. iOS 18 has widget push updates through APNs (`WidgetPushHandler`), and
-everywhere else a push wakes the app and `background.js` calls the bridge. Treat this as Phase 3, not a prerequisite.
+everywhere else a push wakes the app and the app's native code calls the bridge. Treat this as Phase 3, not a prerequisite.
 
 ---
 
@@ -84,7 +84,7 @@ DELETE /_bridge/widgets/{kind}                back to the placeholder
 POST   /_bridge/widgets/reload                ask the system to redraw every kind
 
 events:   widgets.installed, widgets.removed
-handlers: widgets.refresh, which the system asks for on its own schedule; answered by the page or background.js
+handlers: widgets.refresh, which the system asks for on its own schedule; answered by the page or the app's native code
 ```
 
 - **Images** are a `BridgeFile` in a file root. The bridge copies the file into the shared container, downscaled to
@@ -97,7 +97,7 @@ handlers: widgets.refresh, which the system asks for on its own schedule; answer
   entries), and answer `413` beyond them. The iOS extension reads the whole thing within its memory cap.
 - **Refresh:** iOS asks the timeline provider for new entries on its own schedule. The stock provider serves the
   stored timeline and, when it runs out, records that a refresh is due. The next time the app runs, the
-  `widgets.refresh` handler runs in the page or `background.js`. Pair it with `Shiny.AppDeviceBridge.Jobs` for apps
+  `widgets.refresh` handler runs in the page or the app's native code. Pair it with a Shiny job in the app for apps
   that need regular updates.
 
 ### Security
@@ -114,7 +114,7 @@ the route a widget opens as untrusted input: it goes through `WebAppLinks.IsLoca
 1. **Android:** the `AppWidgetProvider` and `RemoteViews` are C#, so no extension build is needed. This proves the
    contracts, the bridge, the simulator panel and the docs.
 2. **iOS:** the stock SwiftUI bundle, the shared build targets with Live Activities, App Group wiring, and timelines.
-3. **Push updates:** iOS 18 widget pushes, and the `widgets.refresh` handler through `background.js`.
+3. **Push updates:** iOS 18 widget pushes, and the `widgets.refresh` handler through the app's native code.
 4. **Windows widget board:** Adaptive Cards, which map naturally onto `WidgetContent`, but packaging and COM
    activation make this its own piece of work.
 5. **Mac Catalyst / macOS:** WidgetKit on macOS uses the same SwiftUI, so this mostly needs the build targets to

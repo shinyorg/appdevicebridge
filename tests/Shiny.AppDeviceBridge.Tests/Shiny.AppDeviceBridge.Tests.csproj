@@ -23,6 +23,8 @@
     <PackageReference Include="Microsoft.AspNetCore.TestHost" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <!-- Test-only: BlazorInteropTests runs the page-side appdevicebridge.js under it. Nothing that ships references Jint. -->
+    <PackageReference Include="Jint" />
     <!-- a real Universal Hubs client for the hubs bridge; Shiny.BluetoothLE.Hubs directly, for its proxy generator -->
     <PackageReference Include="Shiny.UniversalHubs.Client" />
     <PackageReference Include="Shiny.BluetoothLE.Hubs" />

@@ -5,7 +5,7 @@
          and NuGet picks its build for the app's head. Everywhere else its manager is a no-op that reports itself
          unsupported, and the bridge answers 501. -->
     <RootNamespace>Shiny.AppDeviceBridge.LiveActivities</RootNamespace>
-    <Description>Live activities for a Shiny.AppDeviceBridge web app, backed by Shiny.Mobile.LiveActivities — iOS Live Activities and Android 16 Live Updates: start, update and end them from the page, and receive their push tokens in the page or background.js. One call: bridge.AddLiveActivitiesBridge().</Description>
+    <Description>Live activities for a Shiny.AppDeviceBridge web app, backed by Shiny.Mobile.LiveActivities — iOS Live Activities and Android 16 Live Updates: start, update and end them from the page, and receive their push tokens in the page. One call: bridge.AddLiveActivitiesBridge().</Description>
   </PropertyGroup>
 
   <ItemGroup>

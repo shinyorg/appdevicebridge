@@ -5,7 +5,7 @@
          and NuGet picks its build for the app's head. Everywhere else it registers no manager, and the bridge answers
          501. -->
     <RootNamespace>Shiny.AppDeviceBridge.InAppPurchases</RootNamespace>
-    <Description>In-app purchases for a Shiny.AppDeviceBridge web app, backed by Shiny.Mobile.InAppPurchases — App Store (StoreKit 2) and Google Play Billing products, purchases, entitlements and restores from the page, with purchase updates delivered to the page or background.js. One call: bridge.AddInAppPurchasesBridge().</Description>
+    <Description>In-app purchases for a Shiny.AppDeviceBridge web app, backed by Shiny.Mobile.InAppPurchases — App Store (StoreKit 2) and Google Play Billing products, purchases, entitlements and restores from the page, with purchase updates delivered to the page. One call: bridge.AddInAppPurchasesBridge().</Description>
   </PropertyGroup>
 
   <ItemGroup>

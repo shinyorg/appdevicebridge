@@ -217,7 +217,7 @@ public class LiveActivitiesBridgeTests
         var tokens = Listen(events.Source("liveactivities.token", LiveActivitiesJsonContext.Default.LiveActivityPushToken), cancel.Token);
         var startTokens = Listen(events.Source("liveactivities.starttoken", LiveActivitiesJsonContext.Default.LiveActivityPushToStartToken), cancel.Token);
 
-        // No page and no background.js: the handler calls find nobody, and the events still go out.
+        // No page: the handler calls find nobody, and the events still go out.
         await d.OnStarted(new Native.LiveActivity("a1", Native.LiveActivityState.Active));
         await d.OnStateChanged(new Native.LiveActivity("a1", Native.LiveActivityState.Ended));
         await d.OnPushTokenChanged(new Native.LiveActivity("a1", Native.LiveActivityState.Active), "tok");

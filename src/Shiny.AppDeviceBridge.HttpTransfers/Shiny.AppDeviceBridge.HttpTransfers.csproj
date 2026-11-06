@@ -12,7 +12,7 @@
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
     <RootNamespace>Shiny.AppDeviceBridge.HttpTransfers</RootNamespace>
-    <Description>Background HTTP uploads and downloads for a Shiny.AppDeviceBridge web app, backed by Shiny.Net.Http — queue, list, pause, resume and cancel transfers into and out of the files bridge's roots, with progress events and completion handlers that run in the page or background.js. One call: bridge.AddHttpTransfersBridge().</Description>
+    <Description>Background HTTP uploads and downloads for a Shiny.AppDeviceBridge web app, backed by Shiny.Net.Http — queue, list, pause, resume and cancel transfers into and out of the files bridge's roots, with progress events and completion handlers that run in the page. One call: bridge.AddHttpTransfersBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>

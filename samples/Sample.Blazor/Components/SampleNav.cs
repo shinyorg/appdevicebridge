@@ -17,7 +17,7 @@ public static class SampleNav
             new NavItem("sensors", "Sensors", "pulse", "sensors"),
             new NavItem("biometrics", "Biometrics", "fingerprint", "biometrics"),
             new NavItem("desktop", "Desktop", "monitor", "tray", "quickentry"),
-            new NavItem("background", "Background", "clock", "invoke")),
+            new NavItem("native-calls", "Native calls", "clock", "invoke")),
         new("Location",
             new NavItem("location", "Location", "pin", "gps", "geofences", "motion"),
             new NavItem("map", "Maps", "pin", "maps", "directions")),

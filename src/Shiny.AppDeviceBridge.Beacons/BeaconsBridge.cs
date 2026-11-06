@@ -36,8 +36,8 @@ namespace Shiny.AppDeviceBridge.Beacons;
 /// handlers: beacon
 /// </code>
 /// Ranging needs a <c>beacons.ranged</c> listener and an Eddystone scan a <c>beacons.eddystone</c> one; when the last
-/// listener of either leaves, every ranged region or the scan stops. Monitoring carries on without a page:
-/// <see cref="WebAppBeaconMonitorDelegate"/> hands its transitions to background.js.
+/// listener of either leaves, every ranged region or the scan stops. Monitoring carries on without a page, and the
+/// app's own Shiny beacon monitor delegate receives its transitions.
 /// </summary>
 public sealed class BeaconsBridge : IWebAppBridge, IDisposable
 {
@@ -555,8 +555,7 @@ public sealed class BeaconsBridge : IWebAppBridge, IDisposable
 
 /// <summary>
 /// Forwards beacon region transitions to the page as <c>beacons.region</c> events, and calls the web app's
-/// <c>beacon</c> handler with <c>{ identifier, state }</c> — the page if it is listening, background.js otherwise — which
-/// is how a transition that wakes the app in the background reaches web code. <see cref="BeaconsBridgeExtensions.AddBeaconsBridge"/>
+/// <c>beacon</c> handler with <c>{ identifier, state }</c> while the page is open and listening. <see cref="BeaconsBridgeExtensions.AddBeaconsBridge"/>
 /// registers it; subclass it to do more with a transition, or call <see cref="Publish"/> from a delegate of your own.
 /// </summary>
 public class WebAppBeaconMonitorDelegate(WebAppEventHub events, WebAppInvoker invoker) : Native.IBeaconMonitorDelegate

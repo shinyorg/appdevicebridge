@@ -68,6 +68,20 @@ public class QuickEntryTests
         Assert.Contains("10 characters", bridge.Validate(new QuickEntryPromptInput(Response: "far too long for this")));
     }
 
+    [Fact]
+    public async Task Native_code_sets_the_prompt_under_the_same_rules_as_the_page()
+    {
+        var services = new ServiceCollection()
+            .AddSingleton(new QuickEntryBridgeOptions { MaxTextLength = 10 })
+            .BuildServiceProvider();
+        var bridge = new QuickEntryBridge(services);
+
+        // Native code gets the page's 400 as an exception, and a 501 as PlatformNotSupportedException.
+        var invalid = await Assert.ThrowsAsync<ArgumentException>(() => bridge.SetPromptAsync(new QuickEntryPromptInput(Response: "far too long for this")));
+        Assert.Contains("10 characters", invalid.Message);
+        await Assert.ThrowsAsync<PlatformNotSupportedException>(() => bridge.SetPromptAsync(new QuickEntryPromptInput(Response: "ok")));
+    }
+
     /// <summary>What survives a window that rebuilds its prompt on every open, and how the page clears things.</summary>
     [Fact]
     public void Remembers_what_the_page_set_and_clears_on_empty()

@@ -32,6 +32,7 @@ public static class TrayIconBridgeExtensions
 
         bridge.Maui.UseShinyDesktop();
         bridge.Services.TryAddSingleton(options);
+        bridge.Services.TryAddSingleton<TrayPresence>();
         bridge.AddBridge<TrayIconBridge>();
         return bridge;
     }
@@ -58,8 +59,8 @@ public static class TrayIconBridgeExtensions
 /// </code>
 /// <para>
 /// A tray icon outlives the page that made it, which is the point — the menu still works with the window
-/// closed. So clicks go out as events <em>and</em> as calls the web app handles in the page when it is open
-/// and in <c>background.js</c> when it is not, the same way notification taps and jobs do. And so a page
+/// closed — and while the icon is there the app and its page are running, so the page handles its clicks: they go out
+/// as events <em>and</em> as calls to the page's handlers. And so a page
 /// should claim an icon by name with <c>PUT /_bridge/tray/main</c> rather than <c>POST /_bridge/tray</c>:
 /// the first call creates it and a reload adopts the same one instead of stacking up another.
 /// </para>
@@ -70,6 +71,7 @@ public sealed partial class TrayIconBridge : IWebAppBridge, IDisposable
     readonly WebAppFileRoots? fileRoots;
     readonly TrayIconBridgeOptions options;
     readonly WebAppInvoker? invoker;
+    readonly TrayPresence? presence;
     readonly WebAppEventSource<TrayClick> clicks = new();
     readonly WebAppEventSource<TrayMenuSelection> menuSelections = new();
 
@@ -85,6 +87,7 @@ public sealed partial class TrayIconBridge : IWebAppBridge, IDisposable
         this.fileRoots = services.GetOptionalService<WebAppFileRoots>();
         this.options = services.GetOptionalService<TrayIconBridgeOptions>() ?? new TrayIconBridgeOptions();
         this.invoker = services.GetOptionalService<WebAppInvoker>();
+        this.presence = services.GetOptionalService<TrayPresence>();
     }
 
     const string ClickEvent = "tray.click";
@@ -163,7 +166,10 @@ public sealed partial class TrayIconBridge : IWebAppBridge, IDisposable
         {
             var id = context.Request.RouteValues["id"] ?? String.Empty;
             if (this.icons.Remove(id, out entry))
+            {
                 await MainAsync(entry.Dispose);
+                this.UpdatePresence();
+            }
         }
         finally
         {
@@ -188,6 +194,7 @@ public sealed partial class TrayIconBridge : IWebAppBridge, IDisposable
         {
             TrayEntry[] entries = [.. this.icons.Values];
             this.icons.Clear();
+            this.UpdatePresence();
 
             await MainAsync(() =>
             {
@@ -413,6 +420,7 @@ public sealed partial class TrayIconBridge : IWebAppBridge, IDisposable
             });
 
             this.icons[entry.Id] = entry;
+            this.UpdatePresence();
 
             await WebAppBridgeResults.Json(
                 context,
@@ -479,8 +487,7 @@ public sealed partial class TrayIconBridge : IWebAppBridge, IDisposable
         => this.Raise(this.menuSelections, MenuEvent, new TrayMenuSelection(id, itemId, label, isChecked), TrayJsonContext.Default.TrayMenuSelection);
 
     /// <summary>
-    /// Published to whatever listens for the event, and called on the web app so <c>background.js</c> can act on
-    /// it when the window is closed — which is when a tray menu earns its keep.
+    /// Published to whatever listens for the event, and called on the page so its handler can act on it.
     /// </summary>
     void Raise<T>(WebAppEventSource<T> source, string name, T payload, JsonTypeInfo<T> typeInfo)
     {
@@ -501,6 +508,9 @@ public sealed partial class TrayIconBridge : IWebAppBridge, IDisposable
             // Raised from a native click handler: nothing here is worth taking the app down for.
         }
     }
+
+    /// <summary>For the window bridge, which hides the window only while an icon is left to bring it back. Under the gate.</summary>
+    void UpdatePresence() => this.presence?.Set(this.icons.Values.Count(x => x.Icon.IsVisible));
 
     string NextIconId()
     {
@@ -575,6 +585,7 @@ public sealed partial class TrayIconBridge : IWebAppBridge, IDisposable
             this.disposed = true;
             entries = [.. this.icons.Values];
             this.icons.Clear();
+            this.UpdatePresence();
         }
         finally
         {

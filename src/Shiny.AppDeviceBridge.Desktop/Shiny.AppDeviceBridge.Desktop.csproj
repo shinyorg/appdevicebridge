@@ -1,18 +1,38 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- net10.0 only: UseTrayIcon has the same signature on every target, so each head's own platform build
-         of Shiny.Maui.Controls.Desktop supplies the factory — NSStatusItem on the macOS AppKit and Mac
-         Catalyst builds, Shell_NotifyIcon on Windows, ayatana-appindicator on the plain net10.0 one. -->
+    <!-- Cleared: src/Directory.Build.props sets the single target. -->
+    <TargetFramework></TargetFramework>
+
+    <!-- One build per desktop head, for the window bridge's platform code: the AppKit head picks net10.0-macos, Windows its
+         own, and plain net10.0 serves the maui-labs GTK4 head (and answers unsupported anywhere else). Mac Catalyst has its
+         own build so the tray keeps working there; its window answers 501. Each build takes the matching build of
+         Shiny.Maui.Controls.Desktop for the tray and quick entry. -->
+    <TargetFrameworks>net10.0;net10.0-maccatalyst;net10.0-macos</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-macos'))">14.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
+
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.Desktop</RootNamespace>
-    <Description>Desktop bridges for a Shiny.AppDeviceBridge app, backed by Shiny.Maui.Controls.Desktop: system tray and menu bar icons the page owns (menus, badges, notifications, animation), and quick entry — a prompt window that opens over other applications from a global hotkey, with suggestions, a response area and a screen-edge glow. What the user does goes to the page, or to background.js with the window closed. Desktop only: macOS (AppKit and Catalyst), Windows and Linux. bridge.AddTrayIconBridge().AddQuickEntryBridge().</Description>
+    <Description>Desktop bridges for a Shiny.AppDeviceBridge app, backed by Shiny.Maui.Controls.Desktop: system tray and menu bar icons the page owns (menus, badges, notifications, animation), quick entry — a prompt window that opens over other applications from a global hotkey, with suggestions, a response area and a screen-edge glow — and the app's window, hidden to run in the tray with no taskbar or Dock entry. What the user does goes to the page. Desktop only: macOS (AppKit and Catalyst), Windows and Linux; the window bridge is not on Catalyst. bridge.AddTrayIconBridge().AddQuickEntryBridge().AddWindowBridge(o => o.HideOnClose = true).</Description>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
     <PackageReference Include="Shiny.Maui.Controls.Desktop" />
+  </ItemGroup>
+
+  <!-- GTK, which the maui-labs Linux head already carries, for hiding its window. Only called on Linux. -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <DefineConstants>$(DefineConstants);DESKTOP_LINUX</DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="GirCore.Gtk-4.0" />
   </ItemGroup>
 
   <ItemGroup>

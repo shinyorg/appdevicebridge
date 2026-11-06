@@ -218,10 +218,6 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
     /// <summary>The dev server pages are coming from, when <see cref="WebAppHostOptions.DevServer"/> answered at startup.</summary>
     public Uri? DevServer => this.devServer;
 
-    internal WebAppSession Session => this.session;
-
-    internal WebAppFileSource Source => this.source;
-
     /// <summary>
     /// Makes a build servable without starting anything else — for a background wake-up, where there is no
     /// WebView and an update check would only spend the few seconds the OS allowed.
@@ -241,19 +237,6 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
         {
             this.gate.Release();
         }
-    }
-
-    /// <summary>
-    /// The loopback origin, for background script calls to the bridge: starts the server without the UI or an
-    /// update check, and restarts it if a suspension took the socket.
-    /// </summary>
-    internal async Task<Uri> EnsureServerAsync(CancellationToken cancellationToken)
-    {
-        if (this.server.Origin is not null)
-            await this.server.EnsureRunningAsync(cancellationToken).ConfigureAwait(false);
-
-        await this.EnsureActivatedAsync(cancellationToken).ConfigureAwait(false);
-        return await this.server.StartAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<Uri> StartAsync(CancellationToken cancellationToken = default)
@@ -563,8 +546,7 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
 
     void OnInstalledInBackground(WebAppPackage package, UpdateInfo update)
     {
-        // Not started — a background wake-up, where only background.js was activated: the next launch picks the installed
-        // build up by itself.
+        // Not started — a background wake-up with no WebView: the next launch picks the installed build up by itself.
         if (this.Status.State != WebAppHostState.Ready || this.source.Package is not { } active || package.Version <= active.Version)
             return;
 
@@ -953,18 +935,6 @@ public sealed partial class WebAppHost : IAppDeviceBridgeServerExtension, IWebAp
             .Replace("wss://localhost:", $"wss://{host}:", StringComparison.Ordinal)
             .Replace("ws://127.0.0.1:", $"ws://{host}:", StringComparison.Ordinal)
             .Replace("wss://127.0.0.1:", $"wss://{host}:", StringComparison.Ordinal);
-
-    /// <summary>A file from the dev server, for background.js in development. Null when there is none.</summary>
-    internal async Task<string?> ReadDevServerFileAsync(string path, CancellationToken cancellationToken)
-    {
-        if (this.devServer is not { } dev)
-            return null;
-
-        using var response = await this.DevClient.GetAsync(new Uri(dev, path), cancellationToken).ConfigureAwait(false);
-        return response.IsSuccessStatusCode
-            ? await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)
-            : null;
-    }
 
     void SetStatus(WebAppHostStatus status)
     {

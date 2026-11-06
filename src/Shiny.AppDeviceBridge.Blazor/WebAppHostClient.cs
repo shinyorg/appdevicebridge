@@ -209,17 +209,14 @@ public sealed class WebAppEvents(IJSRuntime js) : IAsyncDisposable
 }
 
 /// <summary>
-/// Handles native calls — <c>job:{name}</c>, <c>gps</c>, <c>geofence</c>, <c>push.received</c> — in C# while the page
-/// is open. When it is not, the host runs the same names in background.js instead. Payloads are each bridge's contracts,
+/// Handles native calls — <c>gps</c>, <c>geofence</c>, <c>push.received</c> — in C# while the page is open. With no page
+/// open nothing here runs. Payloads are each bridge's contracts,
 /// read through their source-generated metadata:
 /// <code>
 /// await nativeCalls.HandleAsync("gps", GpsJsonContext.Default.GpsReading, reading => SaveAsync(reading));
 ///
-/// await nativeCalls.HandleAsync("job:sync", AppDeviceBridgeJsonContext.Default.JobRun, MyJson.Default.SyncResult, async job =>
-/// {
-///     await SyncAsync();
-///     return new SyncResult(RanIn: "page");
-/// });
+/// await nativeCalls.HandleAsync("wearables.message", WearablesJsonContext.Default.WearableMessage, MyJson.Default.WatchReply, async message =>
+///     new WatchReply(await AnswerAsync(message.Path)));
 /// </code>
 /// <para>
 /// The call is accepted before the handler runs, so returning takes as long as the work does; the host allows
@@ -232,7 +229,7 @@ public sealed class WebAppNativeCalls(IJSRuntime js) : IWebAppNativeCalls, IAsyn
     DotNetObjectReference<WebAppNativeCalls>? self;
     IJSObjectReference? module;
 
-    /// <summary>A call whose result goes back to the host — what a job reports, for one.</summary>
+    /// <summary>A call whose result goes back to the host — the reply a watch gets, for one.</summary>
     public Task<IAsyncDisposable> HandleAsync<TPayload, TResult>(
         string name,
         JsonTypeInfo<TPayload> payloadType,

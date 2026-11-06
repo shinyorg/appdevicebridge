@@ -38,7 +38,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | Package | Use it in | What it does |
 | --- | --- | --- |
 | `Shiny.AppDeviceBridge.Maui` | the app | `UseAppDeviceBridge(bridge => …)`: `AddShinyHttpServer` with the bridges on it, started with the app and restarted on resume; `MauiAppDeviceBridgeBuilder`, which the MAUI bridges extend; it also calls `UseShiny()`, registers Shiny's battery and connectivity, and supplies the app's UI thread; `AddDeviceBridge()` — browser, maps, share, haptics and vibration, keep-awake and clipboard — and `AddSensorsBridge()` — accelerometer, gyroscope, magnetometer, compass, barometer and orientation — over .NET MAUI Essentials; `UseTrafficMonitor` and `TrafficMonitorPage` for debugging |
-| `Shiny.AppDeviceBridge.WebView` | the app | `UseAppDeviceBridge(bridge => …, webApp => …)`, `WebAppHostView`, `WebAppHostPage`, `AllowWebPermissions`: the web app in a WebView, over-the-air updates, the dev server proxy, the launch session and `background.js` |
+| `Shiny.AppDeviceBridge.WebView` | the app | `UseAppDeviceBridge(bridge => …, webApp => …)`, `WebAppHostView`, `WebAppHostPage`, `AllowWebPermissions`: the web app in a WebView, over-the-air updates, the dev server proxy, and the launch session |
 | `Shiny.AppDeviceBridge.Blazor` | the Blazor WebAssembly app | `AddWebAppHostClient()`: the page's transport, typed clients for the built-in bridges (`IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge`), `WebAppEvents`, `WebAppNativeCalls` (typed C# handlers for jobs, GPS, geofences and push), and `WebAppBridge` for endpoints of your own |
 | `Shiny.AppDeviceBridge.Client` | (dependency) | the typed-client foundation: `IBridgeTransport`, `BridgeException`, the `[BridgeClient]` attributes and the generator that implements them, and the built-in bridges' contracts |
 | `Shiny.AppDeviceBridge.{Bridge}.Client` | the web app | one per bridge: its contracts and typed client — `ICalendarBridge`, `IWifiBridge`, … — registered with `Add{Bridge}BridgeClient()` |
@@ -60,12 +60,11 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Discovery` | the app | `AddDiscoveryBridge(DiscoveryProtocols.All)`: mDNS/Bonjour, SSDP/UPnP, WS-Discovery search, browse, resolve and publish |
 | `Shiny.AppDeviceBridge.Hubs` | the app | `AddHubsBridge(server => server.AllowDynamicHubs(…))`: Universal Hubs over BLE, Wi-Fi and Multipeer whose logic lives in the web app, so it ships with a web app update |
 | `Shiny.AppDeviceBridge.Hubs.Client` | the page | `IHubsBridge`, and `WebAppHub` + `AddWebAppHub<THub>(…)` to write a hub's methods in C# |
-| `Shiny.AppDeviceBridge.Jobs` | the app | `AddWebAppJob(name, configure)`: background jobs handled by the page or `background.js` |
 | `Shiny.AppDeviceBridge.AutoUpdate` | the app | `AddWebAppAutoUpdate()`: web app updates while the app is closed, from a Shiny.Jobs check and Shiny.Net.Http background transfers, verified and served next launch |
 | `Shiny.AppDeviceBridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
-| `Shiny.AppDeviceBridge.Wearables` | the app | `AddWearablesBridge()`: the companion Apple Watch or Wear OS app, through Shiny.Wearables — status, live messages the page or `background.js` answers, shared context, queued transfers and files through the file roots (iOS and Android; `501` elsewhere) |
-| `Shiny.AppDeviceBridge.LiveActivities` | the app | `AddLiveActivitiesBridge()`: iOS Live Activities and Android 16 Live Updates, through Shiny.Mobile.LiveActivities — start, update and end them from the page, with their push tokens handed to the page or `background.js` (iOS and Android; `501` elsewhere) |
-| `Shiny.AppDeviceBridge.InAppPurchases` | the app | `AddInAppPurchasesBridge()`: App Store (StoreKit 2) and Google Play Billing purchases, through Shiny.Mobile.InAppPurchases — products, the store's purchase sheet, entitlements, finishing, restores and subscription management, with purchase updates handed to the page or `background.js` (iOS and Android; `501` elsewhere) |
+| `Shiny.AppDeviceBridge.Wearables` | the app | `AddWearablesBridge()`: the companion Apple Watch or Wear OS app, through Shiny.Wearables — status, live messages the page answers, shared context, queued transfers and files through the file roots (iOS and Android; `501` elsewhere) |
+| `Shiny.AppDeviceBridge.LiveActivities` | the app | `AddLiveActivitiesBridge()`: iOS Live Activities and Android 16 Live Updates, through Shiny.Mobile.LiveActivities — start, update and end them from the page, with their push tokens handed to the page (iOS and Android; `501` elsewhere) |
+| `Shiny.AppDeviceBridge.InAppPurchases` | the app | `AddInAppPurchasesBridge()`: App Store (StoreKit 2) and Google Play Billing purchases, through Shiny.Mobile.InAppPurchases — products, the store's purchase sheet, entitlements, finishing, restores and subscription management, with purchase updates handed to the page (iOS and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.GameCenter` | the app | `AddGameCenterBridge(o => o.AddAchievement(…).AddLeaderboard(…))`: Apple Game Center and Google Play Games, through Shiny.GameCenter — sign-in, achievements, leaderboards, friends and the services' own UI, with unlocks and scores queued on the device while offline (Apple platforms and Android; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.CallDirectory` | the app | `AddCallDirectoryBridge()`: call blocking and caller identification, through Shiny.Mobile.CallDirectory — the page keeps the list of numbers to block, label or allow, and iOS's Call Directory extension or Android's call screening applies it (iOS and Android 10+; `501` elsewhere) |
 | `Shiny.AppDeviceBridge.AgeSignals` | the app | `AddAgeSignalsBridge()`: the user's age range as the app store shares it, through Shiny.AgeSignals — Apple Declared Age Range and Google Play Age Signals, for app store accountability laws such as Texas SB 2420 |
@@ -92,12 +91,12 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Photos` | the app | `AddPhotosBridge()`: the system photo picker, and the photo library — pages, thumbnails and full-size exports — as files in a file root |
 | `Shiny.AppDeviceBridge.Folders` | the app | `AddFoldersBridge()`: the platform's folder picker, and `FolderRoots` for folders the app adds by path — each remembered as a file root across launches |
 | `Shiny.AppDeviceBridge.Database` | the app | `AddDatabaseBridge()`: a database client over SQLite files in the file roots — schema, scripts with cancel and query plans, an editable datasheet, table design, CSV import and export, and query history; other engines plug in as `IDatabaseDriver`s (all platforms) |
-| `Shiny.AppDeviceBridge.Desktop` | the app | `AddTrayIconBridge()`: system tray / menu bar icons, menus, badges, notifications and animation. `AddQuickEntryBridge()`: a prompt window that opens over other applications from a global hotkey. Both hand what the user does back to the web app |
+| `Shiny.AppDeviceBridge.Desktop` | the app | `AddTrayIconBridge()`: system tray / menu bar icons, menus, badges, notifications and animation. `AddQuickEntryBridge()`: a prompt window that opens over other applications from a global hotkey. `AddWindowBridge()`: hide the app's window to run in the tray, with no taskbar or Dock entry. All hand what the user does back to the web app |
 | `Shiny.AppDeviceBridge.RpiCamera` | the app, or a headless Pi | `bridge.AddRpiCameraBridge()`, on a MAUI or headless bridge builder: Raspberry Pi cameras through libcamera — snapshots, captures into a file root, sensor controls and a shared live MJPEG stream; `camera.StreamToAsync(stream)` streams framed JPEGs into any `Stream`, such as a Bluetooth LE L2CAP channel, for `ReadFramesAsync` to read |
 
 AppLinks, ShareTarget, Camera, Barcodes, Photos, Folders and Desktop need MAUI: they reference
 `Shiny.AppDeviceBridge.Maui` and do their own MAUI registration. The rest — BluetoothLE, Beacons, Obd, Printers, Printing, Discovery, Hubs, Wifi,
-HttpTransfers, Database, Jobs, Gps, Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, AgeSignals, Biometrics, Nfc, Vpn, Speech, Audio, AiConversation, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
+HttpTransfers, Database, Gps, Geofencing, RegionGeofencing, Notifications, Push, Wearables, LiveActivities, InAppPurchases, GameCenter, CallDirectory, AgeSignals, Biometrics, Nfc, Vpn, Speech, Audio, AiConversation, ScreenRecorder, Calendar, Contacts, Health, RpiCamera and Tunnel — reference
 only `Shiny.AppDeviceBridge`, so they also run without MAUI, on a headless device.
 
 ## The app
@@ -268,7 +267,6 @@ and shows it in `WebAppHostView`. One delegate registers the bridges alone; a se
 | `OnPrepareResponse` | none | Headers for each file of the web app, after the host's own: a cache policy for the network, a security header. |
 | `ContentTypeOverrides` | empty | Content types by extension (`.bcmap`, `.pfb`, …) for files the built-in map doesn't know. |
 | `Variants(...)`, `SelectVariant` | none | Several builds in one package at the same URLs, chosen per request. See [Client variants](#client-variants). |
-| `BackgroundScript` | `background.js` | What takes native calls with no page open. |
 
 ### Mount points
 
@@ -348,8 +346,7 @@ builder.UseAppDeviceBridge(bridge => { … }, webApp =>
   own. To switch a browser to the other build, set your cookie and reload. Every response carries
   `Vary: User-Agent, Sec-CH-UA-Mobile, Cookie`, and the entry document `Accept-CH: Sec-CH-UA-Mobile`.
 - **Wrong answers are not errors.** Null, an unknown name or an exception serves the default variant, and logs a warning once.
-- **The WebView goes through the selector too.** `background.js` comes from the default variant, and the dev server
-  serves one build.
+- **The WebView goes through the selector too.** The dev server serves one build.
 
 Zipping two publishes into one release:
 
@@ -728,6 +725,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Folders | `GET folders`, `POST folders/pick`, `DELETE folders/{root}` | |
 | Database | `GET database/connections`, `POST database/databases`, `POST database/{create,schema,query,query/cancel,value,object}`, `POST database/rows{,/count,/totals,/insert,/update,/delete}`, `POST database/design/preview`, `POST database/import{,/preview}`, `POST database/export`, `POST database/{history,history/clear,saved,saved/save}`, `DELETE database/saved/{id}` | |
 | Tray icon | `GET/POST/DELETE tray`, `GET/PUT/DELETE tray/{id}`, `PUT/DELETE tray/{id}/menu`, `POST tray/{id}/menu/show`, `POST tray/{id}/notification`, `PUT/DELETE tray/{id}/animation` | `tray.click`, `tray.menu` |
+| Window | `GET window`, `POST window/{show,hide,quit}` | `window.visibility` |
 | Quick entry | `GET quickentry`, `PUT quickentry/options`, `POST quickentry/{show,hide,toggle}`, `GET/PUT quickentry/prompt`, `POST quickentry/prompt/reset`, `POST quickentry/glow/{show,hide,pulse}` | `quickentry.submitted`, `quickentry.suggestion`, `quickentry.cancelled`, `quickentry.microphone`, `quickentry.opened`, `quickentry.closed` |
 | Barcodes | `GET barcodes`, `POST/DELETE barcodes/scan` | `barcodes.detected` |
 | Device camera | `GET camera`, `POST camera/access`, `POST camera/open`, `POST camera/close`, `POST camera/photo`, `POST/DELETE camera/recording`, `PUT camera/settings`, `GET camera/preview` (MJPEG) | `camera.status` |
@@ -774,7 +772,7 @@ await fetch(`/_bridge/events/${streamId}`, { method: "PUT", body: JSON.stringify
   a Discovery browse, dictation and each sensor stop once nothing listens to their events any more. Starting one of the
   first five without a listener answers `409` `not_listening`, so subscribe first. The client methods resolve once the host is
   delivering the event, so `await` the subscription and then start. GPS and motion listeners keep running without a
-  page, because background.js receives their readings too.
+  page, because the app's own Shiny delegates can receive their readings too.
 - **`bridge.stream`** comes first on every connection, including an automatic reconnect, and carries the id that
   `PUT /_bridge/events/{id}` with `{ "topics": [...] }` takes. It replaces the stream's topics, and names nothing
   maps yet are kept for when something does. At most 64.
@@ -809,8 +807,8 @@ Android; the Access Wi-Fi Information and Hotspot Configuration entitlements on 
 
 **Hubs** (`Shiny.AppDeviceBridge.Hubs`, added by `AddHubsBridge(server => …)`): Universal Hubs the web app defines,
 starts and answers. The app serves them over BLE, Wi-Fi and Multipeer on its own server; other devices connect with an
-ordinary Universal Hubs client, and every call reaches the web app as the native call `hub:{name}` — the page while it's
-open, otherwise `background.js` — so a hub's behavior updates with the web app.
+ordinary Universal Hubs client, and every call reaches the web app as the native call `hub:{name}`, answered by the page while
+it's open.
 - **The app fixes what hubs may use**, because the platforms fix it at build time: `server.AllowDynamicHubs(o =>
   o.ServiceTypes.Add("_myapp._tcp"))` (iOS lists each in `NSBonjourServices`) and how many (`MaxHubs`, 6). The configure
   callback is Universal Hubs' `AddUniversalServer` builder, so compiled hubs can sit beside the web app's.
@@ -880,7 +878,7 @@ GeocoderRegionLevel.AdministrativeArea)`), from documents in a Shiny.DocumentDb 
 by containment, points by proximity with `withinMeters:`), from its US and Canadian dataset (`cfg.AddNorthAmericanRegions()`,
 `cfg.AddNorthAmericanCities()`), or from your own `IRegionSource`. A document store is yours to register, with each
 region type's geometry mapped. The page starts and stops monitoring and reads the region the device is in for each set.
-Each change, as `regiongeofence.change` or background.js's `regiongeofence`, carries the region: a geocoder set's
+Each change, as `regiongeofence.change` or a call to the page's `regiongeofence` handler, carries the region: a geocoder set's
 placemark as is, anything else through `o.RegionSerializerOptions` metadata (usually the store's `JsonSerializerOptions`)
 and never by reflection, so without it a document's `region` is `null`. `start` returns `409` without background
 location. It shares Shiny.Gps' one listener with the GPS bridge, so stopping that listener stops monitoring too.
@@ -896,8 +894,8 @@ feature's access.
   bucket. Listen first: without a listener it answers `409`. Several regions can range at once, and all of them stop
   once nothing listens. Ranging is a foreground activity.
 - **Monitoring:** `POST beacons/regions` watches a region for enter and exit, in the background and across restarts.
-  Transitions arrive as `beacons.region` while a page is open, and at the `beacon` handler otherwise. Without
-  permission it answers `409`.
+  Transitions arrive as `beacons.region` while a page is open; with no page, handle them in the app's own Shiny
+  beacon delegate. Without permission it answers `409`.
 - **Eddystone:** `POST beacons/eddystone` sends UID, URL, TLM and EID frames as `beacons.eddystone`, one flat shape
   with `frameType` saying which fields are set. It needs a listener too.
 - **Broadcasting:** `POST beacons/broadcast/ibeacon`, `…/eddystone-uid` or `…/eddystone-url` starts advertising and
@@ -1095,8 +1093,8 @@ from `GET printing/printers` skips the dialog on Windows and CUPS. A sandboxed m
   length and proxy headers are refused. At most `MaxTransfers` (32) are queued at once.
 - **Ownership:** the page only lists and cancels its own transfers. `DELETE /_bridge/transfers` leaves the native
   app's transfers running.
-- **Finishing in the background:** `transfer.completed` and `transfer.failed` reach the page, or background.js
-  when no page is open. Progress is an event only, at most every `ProgressInterval` (250 ms) per transfer.
+- **Finishing in the background:** `transfer.completed` and `transfer.failed` reach the page while it is open. To act
+  on a transfer that finishes with no page, register the app's own Shiny HTTP transfer delegate. Progress is an event only, at most every `ProgressInterval` (250 ms) per transfer.
 - **Platform setup:** Android needs `FOREGROUND_SERVICE_DATA_SYNC`. On iOS and Mac Catalyst, override
   `HandleEventsForBackgroundUrl` in the app delegate and pass it to
   `Shiny.Hosting.Host.Lifecycle.OnHandleEventsForBackgroundUrl`, or transfers that finish while the app is
@@ -1112,7 +1110,7 @@ so `myapp://orders/42` becomes `/orders/42`. An https link on a listed host keep
   link and removes it. Call it at boot and on each event, so a link is acted on exactly once.
 - **Cold start:** with `NavigateOnColdStart`, a link that launched the app becomes the first page loaded, and is
   consumed.
-- **Background:** links never go to `background.js`.
+- **Background:** links only ever reach a page.
 
 ```ts
 const links = new LinksBridge();
@@ -1143,7 +1141,7 @@ copied into a file root (`Root`, `data` by default) under `shares/{id}/`. To sha
   any other scheme stays `text`.
 - **Files:** at most `MaxFiles` (20) per share, each within `MaxFileWriteBytes`, with names cleaned to one path segment.
   One that can't be read is left out. Without the `Root` file root, the bridge answers `501`.
-- **Background:** shares never go to `background.js`.
+- **Background:** shares only ever reach a page.
 
 ```ts
 const shares = new ShareTargetBridge();
@@ -1369,8 +1367,8 @@ other platform answers `501`.
   The platform reads it while it transfers, so leave it until `wearables.completed`. Files from the watch are filed
   into `data/wearables/{id}/{name}` (`Root` and `Folder` options) and arrive as a `BridgeFile`.
 - **The watch calling the web app:** `wearables.message`, `wearables.context`, `wearables.transfer` and
-  `wearables.file` go to the page's handler, or `background.js` when no page is open — the platform wakes the app
-  for them. A `wearables.message` handler's return value is the reply the watch gets.
+  `wearables.file` go to the page's handler while it is open. A `wearables.message` handler's return value is the reply
+  the watch gets; with no page open, the app's own Shiny.Wearables delegate is what can answer.
 - **The companion app** speaks Shiny.Wearables' protocol (paths under `/shiny` on Wear OS, `path`/`data` dictionaries
   on watchOS). On Wear OS both apps share the application id and signing key.
 
@@ -1388,7 +1386,8 @@ through Shiny.Mobile.LiveActivities 5.9. iOS 16.2+ and Android only; every other
 - **Errors:** `404` for an id that isn't running, `400` without `content` or with progress outside 0–1, and `502`
   `live_activity_failed` when the system refuses — live activities switched off, or too many running.
 - **Push tokens:** `liveactivities.token` (one per activity) and `liveactivities.starttoken` (push-to-start, iOS 17.2+)
-  go to the page's handler, or `background.js` when no page is open, so the app's server always hears about them.
+  go to the page's handler while it is open. To make sure the app's server hears about tokens issued with no page open,
+  send them from the app's own native code too.
   `requestPushToken` defaults to true, and on iOS needs the `aps-environment` entitlement: without it the start fails
   with `502`. An app without push starts with `requestPushToken: false`.
 
@@ -1413,8 +1412,8 @@ the payment — this is not Apple Pay or Google Pay.
   Store (it may ask the user to sign in, so only from a button) and returns the entitlements. `POST purchases/manage`
   with `{ productId? }` opens the store's subscription screen.
 - **Updates:** `purchases.updated` carries a purchase that changed outside a purchase call — Ask to Buy approvals,
-  renewals, refunds (`state: "Revoked"`), purchases on another device. Shiny listens from launch, so it goes to the
-  page's handler or to `background.js` when no page is open. The same purchase can arrive more than once: key on
+  renewals, refunds (`state: "Revoked"`), purchases on another device. Shiny listens from launch; it goes to the
+  page's handler while it is open, and the app's own native code handles one that arrives with no page open. The same purchase can arrive more than once: key on
   `transactionId`. An app that already calls `AddInAppPurchases` keeps its own delegate; the bridge adds its own beside it.
 - **Errors:** the store's failures by `code`: `503` `store_unavailable` or `network`, `403` `not_allowed`, `404`
   `product_not_found`, `409` `product_unavailable`, `no_user_interface` or `invalid_state` (such as finishing a pending
@@ -1508,9 +1507,8 @@ macOS, the status notifier area on Linux — desktop only, `501` elsewhere.
   `"templateImage": true` for a black-with-alpha image macOS and Linux tint for light and dark menu bars.
 - **Menus:** each entry is `Item`, `Check`, `Separator` or `Submenu`, and its `id` is what comes back on
   `tray.menu`; omit it and one is assigned. Ids must be unique across the whole menu.
-- **Clicks reach the web app either way:** `tray.click` and `tray.menu` go out as events *and* as calls the
-  page handles when it is open and `background.js` handles when it is not — which is the case a tray menu
-  exists for. `tray.click` isn't raised on Linux, where the app indicator handles clicks itself and opens the
+- **Clicks reach the page:** `tray.click` and `tray.menu` go out as events *and* as calls to the page's handlers. The
+  app and its page are running whenever the icon is there, so the page handles them even with the window hidden. `tray.click` isn't raised on Linux, where the app indicator handles clicks itself and opens the
   menu on its own (so `menu/show` is a no-op there).
 - **Lifetime:** icons outlive the page and are removed when the app shuts down, or by
   `DELETE /_bridge/tray/{id}`. `MaxIcons` (4) caps how many exist at once.
@@ -1527,6 +1525,38 @@ await new TrayBridge().put("main", {
     ] }
 });
 ```
+
+**Window** (`Shiny.AppDeviceBridge.Desktop`, `AddWindowBridge(o => o.HideOnClose = true)`): runs the app as a tray app —
+no window and no taskbar or Dock entry, only its tray icon. The page keeps running while the window is hidden, so it
+still answers tray clicks and quick entry.
+
+```csharp
+bridge
+    .AddTrayIconBridge()
+    .AddWindowBridge(o =>
+    {
+        o.HideOnClose = true;                                                    // closing hides; Quit from the tray
+        o.StartHidden = Environment.GetCommandLineArgs().Contains("--autostart"); // a login launch lands in the tray
+    });
+```
+
+```ts
+// the tray menu's Open and Quit
+const windowBridge = new WindowBridge();
+await new TrayBridge().onMenu(async ({ itemId }) => {
+    if (itemId === "open") await windowBridge.show();
+    if (itemId === "quit") await windowBridge.quit();
+});
+```
+
+- **Hidden** means off the taskbar on Windows and Linux, and on macOS out of the Dock and the app switcher too (the app
+  becomes an accessory app until it's shown). The WebView stays loaded.
+- **Never stranded:** closing only hides, and `POST window/hide` is only accepted (otherwise `409` `no_tray_icon`),
+  while a tray icon from `AddTrayIconBridge` is showing. Turn that off with `o.RequireTrayIcon = false` for an app that
+  comes back another way, such as its own global hotkey.
+- **Quit:** `POST window/quit` answers, then quits the app.
+- **Platforms:** macOS (AppKit), Windows and Linux (GTK4). Mac Catalyst, Android and iOS report
+  `{ "supported": false }` and answer `501`.
 
 **Quick entry** (`Shiny.AppDeviceBridge.Desktop`, `AddQuickEntryBridge()`): Shiny's quick entry prompt as a borderless,
 always-on-top window that opens over other applications, in the style of Spotlight or a desktop assistant. The page
@@ -1546,9 +1576,9 @@ bridge.AddQuickEntryBridge(
 - **The prompt:** `PUT quickentry/prompt` sets the placeholder, suggestions (each with an optional `value` that comes
   back when it's chosen), `isBusy` with `busyText`, and `response`, the text shown under the entry. Only what you send
   changes; `""` clears the response and `[]` the suggestions. What you set survives a window that rebuilds its prompt.
-- **Answering:** `quickentry.submitted` goes out as an event *and* as a call the page handles when it's open and
-  `background.js` handles when it isn't, which is the usual case for a window summoned over other applications. Set
-  `isBusy`, do the work, then set `response`.
+- **Answering:** `quickentry.submitted` goes out as an event *and* as a call to the page's handler — the page is running
+  whenever quick entry is, even with the app's window hidden. Set `isBusy`, do the work, then set `response`. Native code sets them with
+  `QuickEntryBridge.SetPromptAsync(new QuickEntryPromptInput(Response: "…"))`.
 - **The glow:** `glow/show`, `glow/hide` and `glow/pulse` drive the colour wash around the screen's edge; the
   `glow` option lights it while the window is open or while the prompt is busy.
 - **Custom content:** if the app replaces the prompt through `QuickEntryOptions.ContentFactory`, the prompt routes
@@ -1891,47 +1921,45 @@ a complex type on a GET, a route token with no parameter — is build error `ADB
 
 ## Calling the web app from native code
 
-Background jobs, GPS readings, geofence transitions and pushes can call into the web app, whether or
-not a page is open.
+GPS readings, geofence transitions, pushes, notification taps, watch messages and other native events are handed to
+the page while it is open, so the web app can react to them.
 
-- **Page open and listening:** the call goes to the page. The page has 2 seconds to accept it, then
-  posts its result.
-- **No page, or the page doesn't accept in time:** the call runs in `background.js` from the web app's
-  zip, inside an embedded JavaScript engine ([Jint](https://github.com/sebastienros/jint)).
-- **Accepted by the page:** the page owns the call. A call is never run in both places.
+- **Page open and listening:** the call goes to the page. The page has 2 seconds to accept it, then posts its result.
+- **No page, or the page doesn't accept in time:** nothing in the web app runs, and the call is reported as not
+  handled. A page that misses the 2 seconds can't start the call late.
 
 ```csharp
 // in a Blazor page
-await nativeCalls.HandleAsync("job:sync", AppDeviceBridgeJsonContext.Default.JobRun, MyJson.Default.SyncResult, async job =>
-{
-    await SyncAsync();
-    return new SyncResult(RanIn: "page");
-});
+await nativeCalls.HandleAsync("gps", GpsJsonContext.Default.GpsReading, reading => SaveAsync(reading));
 ```
 
 ```js
 // in any other page
 import { on } from "/_bridge/invoke/client.js";
-on("job:sync", async ({ name }) => { /* ... */ });
+on("gps", async reading => { /* ... */ });
 ```
 
-```js
-// background.js: a classic script at the root of the zip
-appdevicebridge.on("job:sync", async ({ name }) => {
-    const token = await (await fetch("/_bridge/settings/secure/token")).json();
-    const data = await fetch("https://api.example.com/sync", { headers: { Authorization: `Bearer ${token}` } });
-    await fetch("/_bridge/files/data/content?path=sync.json", { method: "PUT", body: await data.text() });
-});
+**Background work is native code.** Anything that has to happen with the app in the background — logging GPS fixes,
+reacting to a geofence, a scheduled job, finishing a purchase — goes in the MAUI app the usual way: a Shiny delegate
+(`IGpsDelegate`, `IGeofenceDelegate`, `IPushDelegate`, …) or a Shiny `IJob`. Shiny runs every registered delegate, so
+yours runs alongside the bridge's, with or without a page open. Put logic the page and the native code share in a class
+library both reference.
+
+```csharp
+// in the app: registered next to AddGpsBridge(), runs whether or not a page is open
+services.AddGps<TripGpsDelegate>();
+
+sealed class TripGpsDelegate(TripStore trips) : IGpsDelegate
+{
+    public Task OnReading(GpsReading reading) => trips.AppendAsync(reading);
+}
 ```
 
-`background.js` gets `appdevicebridge.on`, `console` and `fetch` with string bodies. Relative URLs go to the
-host's own `/_bridge`, so handlers read and write the same settings and files the page uses. It has
-no DOM, no timers, and keeps no state between calls: each call runs the script's top level again,
-then the handler. It gets `BackgroundScriptTimeout` (25 s) and 64 MB.
+When only one side should act — a purchase to finish, a watch message to reply to — native code checks
+`WebAppInvoker.IsPageListening(name)`, or calls `InvokeAsync` itself and acts when the result isn't `Handled`.
 
 | Source | Handler | Registered by |
 | --- | --- | --- |
-| Background job | `job:{name}` with `{ name }` | `bridge.AddWebAppJob("sync", job => job.WithInternet(InternetAccess.Any))` (Bridge.Jobs) |
 | GPS reading delivered in the background | `gps` with a reading | `AddGpsBridge()` |
 | Geofence transition | `geofence` with `{ identifier, state }` | `AddGeofenceBridge()` |
 | Region geofence entered or left | `regiongeofence` with `{ regionSet, regionId, regionName, entered, latitude, longitude, region }` | `AddRegionGeofenceBridge(…)` (Bridge.RegionGeofencing) |
@@ -1947,11 +1975,6 @@ then the handler. It gets `BackgroundScriptTimeout` (25 s) and 64 MB.
 
 From your own native code, call `WebAppInvoker.InvokeAsync(name, payload, typeInfo)`.
 
-**Jobs:** the OS picks when jobs run: at best every 15 minutes on Android, less predictably on iOS.
-Jobs with the same charging and network requirements run together as one native job. On iOS, add
-`BGTaskSchedulerPermittedIdentifiers` (`com.shiny.job`, `com.shiny.jobnet`, `com.shiny.jobpower`,
-`com.shiny.jobpowernet`) and the `processing` background mode.
-
 **Push:** `AddPushBridge()` always adds `GET /_bridge/push` (access and token),
 `POST/DELETE /_bridge/push/registration` and `GET/PUT /_bridge/push/tags`, plus the `push.token` and
 `push.unregistered` events. Pushes only reach the web app when you set `DispatchToWebApp`. You still
@@ -1960,7 +1983,7 @@ need Shiny.Push's platform setup: APNs entitlements, and `google-services.json` 
 **Notifications:** `POST /_bridge/notifications/send` takes a `message` and optionally a `title`, `channel`,
 `thread`, `data`, and one trigger: `scheduleDate`, `repeat` (`{ "intervalSeconds": 3600 }` or
 `{ "timeOfDay": "09:00:00", "dayOfWeek": "Monday" }`), or `geofence` (`{ "latitude", "longitude", "radiusMeters" }`).
-It answers `{ "id": 7 }`. Sending needs no UI, so `background.js` can notify from a job or a geofence.
+It answers `{ "id": 7 }`. Sending needs no UI, so the page can notify from a geofence or push handler.
 
 - **Channels:** `POST notifications/channels` with `actions` — each an `identifier`, `title`, `actionType`
   (`TextReply`, `Destructive`, `OpenApp`, `None`) and `requiresUnlock`, which makes the user unlock the device before the
@@ -1983,10 +2006,8 @@ It answers `{ "id": 7 }`. Sending needs no UI, so `background.js` can notify fro
 
 **Blazor WebAssembly:** handlers registered from the page can be C#, through `WebAppNativeCalls` in Shiny.AppDeviceBridge.Blazor.
 Payloads are the bridges' own contracts — `GpsReading` for `gps`, `PushPayload` for `push.received`,
-`TransferInfo` for `transfer.completed` — read through their JSON contexts. The
-background path can't: Jint doesn't run WebAssembly, and a hidden WebView is exactly what iOS
-suspends. Write the background handler in JavaScript that stores its results through the bridge;
-the Blazor app reads them when it next opens.
+`TransferInfo` for `transfer.completed` — read through their JSON contexts. The app's native delegates
+can use the same contracts, so a Blazor app and its native host can share one library.
 
 ## App Store review
 
@@ -1994,7 +2015,8 @@ The downloaded content is HTML and JavaScript that runs in WebKit. Guideline 2.5
 3.3.1(B) of the Apple Developer Program License Agreement allow that, as long as updates don't change
 the app's primary purpose. Keep native capabilities in the binary (bridges ship with the app), ship a
 complete baseline, and use `minimumHostVersion` rather than shipping web features the installed app
-can't support.
+can't support. What runs with no page open is the app's own native code in the store build, so nothing
+downloaded is ever interpreted outside the WebView.
 
 ## Developing the web app with hot reload
 
@@ -2022,7 +2044,6 @@ without rebuilding it.
 - **Pages:** every request outside `/_bridge` and `/_host` is forwarded to the dev server. The page keeps
   its `http://127.0.0.1:5780` origin, so its bridge calls still reach the device.
 - **Not forwarded:** the session cookie never leaves the device, and no update check runs.
-- **`background.js`:** fetched fresh from the dev server on every call, so edits apply at once.
 
 **The hot reload socket:** `dotnet watch` tells the page to connect to `ws://localhost:<random port>`,
 and listens on your machine's loopback only. The host rewrites `localhost` to the dev server's host,
@@ -2093,7 +2114,7 @@ admits callers on this device holding that token, and only from this origin — 
 
 ## Samples
 
-- `samples/Sample.Blazor`: the web app, a Blazor WebAssembly app with a page for every bridge, a Media page for the camera, microphone and location through the WebView's own APIs, plus `wwwroot/background.js`.
+- `samples/Sample.Blazor`: the web app, a Blazor WebAssembly app with a page for every bridge, a Media page for the camera, microphone and location through the WebView's own APIs; its Native calls page lists what native code handed it.
 - `samples/Sample.App`: shared MAUI setup using every bridge package except the tray, which each desktop head adds for itself because its dependency is desktop-only. Sample.Blazor is published and zipped into it at build time (`-p:SkipWebAppBuild=true` skips that).
 - Heads:
   - `samples/Sample.Maui`: Android, iOS, Mac Catalyst and Windows.

@@ -190,11 +190,11 @@ The car can connect while the phone is locked and the phone's WebView was never 
 into only the car scene). So:
 
 - `car.connection`, `car.selected` and `car.popped` go through `WebAppInvoker` like the other native calls: the
-  page if one is handling calls, otherwise **`background.js`**. A background.js handler can call the car bridge
+  page if one is handling calls, otherwise **the app's native code**. Native code can call the car bridge
   back to push the next template. This is the default path for POI apps.
 - For navigation, the car map WebView is itself a page: it loads `mapPath`, joins the launch session and can act
   as the handling page for car events while it is alive.
-- Document the rule plainly: *car logic must work from background.js*; the phone page is optional.
+- Document the rule plainly: *car logic must work from the app's native code*; the phone page is optional.
 
 ## The map surface (Phase 2)
 
@@ -245,7 +245,7 @@ A fake `ICarScreen` behind the real server, as the other bridge tests do:
 - polymorphic template JSON round-trips through `CarJsonContext` (trim/AOT-safe — no reflection-based
   polymorphism)
 - `ManeuverKind` mapping tables for both platforms cover every value
-- `car.selected`/`car.popped`/`car.connection` go to the page when it handles calls and to background.js otherwise
+- `car.selected`/`car.popped`/`car.connection` go to the page when it handles calls and to the app's native code otherwise
 - routes need the bridge policy
 - `TypeScriptClientTests`: add the `.Client` project to `tools/Shiny.AppDeviceBridge.TypeScript`'s csproj, regenerate
   `clients/typescript/src`, commit
@@ -256,14 +256,14 @@ A fake `ICarScreen` behind the real server, as the other bridge tests do:
 
 ## Sample
 
-`Sample.Blazor` gets a "Car" page (status, a button to push a list of nearby places) plus a `background.js`
+`Sample.Blazor` gets a "Car" page (status, a button to push a list of nearby places) plus the app's native code in Sample.App
 handler that answers `car.selected` by pushing a detail pane — proving the phone page is optional. Phase 2 adds
 `/car/map` and a "navigate here" action that feeds a Directions route into `StartNavigationAsync`.
 
 ## Docs, skill, readme
 
 - Docs: new page `appdevicebridge/car.mdx` (templates, per-platform table, setup steps, store policy section,
-  the background.js rule) + sidebar entry in `astro.config.mjs`; security page note on the second WebView;
+  the app's native code rule) + sidebar entry in `astro.config.mjs`; security page note on the second WebView;
   `npx astro build`.
 - Release note under `## 1.0 TBD` (or whichever version is current when it lands): `<RN type="feature">` — Car
   bridge: CarPlay and Android Auto templates driven by the page; iOS and Android; 501 elsewhere. Phase 2 gets its

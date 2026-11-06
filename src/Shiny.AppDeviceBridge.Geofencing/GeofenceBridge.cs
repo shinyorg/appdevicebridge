@@ -158,9 +158,8 @@ public sealed class GeofenceBridge(IServiceProvider services) : IWebAppBridge
 /// <see cref="GeofenceBridgeExtensions.AddGeofenceBridge"/> registers it; subclass it to do more with
 /// a transition, or call <see cref="Publish"/> from a delegate of your own.
 /// <para>
-/// It also calls the web app's <c>geofence</c> handler with <c>{ identifier, state }</c> — the page if it
-/// is listening, background.js otherwise — which is how a transition that wakes the app in the background
-/// reaches web code.
+/// It also calls the page's <c>geofence</c> handler with <c>{ identifier, state }</c> while it is open and
+/// listening. A transition that wakes the app with no page open is the app's own Shiny geofence delegate to handle.
 /// </para>
 /// </summary>
 public class WebAppGeofenceDelegate(WebAppEventHub events, WebAppInvoker invoker) : IGeofenceDelegate

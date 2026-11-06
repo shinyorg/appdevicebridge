@@ -5,7 +5,7 @@ namespace Shiny.AppDeviceBridge.Desktop.Client;
 /// <summary>
 /// Quick entry: a prompt window that opens over other applications — from a global hotkey, a tray click or the page —
 /// in the style of Spotlight or a desktop assistant. The page configures the prompt, hears what is submitted, and writes
-/// the response back, and it keeps working with the app's own window closed: submissions also go to background.js.
+/// the response back. The page is running whenever quick entry is, so it answers even with the app's window hidden.
 /// Windows, macOS and Linux; Android and iOS fail with 501.
 /// </summary>
 [BridgeClient("quickentry", typeof(QuickEntryJsonContext))]
@@ -54,7 +54,7 @@ public interface IQuickEntryBridge
     [BridgePost("glow/pulse")]
     Task PulseGlowAsync(QuickEntryPulse pulse, CancellationToken cancellationToken = default);
 
-    /// <summary>The user submitted a prompt. Also delivered to background.js when no page is listening.</summary>
+    /// <summary>The user submitted a prompt.</summary>
     [BridgeEvent("quickentry.submitted")]
     Task<IAsyncDisposable> OnSubmittedAsync(Func<QuickEntrySubmission, Task> handler);
 

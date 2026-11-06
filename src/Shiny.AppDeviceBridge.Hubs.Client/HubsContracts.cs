@@ -107,8 +107,7 @@ public enum HubCallKind
 }
 
 /// <summary>
-/// What a hub asks the web app, as the native call <c>hub:{name}</c> — to the page while it is open, otherwise to
-/// background.js. Reply with a <see cref="HubCallReply"/>.
+/// What a hub asks the page, as the native call <c>hub:{name}</c>. Reply with a <see cref="HubCallReply"/>.
 /// </summary>
 /// <param name="Arguments">Each argument exactly as the caller serialized it.</param>
 /// <param name="StreamId">For <see cref="HubCallKind.Stream"/>: where its items go.</param>

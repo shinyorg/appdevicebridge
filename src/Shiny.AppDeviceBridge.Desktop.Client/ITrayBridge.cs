@@ -62,11 +62,11 @@ public interface ITrayBridge
     [BridgeDelete("{id}/animation")]
     Task StopAnimationAsync(string id, CancellationToken cancellationToken = default);
 
-    /// <summary>An icon was clicked. Also delivered to background.js when no page is listening.</summary>
+    /// <summary>An icon was clicked.</summary>
     [BridgeEvent("tray.click")]
     Task<IAsyncDisposable> OnClickAsync(Func<TrayClick, Task> handler);
 
-    /// <summary>A menu item was chosen. Also delivered to background.js when no page is listening.</summary>
+    /// <summary>A menu item was chosen.</summary>
     [BridgeEvent("tray.menu")]
     Task<IAsyncDisposable> OnMenuAsync(Func<TrayMenuSelection, Task> handler);
 }

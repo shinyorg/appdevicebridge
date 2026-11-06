@@ -85,18 +85,6 @@ public sealed class WebAppHostOptions
     /// </summary>
     public bool ApplyOptionalUpdatesImmediately { get; set; }
 
-    /// <summary>
-    /// The script that handles native calls — background jobs, GPS, geofences, push — when the page cannot:
-    /// a classic script (not a module) in the archive, registering handlers with <c>appdevicebridge.on(name, fn)</c>.
-    /// </summary>
-    public string BackgroundScript { get; set; } = "background.js";
-
-    /// <summary>
-    /// How long one run of <see cref="BackgroundScript"/> may take. iOS gives a geofence wake-up about ten
-    /// seconds and a background task about thirty, so the default fits inside the longer and a caller with
-    /// less time passes its own cancellation.
-    /// </summary>
-    public TimeSpan BackgroundScriptTimeout { get; set; } = TimeSpan.FromSeconds(25);
 
     /// <summary>
     /// Development only: a web server on the development machine — typically <c>dotnet watch</c> — to take pages
@@ -217,7 +205,6 @@ public sealed class WebAppHostOptions
     /// host's <c>Vary</c> header names. Null, an unknown name, or an exception serves the default variant.
     /// <para>
     /// The WebView goes through it too. Pages from the <see cref="DevServer"/> do not: there is one dev server.
-    /// <c>background.js</c> is read from the default variant.
     /// </para>
     /// </summary>
     public Func<HttpContext, string?>? SelectVariant { get; set; }
@@ -232,12 +219,6 @@ public sealed class WebAppHostOptions
             throw new InvalidOperationException("WebAppHostOptions.PageReadyTimeout must be positive.");
 
         ArgumentNullException.ThrowIfNull(this.Culture, nameof(this.Culture));
-
-        if (this.BackgroundScriptTimeout <= TimeSpan.Zero)
-            throw new InvalidOperationException("WebAppHostOptions.BackgroundScriptTimeout must be positive.");
-
-        if (String.IsNullOrWhiteSpace(this.BackgroundScript))
-            throw new InvalidOperationException("WebAppHostOptions.BackgroundScript is required.");
 
         foreach (var name in this.variantNames)
         {

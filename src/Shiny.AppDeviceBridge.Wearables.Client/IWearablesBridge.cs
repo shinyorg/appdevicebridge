@@ -53,7 +53,7 @@ public interface IWearablesBridge
     Task<IAsyncDisposable> OnStatusChangedAsync(Func<WearableStatus, Task> handler);
 
     /// <summary>
-    /// A live message arrived. To answer it, register a <c>wearables.message</c> handler instead (page or background.js):
+    /// A live message arrived. To answer it, register a <c>wearables.message</c> handler instead:
     /// what the handler returns is the reply.
     /// </summary>
     [BridgeEvent("wearables.message")]

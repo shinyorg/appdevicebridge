@@ -12,7 +12,7 @@ namespace Shiny.AppDeviceBridge.Tests;
 
 /// <summary>
 /// The region geofencing bridge over a fake Shiny.Geofencing.Regions manager: 501 without one, the registered region
-/// sets, start/stop and their refusals, where the device is, and changes reaching the page and background.js with the
+/// sets, start/stop and their refusals, where the device is, and changes reaching the page as events and handler calls with the
 /// region written through the configured JSON metadata — or Shiny's placemark for a geocoder set. The GPS-driven region
 /// evaluation itself is Shiny.Geofencing.Regions' and is tested there.
 /// </summary>
@@ -168,22 +168,25 @@ public class RegionGeofenceBridgeTests
     }
 
     [Fact]
-    public async Task The_delegate_hands_changes_to_background_js()
+    public async Task The_delegate_hands_changes_to_the_pages_handler()
     {
         await using var app = new TestApp();
-        var background = new RecordingBackground();
-        var invoker = new WebAppInvoker(app.BridgeOptions(), () => background);
+        var (host, invoker) = await FakePage.CreateHostAsync(app);
+        await using var _ = host;
+        await using var page = await FakePage.OpenAsync(host, "regiongeofence");
+
         var provider = new ServiceCollection().AddSingleton(new WebAppRegionGeofenceOptions()).BuildServiceProvider();
         var d = new WebAppRegionGeofenceDelegate(provider, new WebAppEventHub(), invoker);
 
         // An exit the source can no longer describe: no region object.
-        await d.OnRegionChanged(new Native.RegionChange("zones", "gone", null, null, false, new Native.Position(1, 2)));
+        var change = d.OnRegionChanged(new Native.RegionChange("zones", "gone", null, null, false, new Native.Position(1, 2)));
+        var (handler, payload) = await page.AnswerAsync(_ => null);
+        await change.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
-        var (handler, payload) = Assert.Single(background.Calls);
         Assert.Equal("regiongeofence", handler);
         Assert.Equal(
             new RegionChange("zones", "gone", null, false, 1, 2),
-            JsonSerializer.Deserialize(payload, RegionGeofencingJsonContext.Default.RegionChange)
+            payload.Deserialize(RegionGeofencingJsonContext.Default.RegionChange)
         );
     }
 
@@ -289,17 +292,6 @@ public class RegionGeofenceBridgeTests
 
         public Task<Native.RegionMatch?> GetRegion(string regionId, CancellationToken cancellationToken = default)
             => Task.FromResult<Native.RegionMatch?>(null);
-    }
-
-    sealed class RecordingBackground : IWebAppBackgroundInvoker
-    {
-        public List<(string Handler, string Payload)> Calls { get; } = [];
-
-        public Task<WebAppInvocationResult> InvokeAsync(string handler, string payloadJson, CancellationToken cancellationToken)
-        {
-            this.Calls.Add((handler, payloadJson));
-            return Task.FromResult(new WebAppInvocationResult(WebAppInvocationTarget.BackgroundScript, true));
-        }
     }
 }
 

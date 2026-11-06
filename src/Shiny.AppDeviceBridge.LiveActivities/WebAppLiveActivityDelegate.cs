@@ -5,8 +5,8 @@ namespace Shiny.AppDeviceBridge.LiveActivities;
 
 /// <summary>
 /// Turns what ActivityKit and Android report into page events and calls to the web app's <c>liveactivities.*</c>
-/// handlers — the page when it is listening, background.js otherwise — so a push token reaches the app's server even
-/// when it is issued with no page open.
+/// handlers while the page is open and listening. A push token issued with no page open is the native app's to send —
+/// <see cref="WebAppInvoker.IsPageListening"/> tells its own code whether the page takes them.
 /// <para>
 /// Subclass to keep some of it to the native app: override a member and call the base only for what the web app
 /// should see.

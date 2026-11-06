@@ -342,7 +342,7 @@ public class RegistrationTests
     public async Task WiresTheWebViewHostOntoTheServer()
     {
         await using var app = new TestApp();
-        app.Store.Add("1.0.0", TestApp.Zip("1.0.0", backgroundScript: """appdevicebridge.on("hello", () => "from script");"""));
+        app.Store.Add("1.0.0", TestApp.Zip("1.0.0"));
         await app.StartReleaseServerAsync();
 
         var services = new ServiceCollection();
@@ -395,10 +395,10 @@ public class RegistrationTests
         await webView.GetStringAsync(start);
         Assert.Contains("\"webAppVersion\":\"1.0.0\"", await webView.GetStringAsync(new Uri(start, "/_bridge/host")));
 
-        // background.js is what takes a native call no page is listening for.
-        var result = await provider.GetRequiredService<WebAppInvoker>().InvokeAsync("hello", "{}");
-        Assert.Equal(WebAppInvocationTarget.BackgroundScript, result.Target);
-        Assert.Equal("\"from script\"", result.ResultJson);
+        // The invoker is one of the server's bridges, and with no page listening a native call is simply not handled.
+        var invoker = provider.GetRequiredService<WebAppInvoker>();
+        Assert.Contains(server.Bridges, x => ReferenceEquals(x, invoker));
+        Assert.False((await invoker.InvokeAsync("hello", "{}")).Handled);
     }
 
     [Fact]
@@ -408,7 +408,7 @@ public class RegistrationTests
         services.AddShinyHttpServer(http => http.AddAppDeviceBridge(bridge => bridge.Configure(o => o.AppId = "bridges-only")), autoStart: false);
 
         await using var provider = services.BuildServiceProvider();
-        var result = await provider.GetRequiredService<WebAppInvoker>().InvokeAsync("job:sync", "{}");
+        var result = await provider.GetRequiredService<WebAppInvoker>().InvokeAsync("gps", "{}");
 
         Assert.False(result.Handled);
         Assert.Empty(provider.GetRequiredService<AppDeviceBridgeServer>().Extensions);

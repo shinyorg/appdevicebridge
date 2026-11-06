@@ -54,8 +54,7 @@ public interface ILiveActivitiesBridge
 
     /// <summary>
     /// The system issued or rotated the push token for one activity (iOS). Send it to your server: it is the only way to
-    /// update that activity remotely. Also handed to a <c>liveactivities.token</c> handler, so background.js can send it
-    /// when no page is open.
+    /// update that activity remotely. Also handed to a <c>liveactivities.token</c> handler.
     /// </summary>
     [BridgeEvent("liveactivities.token")]
     Task<IAsyncDisposable> OnPushTokenAsync(Func<LiveActivityPushToken, Task> handler);

@@ -36,7 +36,7 @@
 </div>
 
 <h2>Motion activity</h2>
-<p class="muted">Needs AddMotionActivityBridge(). Readings that arrive in the background go to the motion handler.</p>
+<p class="muted">Needs AddMotionActivityBridge(). Readings reach the page while it is open.</p>
 <div class="actions">
     <button @onclick="CurrentActivity">Current activity</button>
     <button @onclick="ListenForActivity">Listen</button>
@@ -50,8 +50,8 @@
     static GeofencingJsonContext GeofenceJson => GeofencingJsonContext.Default;
     static RegionGeofencingJsonContext RegionJson => RegionGeofencingJsonContext.Default;
 
-    // Standard background mode: readings keep arriving with the app in the background, where they go to the gps
-    // handler — this page's if it is open, background.js's if not.
+    // Standard background mode: readings keep arriving with the app in the background. The page gets them while it is
+    // open; the app's own Shiny GPS delegate gets them either way.
     static readonly GpsListenerSettings Background = new(GpsBackgroundMode.Standard);
 
     protected override async Task OnInitializedAsync()

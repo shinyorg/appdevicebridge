@@ -285,7 +285,7 @@ public class InAppPurchasesBridgeTests
 
         var updated = Listen(events.Source("purchases.updated", InAppPurchasesJsonContext.Default.Purchase), cancel.Token);
 
-        // No page and no background.js: the handler call finds nobody, and the event still goes out.
+        // No page: the handler call finds nobody, and the event still goes out.
         await d.OnPurchaseUpdated(NativePurchase("t9", state: Native.PurchaseState.Revoked));
 
         Assert.Equal(ContractPurchase("t9", state: PurchaseState.Revoked), await updated);

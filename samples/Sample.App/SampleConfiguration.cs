@@ -1,6 +1,5 @@
 using System.Net;
 using System.Reflection;
-using Shiny.Jobs;
 using Shiny.Locations;
 using Shiny.AppDeviceBridge;
 using Shiny.AppDeviceBridge.AppLinks;
@@ -18,7 +17,6 @@ using Shiny.AppDeviceBridge.Geofencing;
 using Shiny.AppDeviceBridge.Gps;
 using Shiny.AppDeviceBridge.Health;
 using Shiny.AppDeviceBridge.HttpTransfers;
-using Shiny.AppDeviceBridge.Jobs;
 using Shiny.AppDeviceBridge.Maps;
 using Shiny.AppDeviceBridge.Maps.Valhalla;
 using Shiny.AppDeviceBridge.Notifications;
@@ -127,13 +125,13 @@ public static class SampleConfiguration
                         )
                         .AddPushBridge(o => o.DispatchToWebApp = true)
 
-                        // A paired Apple Watch or Wear OS companion app; the page or background.js answers what it sends.
+                        // A paired Apple Watch or Wear OS companion app; the page answers what it sends while it is open.
                         .AddWearablesBridge()
 
                         // iOS Live Activities and Android Live Updates; the iOS head builds Shiny's stock widget into the app.
                         .AddLiveActivitiesBridge()
 
-                        // App Store and Google Play purchases; updates with no page open go to background.js.
+                        // App Store and Google Play purchases; updates reach the page while it is open.
                         .AddInAppPurchasesBridge()
 
                         // Touch ID / Face ID / fingerprint / Windows Hello, and NDEF tags (PC/SC readers on the desktops)
@@ -214,9 +212,6 @@ public static class SampleConfiguration
                             o.Schemes.Add("sample");
                             o.NavigateOnColdStart = true;
                         })
-
-                        // Handled as "job:sync" by the page when it is open, by background.js when it is not.
-                        .AddWebAppJob("sync", job => job.WithInternet(InternetAccess.Any))
 
                         // Checks the release server in the background and downloads new builds as OS transfers, so the next
                         // launch already has them — a required update rarely makes anyone wait at the splash screen.

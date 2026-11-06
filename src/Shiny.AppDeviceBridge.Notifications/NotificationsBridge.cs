@@ -128,7 +128,7 @@ public sealed class NotificationsBridge(IServiceProvider services, WebAppFileRoo
         await WebAppBridgeResults.Json(context, new Contracts.NotificationAccessResult(BridgeEnum.Convert<AccessState, ContractAccess>(access)), Contracts.NotificationsJsonContext.Default.NotificationAccessResult);
     }
 
-    // No dispatcher here: background.js sends from jobs and geofences with no page and often no UI.
+    // No dispatcher here: a send can come from a job or geofence wake-up with no page and often no UI.
     async ValueTask SendAsync(HttpContext context)
     {
         if (this.notifications is not { } n)

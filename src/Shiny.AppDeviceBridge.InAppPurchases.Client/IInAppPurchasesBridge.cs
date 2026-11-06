@@ -70,7 +70,7 @@ public interface IInAppPurchasesBridge
     /// A purchase changed outside a <see cref="PurchaseAsync"/> call: an Ask to Buy approval, a pending payment that
     /// completed, a renewal, a refund, a purchase on another device, an offer code. The same purchase can arrive more
     /// than once, so handle it idempotently by <see cref="Purchase.TransactionId"/>. Also handed to a
-    /// <c>purchases.updated</c> handler, so background.js can verify, grant and finish it when no page is open.
+    /// <c>purchases.updated</c> handler; with no page open, the native app has to verify, grant and finish it.
     /// </summary>
     [BridgeEvent("purchases.updated")]
     Task<IAsyncDisposable> OnUpdatedAsync(Func<Purchase, Task> handler);

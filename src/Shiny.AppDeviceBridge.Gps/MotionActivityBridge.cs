@@ -22,7 +22,7 @@ namespace Shiny.AppDeviceBridge.Gps;
 /// handlers: motion
 /// </code>
 /// <c>motion.activity</c> hooks the listener's readings only while a page listens to it. Leaving does not stop the
-/// listener: <see cref="WebAppMotionActivityDelegate"/> still hands its readings to background.js.
+/// listener: the app's own Shiny motion activity delegate keeps receiving its readings.
 /// </summary>
 public sealed class MotionActivityBridge(IServiceProvider services) : IWebAppBridge
 {
@@ -134,7 +134,7 @@ public sealed class MotionActivityBridge(IServiceProvider services) : IWebAppBri
 
 /// <summary>
 /// Hands readings from Shiny's motion activity delegate — what runs when the OS delivers them in the background —
-/// to the web app's <c>motion</c> handler: the page if it is listening, background.js otherwise. Registered by
+/// to the page's <c>motion</c> handler while it is open and listening. Registered by
 /// <see cref="MotionActivityBridgeExtensions.AddMotionActivityBridge"/>.
 /// </summary>
 public class WebAppMotionActivityDelegate(WebAppInvoker invoker) : IMotionActivityDelegate

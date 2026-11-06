@@ -56,6 +56,7 @@ builder.Services
     .AddNotificationsBridgeClient()
     .AddTrayBridgeClient()
     .AddQuickEntryBridgeClient()
+    .AddWindowBridgeClient()
     .AddAppBridgeClient()
     .AddDeviceBridgeClient()
     .AddSensorsBridgeClient()

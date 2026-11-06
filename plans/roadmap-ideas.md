@@ -23,7 +23,7 @@ stays broken until a fixed release is published.
 - If the call doesn't arrive within a configurable window (`HealthyTimeout`, plus a limit on failed launches), the
   host reverts to the previous version, blocks the bad version locally, and reports the revert to the update provider.
 - The baseline zip is the last resort when no previous version is on disk.
-- `background.js` launches don't count toward the health check.
+- Background-handler wake-ups don't count toward the health check.
 
 **Open questions:** whether an app that never calls `markHealthy()` gets rollback (opt-in vs opt-out), and how a
 required update interacts with a revert (it should not loop forever).
@@ -181,7 +181,7 @@ bridge. A gallery pick (`PickPhotosAsync` into a file root) could be its own sma
 
 ### 6. NFC
 
-Reading and writing NDEF tags, with background tag dispatch handed to the page or `background.js`. It fits the
+Reading and writing NDEF tags, with background tag dispatch handed to the page or the app's native code. It fits the
 field-service and kiosk audience that OBD, Printers and RpiCamera already serve. Platforms: iOS and Android.
 
 ### 7. Receiving shares — built

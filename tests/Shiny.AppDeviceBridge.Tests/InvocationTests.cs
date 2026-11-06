@@ -1,161 +1,117 @@
-using Microsoft.Extensions.Logging.Abstractions;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Shiny.Extensions.Stores;
 
 namespace Shiny.AppDeviceBridge.Tests;
 
 public class InvocationTests
 {
-    const string BackgroundScript = """
-        appdevicebridge.on("job:sync", async ({ name }) => {
-            // Through the bridge, exactly as the page would.
-            const put = await fetch("/_bridge/settings/local/last-job", { method: "PUT", body: JSON.stringify(name) });
-            if (!put.ok)
-                throw new Error("settings refused: " + put.status);
-
-            const stored = await (await fetch("/_bridge/settings/local/last-job")).json();
-            console.log("synced", name);
-            return { name, stored };
-        });
-
-        appdevicebridge.on("fail", () => { throw new Error("nope"); });
-        appdevicebridge.on("forever", () => { while (true) { } });
-        appdevicebridge.on("page-or-script", () => "script");
-        """;
-
-    /// <summary>A host whose invoker is wired the way AddAppDeviceBridge wires it with a web app, with in-memory settings.</summary>
-    static async Task<(WebAppHost Host, WebAppInvoker Invoker, WebAppEventHub Events)> CreateAsync(TestApp app, WebAppHostOptions options, AppDeviceBridgeOptions? bridgeOptions = null)
-    {
-        app.Store.Add("1.0.0", TestApp.Zip("1.0.0", backgroundScript: BackgroundScript));
-        await app.StartReleaseServerAsync();
-
-        // Install once, the way a foreground launch would, then build the host a background wake-up gets.
-        await using (var first = app.CreateHost())
-            await first.StartAsync();
-
-        bridgeOptions ??= app.BridgeOptions();
-        var events = new WebAppEventHub();
-        WebAppHost host = null!;
-        var script = new WebAppScriptEngine(options, () => host, NullLogger.Instance);
-        var invoker = new WebAppInvoker(bridgeOptions, () => script);
-
-        host = app.CreateHost(
-            options,
-            bridgeOptions,
-            events,
-            [invoker, new WebAppSettingsBridge(new MemoryKeyValueStore(), new MemoryKeyValueStore(), TestApp.AppId)]
-        );
-
-        return (host, invoker, events);
-    }
+    static Task<(WebAppHost Host, WebAppInvoker Invoker)> CreateAsync(TestApp app, AppDeviceBridgeOptions? bridgeOptions = null)
+        => FakePage.CreateHostAsync(app, bridgeOptions);
 
     [Fact]
-    public async Task RunsBackgroundScriptWithoutAPage()
+    public async Task NothingRunsACallWithNoPageOpen()
     {
         await using var app = new TestApp();
-        var (host, invoker, _) = await CreateAsync(app, app.Options());
+        var (host, invoker) = await CreateAsync(app);
         await using var _ = host;
 
-        // No StartAsync: a background wake-up has no WebView and runs no update check.
-        var result = await invoker.InvokeAsync("job:sync", """{ "name": "sync" }""");
+        // No StartAsync: a background wake-up has no WebView, and nothing stands in for it.
+        var result = await invoker.InvokeAsync("gps", """{ "latitude": 1 }""").WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
-        Assert.Equal(WebAppInvocationTarget.BackgroundScript, result.Target);
-        Assert.True(result.Succeeded, result.Error);
-        Assert.Equal("""{"name":"sync","stored":"sync"}""", result.ResultJson);
-    }
-
-    [Fact]
-    public async Task ReportsFailuresTimeoutsAndMissingHandlers()
-    {
-        await using var app = new TestApp();
-        var options = app.Options();
-
-        var (host, invoker, _) = await CreateAsync(app, options);
-        await using var _ = host;
-
-        var failed = await invoker.InvokeAsync("fail", "{}");
-        Assert.Equal(WebAppInvocationTarget.BackgroundScript, failed.Target);
-        Assert.False(failed.Succeeded);
-        Assert.Contains("nope", failed.Error);
-
-        // The short budget is for the run that never ends only — a cold engine on a loaded CI runner can take longer than
-        // that to fail the run above.
-        options.BackgroundScriptTimeout = TimeSpan.FromMilliseconds(500);
-        var forever = await invoker.InvokeAsync("forever", "{}");
-        options.BackgroundScriptTimeout = TimeSpan.FromSeconds(25);
-        Assert.False(forever.Succeeded);
-        Assert.Contains("did not finish", forever.Error);
-
-        var missing = await invoker.InvokeAsync("job:unknown", "{}");
-        Assert.Equal(WebAppInvocationTarget.None, missing.Target);
-
-        // The engine survives a run it had to stop.
-        Assert.True((await invoker.InvokeAsync("page-or-script", "{}")).Succeeded);
+        Assert.False(result.Handled);
+        Assert.False(result.Succeeded);
+        Assert.Same(WebAppInvocationResult.NotHandled, result);
+        Assert.False(invoker.IsPageListening("gps"));
     }
 
     [Fact]
     public async Task PageTakesCallsItAccepts()
     {
         await using var app = new TestApp();
-        var (host, invoker, events) = await CreateAsync(app, app.Options());
+        var (host, invoker) = await CreateAsync(app);
         await using var _ = host;
 
-        await using var page = await FakePage.OpenAsync(host, "page-or-script");
+        await using var page = await FakePage.OpenAsync(host, "gps");
 
-        var invocation = invoker.InvokeAsync("page-or-script", """{ "hello": "page" }""");
+        Assert.True(invoker.IsPageListening("gps"));
+        Assert.False(invoker.IsPageListening("geofence"));
+
+        var invocation = invoker.InvokeAsync("gps", """{ "hello": "page" }""");
         var call = await page.NextCallAsync();
 
-        Assert.Equal("page-or-script", call.Handler);
+        Assert.Equal("gps", call.Handler);
         Assert.Equal("page", call.Payload.GetProperty("hello").GetString());
 
         Assert.Equal(HttpStatusCode.NoContent, (await page.Client.PostAsync($"/_bridge/invoke/{call.Id}/accept", null)).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await page.Client.PostAsJsonAsync($"/_bridge/invoke/{call.Id}", new { ok = true, result = new { from = "page" } })).StatusCode);
 
         var result = await invocation.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal(WebAppInvocationTarget.Page, result.Target);
+        Assert.True(result.Handled);
         Assert.True(result.Succeeded);
         Assert.Equal("""{"from":"page"}""", result.ResultJson);
+
+        // A name the page never declared is not offered to it at all.
+        Assert.False((await invoker.InvokeAsync("geofence", "{}")).Handled);
+    }
+
+    [Fact]
+    public async Task APageThatAcceptedAndFailedIsReportedAsAFailure()
+    {
+        await using var app = new TestApp();
+        var (host, invoker) = await CreateAsync(app);
+        await using var _ = host;
+
+        await using var page = await FakePage.OpenAsync(host, "gps");
+
+        var invocation = invoker.InvokeAsync("gps", "{}");
+        var call = await page.NextCallAsync();
+
+        await page.Client.PostAsync($"/_bridge/invoke/{call.Id}/accept", null);
+        await page.Client.PostAsJsonAsync($"/_bridge/invoke/{call.Id}", new { ok = false, error = "nope" });
+
+        var result = await invocation.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.True(result.Handled);
+        Assert.False(result.Succeeded);
+        Assert.Equal("nope", result.Error);
     }
 
     [Fact]
     public async Task APageThatLeftNoLongerTakesCalls()
     {
         await using var app = new TestApp();
-        var (host, invoker, events) = await CreateAsync(app, app.Options());
+        var (host, invoker) = await CreateAsync(app);
         await using var _ = host;
 
-        await using var page = await FakePage.OpenAsync(host, "page-or-script");
+        await using var page = await FakePage.OpenAsync(host, "gps");
         await page.LeaveAsync();
 
-        // Its handlers went with its stream, so the call goes straight to background.js rather than waiting on a page.
-        while (events.StreamCount > 0)
+        // Its handlers went with its stream, so the call is not handled straight away rather than waiting on a page.
+        while (host.Server.Events.StreamCount > 0)
             await Task.Delay(10, TestContext.Current.CancellationToken);
 
-        var result = await invoker.InvokeAsync("page-or-script", "{}").WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
-        Assert.Equal(WebAppInvocationTarget.BackgroundScript, result.Target);
-        Assert.Equal("\"script\"", result.ResultJson);
+        Assert.False(invoker.IsPageListening("gps"));
+        var result = await invoker.InvokeAsync("gps", "{}").WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.False(result.Handled);
     }
 
     [Fact]
-    public async Task UnresponsivePageFallsBackToScriptAndCannotRunItLate()
+    public async Task AnUnresponsivePageIsNotHandledAndCannotRunTheCallLate()
     {
         await using var app = new TestApp();
         var bridgeOptions = app.BridgeOptions(o => o.PageAcceptTimeout = TimeSpan.FromMilliseconds(300));
 
-        var (host, invoker, events) = await CreateAsync(app, app.Options(), bridgeOptions);
+        var (host, invoker) = await CreateAsync(app, bridgeOptions);
         await using var _ = host;
 
-        await using var page = await FakePage.OpenAsync(host, "page-or-script");
+        await using var page = await FakePage.OpenAsync(host, "gps");
 
         // The page receives the call and sits on it, as a suspended WebView would.
-        var invocation = invoker.InvokeAsync("page-or-script", "{}");
+        var invocation = invoker.InvokeAsync("gps", "{}");
         var call = await page.NextCallAsync();
 
         var result = await invocation.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal(WebAppInvocationTarget.BackgroundScript, result.Target);
-        Assert.Equal("\"script\"", result.ResultJson);
+        Assert.False(result.Handled);
 
         Assert.Equal(HttpStatusCode.Gone, (await page.Client.PostAsync($"/_bridge/invoke/{call.Id}/accept", null)).StatusCode);
     }
@@ -164,7 +120,7 @@ public class InvocationTests
     public async Task ServesThePageClient()
     {
         await using var app = new TestApp();
-        var (host, _, events) = await CreateAsync(app, app.Options());
+        var (host, _) = await CreateAsync(app);
         await using var _ = host;
 
         await using var page = await FakePage.OpenAsync(host);
@@ -172,55 +128,5 @@ public class InvocationTests
 
         Assert.Equal("text/javascript", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains("export function on", await response.Content.ReadAsStringAsync());
-    }
-
-    /// <summary>Plays the part of client.js: a session, an event stream carrying host.invoke, and declared handlers.</summary>
-    sealed class FakePage : IAsyncDisposable
-    {
-        readonly CancellationTokenSource lifetime = new(TimeSpan.FromSeconds(30));
-        TestEventStream? stream;
-
-        public HttpClient Client { get; private set; } = null!;
-
-        public static async Task<FakePage> OpenAsync(WebAppHost host, params string[] handlers)
-        {
-            var page = new FakePage();
-            var start = await host.StartAsync();
-
-            page.Client = new HttpClient(new HttpClientHandler { CookieContainer = new CookieContainer() }) { BaseAddress = host.Origin };
-            await page.Client.GetStringAsync(start);
-
-            page.stream = await TestEventStream.OpenAsync(page.Client, WebAppInvoker.InvokeEventName, page.lifetime.Token);
-
-            if (handlers.Length > 0)
-                (await page.Client.PutAsJsonAsync("/_bridge/invoke/handlers", new { handlers })).EnsureSuccessStatusCode();
-
-            return page;
-        }
-
-        public async Task<(string Id, string Handler, JsonElement Payload)> NextCallAsync()
-        {
-            using var json = JsonDocument.Parse(await this.stream!.NextAsync(WebAppInvoker.InvokeEventName, this.lifetime.Token));
-            var root = json.RootElement;
-
-            return (root.GetProperty("id").GetString()!, root.GetProperty("handler").GetString()!, root.GetProperty("payload").Clone());
-        }
-
-        /// <summary>The page goes away without a word, as a WebView that navigated or closed does.</summary>
-        public async Task LeaveAsync()
-        {
-            if (this.stream is { } open)
-                await open.DisposeAsync();
-
-            this.stream = null;
-        }
-
-        public async ValueTask DisposeAsync()
-        {
-            await this.lifetime.CancelAsync();
-            await this.LeaveAsync();
-            this.Client.Dispose();
-            this.lifetime.Dispose();
-        }
     }
 }

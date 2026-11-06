@@ -18,8 +18,8 @@ public static class LiveActivitiesBridgeExtensions
     /// <para>
     /// iOS renders an activity from a widget extension: set <c>&lt;ShinyLiveActivityWidget&gt;true&lt;/ShinyLiveActivityWidget&gt;</c>
     /// in the app's project and the build compiles Shiny's stock widget (or the app's own SwiftUI) into it. Token changes
-    /// and state changes go to the web app's <c>liveactivities.*</c> handlers — the page if it is listening, background.js
-    /// otherwise. An app that already called <c>AddLiveActivities</c> keeps its registration; the bridge only adds its
+    /// and state changes go to the web app's <c>liveactivities.*</c> handlers — the page if it is listening, a background
+    /// handler otherwise. An app that already called <c>AddLiveActivities</c> keeps its registration; the bridge only adds its
     /// delegate, and Shiny runs every delegate. iOS and Android only; every other platform answers 501.
     /// </para>
     /// </summary>
@@ -54,7 +54,7 @@ public static class LiveActivitiesBridgeExtensions
 /// DELETE /_bridge/liveactivities/activities
 ///
 /// events:   liveactivities.started, liveactivities.state, liveactivities.token, liveactivities.starttoken
-/// handlers: the same four, in the page or background.js
+/// handlers: the same four, in the page
 /// </code>
 /// </summary>
 public sealed class LiveActivitiesBridge(IServiceProvider services) : IWebAppBridge

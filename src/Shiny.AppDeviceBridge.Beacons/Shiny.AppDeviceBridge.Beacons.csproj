@@ -11,7 +11,7 @@
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
     <RootNamespace>Shiny.AppDeviceBridge.Beacons</RootNamespace>
-    <Description>Beacon endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Beacons — iBeacon ranging with distances, background region monitoring delivered to the page and background.js, Eddystone scanning, and advertising the device as an iBeacon or Eddystone beacon. One call: bridge.AddBeaconsBridge().</Description>
+    <Description>Beacon endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Beacons — iBeacon ranging with distances, background region monitoring delivered to the page, Eddystone scanning, and advertising the device as an iBeacon or Eddystone beacon. One call: bridge.AddBeaconsBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>

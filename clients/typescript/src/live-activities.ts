@@ -150,7 +150,7 @@ export class LiveActivitiesBridge {
         return this.transport.subscribe("liveactivities.state", json => handler(JSON.parse(json) as LiveActivity));
     }
 
-    /** The system issued or rotated the push token for one activity (iOS). Send it to your server: it is the only way to update that activity remotely. Also handed to a `liveactivities.token` handler, so background.js can send it when no page is open. */
+    /** The system issued or rotated the push token for one activity (iOS). Send it to your server: it is the only way to update that activity remotely. Also handed to a `liveactivities.token` handler. */
     onPushToken(handler: (payload: LiveActivityPushToken) => void): Promise<() => void> {
         return this.transport.subscribe("liveactivities.token", json => handler(JSON.parse(json) as LiveActivityPushToken));
     }

@@ -195,7 +195,7 @@ export interface HubStreamEnd {
 /** How hub clients reach this device. Flags: a hub can run on several at once. */
 export type HubTransports = "None" | "Ble" | "Http" | "Multipeer" | "All";
 
-/** Universal Hubs whose logic lives in the web app — and joining other devices' hubs (`clients`). The app hosts them over BLE, Wi-Fi and Multipeer; every call a client makes reaches the web app as the native call `hub:{name}`, carrying a `HubCall` — the page while it is open, otherwise background.js — and the web app's `HubCallReply` goes back to the client. Define a hub once per launch (again with the same values changes nothing), start it, and push to its clients from here. A host without `AddHubsBridge` answers 501. */
+/** Universal Hubs whose logic lives in the web app — and joining other devices' hubs (`clients`). The app hosts them over BLE, Wi-Fi and Multipeer; every call a client makes reaches the web app as the native call `hub:{name}`, carrying a `HubCall` — answered by the page while it is open — and the web app's `HubCallReply` goes back to the client. Define a hub once per launch (again with the same values changes nothing), start it, and push to its clients from here. A host without `AddHubsBridge` answers 501. */
 export class HubsBridge {
     constructor(private readonly transport: BridgeTransport = browserTransport()) {}
 

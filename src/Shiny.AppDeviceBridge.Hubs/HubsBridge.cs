@@ -20,7 +20,7 @@ public static class HubsBridgeExtensions
     /// <summary>
     /// Adds <c>/_bridge/hubs</c>: Universal Hubs the web app defines, starts and answers. The app serves them over BLE,
     /// Wi-Fi and Multipeer on the bridge's own server, and every call a client makes reaches the web app as the native call
-    /// <c>hub:{name}</c> — the page while it is open, otherwise background.js — so a hub's behavior ships with the web app.
+    /// <c>hub:{name}</c>, answered by the page while it is open. With no page, calls fail back to the client.
     /// <code>
     /// bridge.AddHubsBridge(server => server
     ///     .ServiceUuid("…")                                                    // optional - clients must use the same one
@@ -415,7 +415,7 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
     // ---- calls into the web app
 
     /// <summary>
-    /// Sends one hub call to the web app — the page, or background.js when no page takes it — and reads its reply. Throws
+    /// Sends one hub call to the page and reads its reply. Throws
     /// what the client should see when it failed.
     /// </summary>
     internal async Task<Contracts.HubCallReply> CallAsync(Contracts.HubCall call, CancellationToken cancellationToken)
@@ -572,7 +572,6 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
         //   await game.push("StateChanged", [state], { groups: ["red"] });
         //
         // A thrown HubError keeps its type for the client: throw new HubError("GameRule", "Not your turn").
-        // While no page is open, background.js can answer the same hub with appdevicebridge.on("hub:game", …).
 
         import { on } from "{bridge}/invoke/client.js";
 

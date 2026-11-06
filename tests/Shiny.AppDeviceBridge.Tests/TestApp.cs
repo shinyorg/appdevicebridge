@@ -151,7 +151,7 @@ sealed class TestApp : IAsyncDisposable
         return WebAppReleaseSignature.Sign(release, key);
     }
 
-    public static byte[] Zip(string version, string? folder = null, bool withIndex = true, string? backgroundScript = null)
+    public static byte[] Zip(string version, string? folder = null, bool withIndex = true)
     {
         var prefix = folder is null ? String.Empty : folder + "/";
 
@@ -162,9 +162,6 @@ sealed class TestApp : IAsyncDisposable
                 Add(zip, prefix + "index.html", $"<h1>version {version}</h1>");
 
             Add(zip, prefix + "app.js", "console.log('hello');");
-
-            if (backgroundScript is not null)
-                Add(zip, prefix + "background.js", backgroundScript);
         }
 
         return buffer.ToArray();

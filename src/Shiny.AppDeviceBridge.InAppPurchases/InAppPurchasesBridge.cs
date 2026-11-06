@@ -15,8 +15,8 @@ public static class InAppPurchasesBridgeExtensions
     /// </code>
     /// <para>
     /// Purchase updates that happen outside a purchase call — Ask to Buy approvals, renewals, refunds, purchases on
-    /// another device — go to the web app's <c>purchases.updated</c> handler: the page if it is listening, background.js
-    /// otherwise. An app that already called <c>AddInAppPurchases</c> keeps its registration; the bridge only adds its
+    /// another device — go to the web app's <c>purchases.updated</c> handler: the page if it is listening, a background
+    /// handler otherwise. An app that already called <c>AddInAppPurchases</c> keeps its registration; the bridge only adds its
     /// delegate, and Shiny runs every delegate. iOS and Android only; every other platform answers 501.
     /// </para>
     /// </summary>

@@ -217,7 +217,7 @@ export class WearablesBridge {
         return this.transport.subscribe("wearables.status", json => handler(JSON.parse(json) as WearableStatus));
     }
 
-    /** A live message arrived. To answer it, register a `wearables.message` handler instead (page or background.js): what the handler returns is the reply. */
+    /** A live message arrived. To answer it, register a `wearables.message` handler instead: what the handler returns is the reply. */
     onMessage(handler: (payload: WearableMessage) => void): Promise<() => void> {
         return this.transport.subscribe("wearables.message", json => handler(JSON.parse(json) as WearableMessage));
     }

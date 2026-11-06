@@ -171,7 +171,7 @@ public class HubsBridgeTests
         await fixture.DefineAndStartAsync(Game);
         await using var client = await fixture.ConnectAsync("Alice");
 
-        // the page goes away: no page and no background.js to run the hub
+        // the page goes away: no page to run the hub
         fixture.Page.Unhandle("hub:game");
 
         var call = await Assert.ThrowsAsync<BleHubRemoteException>(() => client.Hub.MakeMove(1));

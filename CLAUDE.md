@@ -10,7 +10,7 @@ server, and gives the page device access through **bridges**: HTTP endpoints und
 package each (`Shiny.AppDeviceBridge.Wifi`, `.BluetoothLE`, `.Notifications`, `.Desktop`, …). The bridge
 server is `Shiny.AppDeviceBridge`; `Shiny.AppDeviceBridge.Core` holds the protocol contracts,
 `Shiny.AppDeviceBridge.Maui` starts the server in a MAUI app, `Shiny.AppDeviceBridge.WebView` hosts the web app
-(WebView, updates, dev server, launch session, background.js), `Shiny.AppDeviceBridge.Blazor` the page-side client,
+(WebView, updates, dev server, launch session), `Shiny.AppDeviceBridge.Blazor` the page-side client,
 and `Shiny.AppDeviceBridge.AspNetCore` the release server.
 
 Every bridge also has a `Shiny.AppDeviceBridge.{Bridge}.Client` package: its contracts and a `[BridgeClient]`

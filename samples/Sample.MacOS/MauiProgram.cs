@@ -21,6 +21,14 @@ public static class MauiProgram
             .AddTrayIconBridge()
             .AddQuickEntryBridge(o => o.HotKey = "Ctrl+Alt+Space")
 
+            // A tray app: closing the window hides it (while the tray icon is up) and the page keeps running, so the tray
+            // menu's Open and Quit and quick entry still work. A launch at login (--autostart) starts in the tray.
+            .AddWindowBridge(o =>
+            {
+                o.HideOnClose = true;
+                o.StartHidden = Environment.GetCommandLineArgs().Contains("--autostart");
+            })
+
             // HttpClient's own TLS on macOS stops at 1.2, and FOSSGIS's Valhalla only takes 1.3. iOS and Mac Catalyst
             // use NSURLSession already.
             .AddMapsBridge(o => o.HttpMessageHandlerFactory = () => new NSUrlSessionHandler()))
@@ -28,5 +36,13 @@ public static class MauiProgram
         .AddMauiDevFlowAgent()
         .AddDevFlowWebView()
 #endif
+        .DiagLogging()
         .Build();
+
+    // TEMPORARY diagnostics — remove before committing.
+    static MauiAppBuilder DiagLogging(this MauiAppBuilder builder)
+    {
+        Microsoft.Extensions.Logging.LoggingBuilderExtensions.AddProvider(builder.Logging, new DiagLoggerProvider());
+        return builder;
+    }
 }

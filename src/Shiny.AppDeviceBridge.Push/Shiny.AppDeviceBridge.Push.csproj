@@ -10,7 +10,7 @@
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
 
     <RootNamespace>Shiny.AppDeviceBridge.Push</RootNamespace>
-    <Description>Push notifications for a Shiny.AppDeviceBridge web app, backed by Shiny.Push — register, unregister, the token and tags, token events, and optionally push payloads handed to the page or background.js. One call: bridge.AddPushBridge().</Description>
+    <Description>Push notifications for a Shiny.AppDeviceBridge web app, backed by Shiny.Push — register, unregister, the token and tags, token events, and optionally push payloads handed to the page. One call: bridge.AddPushBridge().</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>

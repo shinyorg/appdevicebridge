@@ -29,7 +29,7 @@ public sealed class WebAppNotificationOptions
 {
     /// <summary>
     /// Which notifications are handed to the web app's <c>notification.entry</c> and <c>notification.received</c>
-    /// handlers — in the page if it is listening, in background.js otherwise. The web app's own by default.
+    /// handlers while the page is open and listening. The web app's own by default.
     /// </summary>
     public WebAppNotificationDispatch Dispatch { get; set; } = WebAppNotificationDispatch.WebApp;
 

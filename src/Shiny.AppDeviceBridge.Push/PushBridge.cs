@@ -12,8 +12,8 @@ public sealed class WebAppPushOptions
 {
     /// <summary>
     /// Hands arriving pushes to the web app's handlers — <c>push.received</c> when one arrives,
-    /// <c>push.entry</c> when the user opens the app from one — in the page if it is listening, in
-    /// background.js otherwise. Off by default: the bridge then only registers, unregisters, and reports the
+    /// <c>push.entry</c> when the user opens the app from one — while the page is open and
+    /// listening. Off by default: the bridge then only registers, unregisters, and reports the
     /// token, and the native app keeps pushes to itself.
     /// </summary>
     public bool DispatchToWebApp { get; set; }

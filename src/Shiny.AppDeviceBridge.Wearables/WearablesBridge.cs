@@ -44,8 +44,8 @@ public static class WearablesBridgeExtensions
     /// bridge.AddWearablesBridge(o => o.Folder = "watch");   // where files from the watch are filed
     /// </code>
     /// <para>
-    /// What the wearable sends goes to the web app's <c>wearables.*</c> handlers — the page if it is listening,
-    /// background.js otherwise — and a <c>wearables.message</c> handler's return value is the reply. The companion app
+    /// What the wearable sends goes to the page's <c>wearables.*</c> handlers while it is open, and a
+    /// <c>wearables.message</c> handler's return value is the reply. The companion app
     /// speaks <see cref="Native.WearableProtocol"/>. On Wear OS both apps share the application id and signing key. iOS and
     /// Android only; every other platform answers 501.
     /// </para>

@@ -103,9 +103,10 @@ public static class QuickEntryBridgeExtensions
 ///         quickentry.opened, quickentry.closed
 /// </code>
 /// <para>
-/// The window is summoned from a hotkey with the app in the background — often with its own window closed — so what the
-/// user does in it goes out as events <em>and</em> as calls the web app handles in the page when it is open and in
-/// <c>background.js</c> when it is not. A handler answers by setting the prompt's response.
+/// The window is summoned from a hotkey with the app in the background, but the app — and its page — is running whenever
+/// quick entry is there, so the page is what answers. What the user does goes out as events <em>and</em> as calls to the
+/// page's handlers; a handler answers by setting the prompt's response. Native code can set it too, with
+/// <see cref="SetPromptAsync"/>.
 /// </para>
 /// </summary>
 public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
@@ -168,7 +169,7 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
         .MapPost("/hide", ctx => this.VisibilityAsync(ctx, x => x.Hide()))
         .MapPost("/toggle", ctx => this.VisibilityAsync(ctx, x => x.Toggle()))
         .MapGet("/prompt", this.GetPromptAsync)
-        .MapPut("/prompt", this.SetPromptAsync)
+        .MapPut("/prompt", this.PutPromptAsync)
         .MapPost("/prompt/reset", this.ResetPromptAsync)
         .MapPost("/glow/show", ctx => this.GlowAsync(ctx, x => x.ShowGlow()))
         .MapPost("/glow/hide", ctx => this.GlowAsync(ctx, x => x.HideGlow()))
@@ -296,7 +297,7 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
         await WebAppBridgeResults.Json(context, await MainAsync(() => this.Describe(prompt)), QuickEntryJsonContext.Default.QuickEntryPrompt);
     }
 
-    async ValueTask SetPromptAsync(HttpContext context)
+    async ValueTask PutPromptAsync(HttpContext context)
     {
         if (!await this.EnsureSupportedAsync(context))
             return;
@@ -314,13 +315,43 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
             return;
         }
 
-        if (await this.WirePromptAsync() is not { } prompt)
+        if (await this.ApplyPromptAsync(body) is not { } described)
         {
             await CustomContentAsync(context);
             return;
         }
 
-        var described = await MainAsync(() =>
+        await WebAppBridgeResults.Json(context, described, QuickEntryJsonContext.Default.QuickEntryPrompt);
+    }
+
+    /// <summary>
+    /// Changes the prompt from native code, exactly as <c>PUT /_bridge/quickentry/prompt</c> does from the page.
+    /// <code>
+    /// await quickEntry.SetPromptAsync(new QuickEntryPromptInput(IsBusy: false, Response: "Synced."));
+    /// </code>
+    /// Null when the window shows custom content rather than the prompt. Throws <see cref="PlatformNotSupportedException"/>
+    /// where quick entry is unsupported, and <see cref="ArgumentException"/> for input the page would get a 400 for.
+    /// </summary>
+    public async Task<QuickEntryPrompt?> SetPromptAsync(QuickEntryPromptInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+
+        if (this.Validate(input) is { } problem)
+            throw new ArgumentException(problem, nameof(input));
+
+        if (!this.IsSupported)
+            throw new PlatformNotSupportedException("Quick entry is not supported on this platform.");
+
+        await this.StartAsync();
+        return await this.ApplyPromptAsync(input);
+    }
+
+    async Task<QuickEntryPrompt?> ApplyPromptAsync(QuickEntryPromptInput body)
+    {
+        if (await this.WirePromptAsync() is not { } prompt)
+            return null;
+
+        return await MainAsync(() =>
         {
             this.model = this.model.With(body);
             this.model.ApplyTo(prompt);
@@ -330,8 +361,6 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
 
             return this.Describe(prompt);
         });
-
-        await WebAppBridgeResults.Json(context, described, QuickEntryJsonContext.Default.QuickEntryPrompt);
     }
 
     async ValueTask ResetPromptAsync(HttpContext context)
@@ -552,8 +581,7 @@ public sealed class QuickEntryBridge : IWebAppBridge, IDisposable
     );
 
     /// <summary>
-    /// Published to whatever listens for the event, and called on the web app so <c>background.js</c> can answer when the
-    /// app's window is closed — which is when a window summoned over other applications earns its keep.
+    /// Published to whatever listens for the event, and called on the page so its handler can answer.
     /// </summary>
     void Raise<T>(WebAppEventSource<T> source, string name, T payload, JsonTypeInfo<T> typeInfo)
     {

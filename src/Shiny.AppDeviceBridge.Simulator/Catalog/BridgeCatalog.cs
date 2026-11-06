@@ -132,6 +132,7 @@ public static class BridgeCatalog
             Describe(typeof(DatabaseClient.IDatabaseBridge), DatabaseClient.DatabaseJsonContext.Default),
             Describe(typeof(DesktopClient.IQuickEntryBridge), DesktopClient.QuickEntryJsonContext.Default),
             Describe(typeof(DesktopClient.ITrayBridge), DesktopClient.TrayJsonContext.Default),
+            Describe(typeof(DesktopClient.IWindowBridge), DesktopClient.WindowJsonContext.Default),
             Describe(typeof(DiscoveryClient.IDiscoveryBridge), DiscoveryClient.DiscoveryJsonContext.Default),
             Describe(typeof(RegionGeofencingClient.IRegionGeofencesBridge), RegionGeofencingClient.RegionGeofencingJsonContext.Default),
             Describe(typeof(FoldersClient.IFoldersBridge), FoldersClient.FoldersJsonContext.Default),

@@ -215,7 +215,6 @@ public static class AppDeviceBridgeHttpServerBuilderExtensions
         // delegates call into.
         services.TryAddSingleton(sp => new WebAppInvoker(
             sp.GetRequiredService<AppDeviceBridgeOptions>(),
-            () => sp.GetService<IWebAppBackgroundInvoker>(),
             sp.GetService<ILoggerFactory>()
         ));
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IWebAppBridge, WebAppInvoker>(sp => sp.GetRequiredService<WebAppInvoker>()));

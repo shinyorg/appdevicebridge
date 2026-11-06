@@ -14,10 +14,10 @@ using Shiny.AppDeviceBridge.Desktop.Client;
 namespace Sample.Blazor;
 
 /// <summary>
-/// The page's side of background work. While the app is open these handle the native calls; when it is not,
-/// wwwroot/background.js handles the same names.
+/// Native calls the page answers while it is open — GPS, geofences, pushes, watch messages. With the page closed none of
+/// these run; the Native calls page lists what arrived.
 /// </summary>
-public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls, IQuickEntryBridge quickEntry)
+public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls, IQuickEntryBridge quickEntry, IWindowBridge window)
 {
     readonly List<string> log = [];
     bool started;
@@ -35,13 +35,6 @@ public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls, IQuickEntr
 
         try
         {
-            await nativeCalls.HandleAsync("job:sync", AppDeviceBridgeJsonContext.Default.JobRun, SampleJson.Default.JobResult, async job =>
-            {
-                this.Record("job:sync", job.Name);
-                await Task.Delay(250);    // stands in for real work
-                return new JobResult(RanIn: "page");
-            });
-
             await this.Record("gps", GpsJsonContext.Default.GpsReading, x => $"{x.Latitude:0.0000}, {x.Longitude:0.0000}");
             await this.Record("geofence", GeofencingJsonContext.Default.GeofenceStatus, x => $"{x.Identifier} {x.State}");
             await this.Record("regiongeofence", RegionGeofencingJsonContext.Default.RegionChange, x => $"{(x.Entered ? "entered" : "left")} {x.RegionSet} {x.RegionName ?? x.RegionId}");
@@ -51,9 +44,22 @@ public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls, IQuickEntr
             await this.Record("push.entry", PushJsonContext.Default.PushPayload, x => x.Title ?? x.Message ?? "(data only)");
             await this.Record("notification.entry", NotificationsJsonContext.Default.NotificationEvent, x => $"{x.Id} {x.Action ?? x.Title}");
             await this.Record("notification.received", NotificationsJsonContext.Default.NotificationEvent, x => $"{x.Id} {x.Title}");
-            await this.Record("tray.click", TrayJsonContext.Default.TrayClick, x => $"{x.Id} {x.Button}");
-            await this.Record("tray.menu", TrayJsonContext.Default.TrayMenuSelection, x => $"{x.Id} {x.ItemId}");
-            // The page answers quick entry while it is open; background.js answers with the window closed.
+            // The tray runs the app while its window is hidden: this page is still loaded then, so it answers the menu.
+            await nativeCalls.HandleAsync("tray.click", TrayJsonContext.Default.TrayClick, async click =>
+            {
+                this.Record("tray.click", $"{click.Id} {click.Button}");
+                if (click.Button == TrayClickButton.Double)
+                    await window.ShowAsync();
+            });
+            await nativeCalls.HandleAsync("tray.menu", TrayJsonContext.Default.TrayMenuSelection, async selection =>
+            {
+                this.Record("tray.menu", $"{selection.Id} {selection.ItemId}");
+                if (selection.ItemId == "open")
+                    await window.ShowAsync();
+                else if (selection.ItemId == "quit")
+                    await window.QuitAsync();
+            });
+            // The page answers quick entry while it is open.
             await nativeCalls.HandleAsync("quickentry.submitted", QuickEntryJsonContext.Default.QuickEntrySubmission, async submission =>
             {
                 this.Record("quickentry.submitted", submission.Text);
@@ -65,7 +71,7 @@ public sealed class NativeCallHandlers(WebAppNativeCalls nativeCalls, IQuickEntr
                 ));
             });
 
-            // What this returns is the reply the watch gets; background.js answers the same name with the app closed.
+            // What this returns is the reply the watch gets while the page is open.
             await nativeCalls.HandleAsync("wearables.message", WearablesJsonContext.Default.WearableMessage, SampleJson.Default.WatchReply, message =>
             {
                 this.Record("wearables.message", message.Path);

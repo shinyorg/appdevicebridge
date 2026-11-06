@@ -223,7 +223,7 @@ export class InAppPurchasesBridge {
         return callVoid(this.transport, "POST", `purchases/manage`, { json: request, signal: options?.signal });
     }
 
-    /** A purchase changed outside a `purchase` call: an Ask to Buy approval, a pending payment that completed, a renewal, a refund, a purchase on another device, an offer code. The same purchase can arrive more than once, so handle it idempotently by `transactionId`. Also handed to a `purchases.updated` handler, so background.js can verify, grant and finish it when no page is open. */
+    /** A purchase changed outside a `purchase` call: an Ask to Buy approval, a pending payment that completed, a renewal, a refund, a purchase on another device, an offer code. The same purchase can arrive more than once, so handle it idempotently by `transactionId`. Also handed to a `purchases.updated` handler; with no page open, the native app has to verify, grant and finish it. */
     onUpdated(handler: (payload: Purchase) => void): Promise<() => void> {
         return this.transport.subscribe("purchases.updated", json => handler(JSON.parse(json) as Purchase));
     }

@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 using Shiny.AppDeviceBridge.Client;
 
 namespace Shiny.AppDeviceBridge.Tests;
@@ -15,14 +16,14 @@ public class EventStreamTests
     public async Task Delivers_only_the_topics_the_page_names()
     {
         await using var fixture = await Fixture.StartAsync();
-        var pings = fixture.Events.Source("test.ping", AppDeviceBridgeJsonContext.Default.JobRun);
-        var pongs = fixture.Events.Source("test.pong", AppDeviceBridgeJsonContext.Default.JobRun);
+        var pings = fixture.Events.Source("test.ping", EventStreamTestJson.Default.TestValue);
+        var pongs = fixture.Events.Source("test.pong", EventStreamTestJson.Default.TestValue);
 
         await using var stream = await TestEventStream.OpenAsync(fixture.WebView, "test.pong", fixture.Timeout);
         Assert.Equal("text/event-stream", stream.Response.Content.Headers.ContentType?.MediaType);
 
-        pings.Publish(new JobRun("ignored"));
-        pongs.Publish(new JobRun("sync"));
+        pings.Publish(new TestValue("ignored"));
+        pongs.Publish(new TestValue("sync"));
 
         Assert.Equal(("test.pong", """{"name":"sync"}"""), await stream.NextAsync(fixture.Timeout));
         Assert.False(pings.HasListeners);
@@ -33,12 +34,12 @@ public class EventStreamTests
     {
         await using var fixture = await Fixture.StartAsync();
         var battery = new FakeNativeEvent();
-        fixture.Events.Map("test.battery", ct => WebAppEventStream.FromEvent<JobRun>(emit =>
+        fixture.Events.Map("test.battery", ct => WebAppEventStream.FromEvent<TestValue>(emit =>
         {
-            Action<string> handler = level => emit(new JobRun(level));
+            Action<string> handler = level => emit(new TestValue(level));
             battery.Changed += handler;
             return () => battery.Changed -= handler;
-        }, ct), AppDeviceBridgeJsonContext.Default.JobRun);
+        }, ct), EventStreamTestJson.Default.TestValue);
 
         Assert.Equal(0, battery.Handlers);
 
@@ -59,8 +60,8 @@ public class EventStreamTests
         await using var fixture = await Fixture.StartAsync();
         var gps = new FakeNativeEvent();
         var wifi = new FakeNativeEvent();
-        fixture.Events.Map("test.gps", ct => gps.Stream(ct), AppDeviceBridgeJsonContext.Default.JobRun);
-        fixture.Events.Map("test.wifi", ct => wifi.Stream(ct), AppDeviceBridgeJsonContext.Default.JobRun);
+        fixture.Events.Map("test.gps", ct => gps.Stream(ct), EventStreamTestJson.Default.TestValue);
+        fixture.Events.Map("test.wifi", ct => wifi.Stream(ct), EventStreamTestJson.Default.TestValue);
 
         await using var stream = await TestEventStream.OpenAsync(fixture.WebView, "test.gps", fixture.Timeout);
         Assert.Equal((1, 0), (gps.Handlers, wifi.Handlers));
@@ -81,7 +82,7 @@ public class EventStreamTests
     {
         await using var fixture = await Fixture.StartAsync();
         var native = new FakeNativeEvent();
-        fixture.Events.Map("test.native", ct => native.Stream(ct), AppDeviceBridgeJsonContext.Default.JobRun);
+        fixture.Events.Map("test.native", ct => native.Stream(ct), EventStreamTestJson.Default.TestValue);
 
         await using var first = await TestEventStream.OpenAsync(fixture.WebView, "test.native", fixture.Timeout);
         var second = await TestEventStream.OpenAsync(fixture.WebView, "test.native", fixture.Timeout);
@@ -100,8 +101,8 @@ public class EventStreamTests
     {
         await using var fixture = await Fixture.StartAsync();
         var native = new FakeNativeEvent();
-        var healthy = fixture.Events.Source("test.healthy", AppDeviceBridgeJsonContext.Default.JobRun);
-        fixture.Events.Map("test.broken", ct => native.Stream(ct, failAfter: 1), AppDeviceBridgeJsonContext.Default.JobRun);
+        var healthy = fixture.Events.Source("test.healthy", EventStreamTestJson.Default.TestValue);
+        fixture.Events.Map("test.broken", ct => native.Stream(ct, failAfter: 1), EventStreamTestJson.Default.TestValue);
 
         await using var stream = await TestEventStream.OpenAsync(fixture.WebView, "test.broken,test.healthy", fixture.Timeout);
 
@@ -110,7 +111,7 @@ public class EventStreamTests
         Assert.Equal("""{"event":"test.broken","message":"The sensor fell over."}""", error);
         await WaitAsync(() => native.Handlers == 0, fixture.Timeout);
 
-        healthy.Publish(new JobRun("fine"));
+        healthy.Publish(new TestValue("fine"));
         Assert.Equal("""{"name":"fine"}""", await stream.NextAsync("test.healthy", fixture.Timeout));
     }
 
@@ -121,10 +122,10 @@ public class EventStreamTests
         await using var stream = await TestEventStream.OpenAsync(fixture.WebView, "push.token", fixture.Timeout);
 
         // A delegate the OS calls later is the first to ask for its source.
-        var tokens = fixture.Events.Source("push.token", AppDeviceBridgeJsonContext.Default.JobRun);
+        var tokens = fixture.Events.Source("push.token", EventStreamTestJson.Default.TestValue);
         await WaitAsync(() => tokens.HasListeners, fixture.Timeout);
 
-        tokens.Publish(new JobRun("abc"));
+        tokens.Publish(new TestValue("abc"));
         Assert.Equal("""{"name":"abc"}""", await stream.NextAsync("push.token", fixture.Timeout));
     }
 
@@ -148,12 +149,12 @@ public class EventStreamTests
     public void Refuses_to_map_one_name_twice()
     {
         var hub = new WebAppEventHub();
-        hub.Map("test.once", ct => new FakeNativeEvent().Stream(ct), AppDeviceBridgeJsonContext.Default.JobRun);
+        hub.Map("test.once", ct => new FakeNativeEvent().Stream(ct), EventStreamTestJson.Default.TestValue);
 
-        Assert.Throws<InvalidOperationException>(() => hub.Map("test.once", ct => new FakeNativeEvent().Stream(ct), AppDeviceBridgeJsonContext.Default.JobRun));
-        Assert.Throws<InvalidOperationException>(() => hub.Source("test.once", AppDeviceBridgeJsonContext.Default.JobRun));
-        Assert.Same(hub.Source("test.twice", AppDeviceBridgeJsonContext.Default.JobRun), hub.Source("test.twice", AppDeviceBridgeJsonContext.Default.JobRun));
-        Assert.Throws<ArgumentException>(() => hub.Source("not valid", AppDeviceBridgeJsonContext.Default.JobRun));
+        Assert.Throws<InvalidOperationException>(() => hub.Map("test.once", ct => new FakeNativeEvent().Stream(ct), EventStreamTestJson.Default.TestValue));
+        Assert.Throws<InvalidOperationException>(() => hub.Source("test.once", EventStreamTestJson.Default.TestValue));
+        Assert.Same(hub.Source("test.twice", EventStreamTestJson.Default.TestValue), hub.Source("test.twice", EventStreamTestJson.Default.TestValue));
+        Assert.Throws<ArgumentException>(() => hub.Source("not valid", EventStreamTestJson.Default.TestValue));
     }
 
     [Fact]
@@ -212,7 +213,7 @@ public class EventStreamTests
 
         public void Raise(string value) => this.changed?.Invoke(value);
 
-        public async IAsyncEnumerable<JobRun> Stream([EnumeratorCancellation] CancellationToken cancellationToken, int? failAfter = null)
+        public async IAsyncEnumerable<TestValue> Stream([EnumeratorCancellation] CancellationToken cancellationToken, int? failAfter = null)
         {
             var count = 0;
 
@@ -225,7 +226,7 @@ public class EventStreamTests
                 if (++count == failAfter)
                     throw new InvalidOperationException("The sensor fell over.");
 
-                yield return new JobRun(value);
+                yield return new TestValue(value);
             }
         }
     }
@@ -265,3 +266,10 @@ public class EventStreamTests
         }
     }
 }
+
+/// <summary>Any small contract will do for the stream itself.</summary>
+public sealed record TestValue(string Name);
+
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
+[JsonSerializable(typeof(TestValue))]
+partial class EventStreamTestJson : JsonSerializerContext;

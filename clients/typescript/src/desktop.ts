@@ -218,7 +218,16 @@ export interface TrayStatus {
     icons: TrayIconInfo[];
 }
 
-/** Quick entry: a prompt window that opens over other applications — from a global hotkey, a tray click or the page — in the style of Spotlight or a desktop assistant. The page configures the prompt, hears what is submitted, and writes the response back, and it keeps working with the app's own window closed: submissions also go to background.js. Windows, macOS and Linux; Android and iOS fail with 501. */
+export interface WindowStatus {
+    /** False where the window cannot be hidden: Mac Catalyst, Android, iOS. */
+    supported: boolean;
+    /** Whether the window is showing. False before the app has a window. */
+    visible: boolean;
+    /** Whether closing the window hides it instead of quitting — the app keeps running in the tray, and the page with it. */
+    hideOnClose: boolean;
+}
+
+/** Quick entry: a prompt window that opens over other applications — from a global hotkey, a tray click or the page — in the style of Spotlight or a desktop assistant. The page configures the prompt, hears what is submitted, and writes the response back. The page is running whenever quick entry is, so it answers even with the app's window hidden. Windows, macOS and Linux; Android and iOS fail with 501. */
 export class QuickEntryBridge {
     constructor(private readonly transport: BridgeTransport = browserTransport()) {}
 
@@ -276,7 +285,7 @@ export class QuickEntryBridge {
         return callVoid(this.transport, "POST", `quickentry/glow/pulse`, { json: pulse, signal: options?.signal });
     }
 
-    /** The user submitted a prompt. Also delivered to background.js when no page is listening. */
+    /** The user submitted a prompt. */
     onSubmitted(handler: (payload: QuickEntrySubmission) => void): Promise<() => void> {
         return this.transport.subscribe("quickentry.submitted", json => handler(JSON.parse(json) as QuickEntrySubmission));
     }
@@ -371,13 +380,43 @@ export class TrayBridge {
         return callVoid(this.transport, "DELETE", `tray/${segment(id)}/animation`, { signal: options?.signal });
     }
 
-    /** An icon was clicked. Also delivered to background.js when no page is listening. */
+    /** An icon was clicked. */
     onClick(handler: (payload: TrayClick) => void): Promise<() => void> {
         return this.transport.subscribe("tray.click", json => handler(JSON.parse(json) as TrayClick));
     }
 
-    /** A menu item was chosen. Also delivered to background.js when no page is listening. */
+    /** A menu item was chosen. */
     onMenu(handler: (payload: TrayMenuSelection) => void): Promise<() => void> {
         return this.transport.subscribe("tray.menu", json => handler(JSON.parse(json) as TrayMenuSelection));
+    }
+}
+
+/** The app's own window on the desktop: hide it and show it again, and quit — what a tray app needs to run with no window and no taskbar or Dock entry, only its tray icon. The page keeps running while the window is hidden, so it still answers tray clicks and quick entry. macOS (AppKit), Windows and Linux; Mac Catalyst, Android and iOS fail with 501. */
+export class WindowBridge {
+    constructor(private readonly transport: BridgeTransport = browserTransport()) {}
+
+    /** Whether this is supported here, whether the window is showing, and what closing it does. */
+    getStatus(options?: { signal?: AbortSignal }): Promise<WindowStatus> {
+        return call<WindowStatus>(this.transport, "GET", `window`, { signal: options?.signal });
+    }
+
+    /** Shows the window and brings the app forward, back on the taskbar or in the Dock. */
+    show(options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "POST", `window/show`, { signal: options?.signal });
+    }
+
+    /** Hides the window and takes the app off the taskbar or out of the Dock; the page keeps running. Fails with 409 `no_tray_icon` while no tray icon is showing, unless the app turned that check off — otherwise nothing would be left to bring the window back. */
+    hide(options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "POST", `window/hide`, { signal: options?.signal });
+    }
+
+    /** Quits the app, shortly after answering. A tray app's Quit menu item. */
+    quit(options?: { signal?: AbortSignal }): Promise<void> {
+        return callVoid(this.transport, "POST", `window/quit`, { signal: options?.signal });
+    }
+
+    /** The window was shown or hidden — by this page, by the user closing it, or by the app. */
+    onVisibility(handler: (payload: WindowStatus) => void): Promise<() => void> {
+        return this.transport.subscribe("window.visibility", json => handler(JSON.parse(json) as WindowStatus));
     }
 }

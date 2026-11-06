@@ -8,7 +8,7 @@ namespace Shiny.AppDeviceBridge.Wearables;
 
 /// <summary>
 /// Turns what the wearable sends into page events and calls to the web app's <c>wearables.*</c> handlers — the page
-/// when it is listening, background.js otherwise. A <c>wearables.message</c> handler's return value is the reply the
+/// while it is open and listening. A <c>wearables.message</c> handler's return value is the reply the
 /// wearable gets. Files are filed into a file root first, so the handler receives a <see cref="BridgeFile"/>.
 /// <para>
 /// Subclass to keep some traffic to the native app: override a member and call the base only for what the web app

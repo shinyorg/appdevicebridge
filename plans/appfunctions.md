@@ -15,11 +15,11 @@ function, rename one or change its parameters; those still need a store release.
 | | Owned by | Ships with |
 |---|---|---|
 | Function surface: id, description, parameters, result type, entities, Siri phrases | C# in the app project | the store build |
-| What a call does, including what Siri says | the page or `background.js` | the web app zip (OTA) |
+| What a call does, including what Siri says | the page, or the app's native code with no page open | the web app zip (OTA) for the page; the store build for the app's native code |
 | Gating (sign-in, feature flags), telemetry | `IAppFunctionDelegate` in C#, as today | the store build |
 
-This is the same pattern as `AddWebAppJob`: native code keeps the part the OS needs, and `WebAppInvoker` sends the
-work to the page when it is open and to `background.js` when it is not.
+This is the same pattern as the other native calls: native code keeps the part the OS needs, and `WebAppInvoker` sends the
+work to the page when it is open and to the app's native code when it is not.
 
 ## Scope
 
@@ -75,7 +75,7 @@ Handler name: `appfunction:{functionId}` (for example `appfunction:create_order`
 `WebAppInvoker.IsValidHandlerName` and extend its character set only if needed.
 
 ```csharp
-// what the page / background.js receives
+// what the page / the app's native code receives
 public sealed record AppFunctionCall(
     string Function,                 // "create_order"
     JsonElement Arguments,           // camelCase, enums as names, entities as ids, dates ISO 8601
@@ -108,7 +108,7 @@ wrapped. Document this.
 
 ### 1.2 Native side (`src/Shiny.AppDeviceBridge.AppFunctions`)
 
-`net10.0`, the same as `Shiny.AppDeviceBridge.Jobs`: each head's own platform build of `Shiny.AppFunctions` is what
+`net10.0`, the same as `Shiny.AppDeviceBridge.AutoUpdate`: each head's own platform build of `Shiny.AppFunctions` is what
 runs. The project references `Shiny.AppDeviceBridge` and the `.Client` project, and has a `PackageReference` to
 `Shiny.AppFunctions`.
 
@@ -130,7 +130,7 @@ generator test in the shiny repo that pins this behaviour, since the package dep
 
    | Invocation result | Outcome |
    |---|---|
-   | `NotHandled` (no page listening, `background.js` doesn't register the name) | `AppFunctionException(AppError, "{App} can't do that right now.")`, and log a warning naming the handler. The message is configurable in options. |
+   | `NotHandled` (no page listening for the name) | `AppFunctionException(AppError, "{App} can't do that right now.")`, and log a warning naming the handler. The message is configurable in options. |
    | `Succeeded == false` (JS threw) | `AppError` with the JS error message in the log. The user-facing message is the generic one, never a raw JS stack. |
    | Reply with `error` | `AppFunctionException` with the mapped code and the reply's message, which the page writes for the user |
    | Reply with `say` | `context.Say(say)` |
@@ -158,11 +158,10 @@ The limits interact, so they get one explicit section in the docs and tests for 
 |---|---|---|
 | Host ready after a cold start | 10 s (`AppFunctionsHost.ReadyTimeout`) | AppFunctions |
 | Page accepts | `PageAcceptTimeout` (2 s) | AppDeviceBridge |
-| `background.js` runs | `BackgroundScriptTimeout` (25 s) | AppDeviceBridge |
 | Siri / App Intents budget | about 10–30 s, and not documented | the OS |
 | Android AppFunction budget | set by the system | the OS |
 
-A cold start from Siri that ends in `background.js` can spend 10 s before the host is up and then up to 25 s in the
+A cold start from Siri that ends in the app's native code can spend 10 s before the host is up and then up to 25 s in the
 script. Add an `AppFunctionTimeout` option (default 20 s) on the forwarder that caps the whole call and fails with
 `Cancelled` and a spoken message, so the user doesn't get Siri's generic failure. Measure the real Siri budget on a
 device before settling the default. It's a known unknown until then.
@@ -170,7 +169,7 @@ device before settling the default. It's a known unknown until then.
 ### 1.4 Gates and the foreground
 
 - `AppFunctionGate.OpenApp` on iOS runs the function again in the foreground. By then the WebView is usually loading.
-  The page may not be listening within `PageAcceptTimeout`, so the call falls through to `background.js`, which is
+  The page may not be listening within `PageAcceptTimeout`, so the call falls through to the app's native code, which is
   wrong for "sign in first". Add a check to the forwarder: when `context.IsForeground` is set, wait for the page to
   start listening (up to `AppFunctionTimeout`) before falling back. That needs a small `WebAppInvoker` addition,
   either `WaitForListenerAsync(handler, timeout)` or an `InvokeOptions.PreferPage`. Test both the case where the page
@@ -181,7 +180,7 @@ device before settling the default. It's a known unknown until then.
 ### 1.5 Page side
 
 - **JS:** `on("appfunction:create_order", async ({ arguments: a }) => ({ result: {...}, say: "…" }))` in the page or
-  `background.js`. There's no new runtime code; `/_bridge/invoke/client.js` already covers it. The generated
+  the app's native code. There's no new runtime code; `/_bridge/invoke/client.js` already covers it. The generated
   TypeScript types give the payload shape.
 - **Blazor:** a helper in the `.Client` package on top of `nativeCalls.HandleAsync`:
   `nativeCalls.HandleAppFunctionAsync<TArgs, TResult>("create_order", argsTypeInfo, resultTypeInfo, async (args, call) => new(result, Say: "…"))`.
@@ -190,7 +189,7 @@ device before settling the default. It's a known unknown until then.
 ### 1.6 Tests (`tests/Shiny.AppDeviceBridge.Tests`)
 
 Run everything in-process through `AppFunctionDispatcher.Execute` with a real `WebAppInvoker` and a fake
-`IWebAppBackgroundInvoker` or a page client, as the existing invoker tests do:
+page client (`FakePage`), as the existing invoker tests do:
 
 - Arguments reach the handler unchanged: entity parameters as ids, enums as names.
 - Reply mapping: bare value, `{ result }`, `{ say }`, `{ error }` for each code, JS throw, `NotHandled`.
@@ -211,10 +210,10 @@ handlers so the generated `AddAppFunctions()` is exercised for real, rather than
   entity and one `[AppShortcut]`, all forwarding. **They must be declared in `Sample.Maui`, not `Sample.App`**,
   because `Sample.App` is a class library and would be ignored silently.
 - `Sample.Blazor`: an **App Functions** page that handles the calls and shows a log of recent calls, and
-  `wwwroot/background.js` handlers for the same functions so they work with no page open.
+  the app's native code (Shiny delegates) for the same functions so they work with no page open.
 - Verify end to end on an iOS simulator (Spotlight → the shortcut's title) and an Android 16 emulator
   (`adb shell cmd app_function execute-app-function …`). Include a cold start with the app killed, which is the
-  `background.js` path. Record which of these were actually run.
+  the app's native code path. Record which of these were actually run.
 
 ---
 
@@ -291,7 +290,7 @@ bypassed by `Other`. Call this out on the docs page.
    web app from native code" section and from the AppFunctions docs (`client/appfunctions`). Release notes go under
    `## 1.0 TBD` (`type="feature"`). `npx astro build` passes.
 3. **Skill** (`skills/shiny-appdevicebridge/SKILL.md`): a section with the default pattern (declare in C# in the app
-   project, forward with `WebAppFunctionHandler`, handle in the page and `background.js`). Add `triggers:`
+   project, forward with `WebAppFunctionHandler`, handle in the page and the app's native code). Add `triggers:`
    `AppFunctions`, `WebAppFunctionHandler`, `WebAppEntityQuery`, `AddAppFunctionsBridge`, `App Intents`, `Siri`,
    `Gemini`.
 4. **readme.md:** the package table, the bridges table (Phase 2), and a new row in the "Calling the web app from
@@ -323,7 +322,7 @@ run in old app builds. The docs should tell web apps to:
 2. `.Client` contracts, TypeScript regeneration, simulator catalog.
 3. `WebAppFunctionHandler` / `WebAppEntityQuery` and the test-only generator project, then tests.
 4. The foreground wait (1.4) with its `WebAppInvoker` addition, then tests.
-5. The sample: Blazor page, `background.js`, `Sample.Maui` declarations. Verify on the iOS simulator and the
+5. The sample: Blazor page, the app's native code, `Sample.Maui` declarations. Verify on the iOS simulator and the
    Android 16 emulator.
 6. Docs, skill and readme for Phase 1; release notes.
 7. Phase 2 bridge, tests, simulator, docs; release notes.

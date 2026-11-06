@@ -129,8 +129,8 @@ public sealed class RegionGeofenceBridge(IServiceProvider services) : IWebAppBri
 
 /// <summary>
 /// Forwards region changes to the page as <c>regiongeofence.change</c> events, and calls the web app's
-/// <c>regiongeofence</c> handler with the same payload — the page if it is listening, background.js otherwise — which
-/// is how a change that wakes the app in the background reaches web code.
+/// <c>regiongeofence</c> handler with the same payload while the page is open and listening. A change that wakes the app
+/// with no page open is the app's own native code to handle — its own region geofencing delegate.
 /// <para>
 /// <see cref="RegionGeofenceBridgeExtensions.AddRegionGeofenceBridge"/> registers it as the app's
 /// <see cref="IRegionGeofenceDelegate"/>, and Shiny.Geofencing.Regions has room for one: to handle a change in C# as

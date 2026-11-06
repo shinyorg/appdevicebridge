@@ -12,7 +12,7 @@
     <UseMaui>true</UseMaui>
     <SingleProject>false</SingleProject>
     <RootNamespace>Shiny.AppDeviceBridge.WebView</RootNamespace>
-    <Description>Hosts a zipped web app (Blazor, React, anything static) in a .NET MAUI WebView, served from the Shiny.AppDeviceBridge server: kept up to date through a pluggable update provider — a Shiny.AppDeviceBridge.AspNetCore release server with every download verified against a signature, GitHub releases, or one of your own, a bundled baseline for offline first launch, a dev server proxy for hot reload, a launch session that keeps the bridges to the app's own page, and background.js for native calls when no page is open.</Description>
+    <Description>Hosts a zipped web app (Blazor, React, anything static) in a .NET MAUI WebView, served from the Shiny.AppDeviceBridge server: kept up to date through a pluggable update provider — a Shiny.AppDeviceBridge.AspNetCore release server with every download verified against a signature, GitHub releases, or one of your own, a bundled baseline for offline first launch, a dev server proxy for hot reload, and a launch session that keeps the bridges to the app's own page.</Description>
 
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
@@ -23,10 +23,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
-
-    <!-- Runs background.js when a native call arrives with no page to take it. A pure .NET interpreter:
-         no JIT, no native engine to ship per platform, and allowed on iOS. -->
-    <PackageReference Include="Jint" />
   </ItemGroup>
 
   <ItemGroup>

@@ -95,10 +95,6 @@ public sealed record HostInfo(
 /// <param name="Version">The version now being served, when one was applied.</param>
 public sealed record ApplyUpdateResult(bool Applied, string? Version);
 
-/// <summary>What a <c>job:{name}</c> handler receives when a background job the app scheduled runs.</summary>
-/// <param name="Name">The job's name, without the <c>job:</c> prefix.</param>
-public sealed record JobRun(string Name);
-
 /// <summary>Serialization for the built-in bridges' contracts, shared by the page's clients and the host.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true, PropertyNameCaseInsensitive = true)]
 [JsonSerializable(typeof(HostInfo))]
@@ -113,7 +109,6 @@ public sealed record JobRun(string Name);
 [JsonSerializable(typeof(FileTransfer))]
 [JsonSerializable(typeof(FileRootsChanged))]
 [JsonSerializable(typeof(BridgeFile))]
-[JsonSerializable(typeof(JobRun))]
 [JsonSerializable(typeof(EventStreamOpened))]
 [JsonSerializable(typeof(EventStreamTopics))]
 [JsonSerializable(typeof(EventStreamError))]
