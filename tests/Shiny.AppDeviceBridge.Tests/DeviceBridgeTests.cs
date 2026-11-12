@@ -6,7 +6,7 @@ using Shiny.AppDeviceBridge.Maui;
 namespace Shiny.AppDeviceBridge.Tests;
 
 /// <summary>
-/// The device bridge's checks, and how it answers where Essentials has no implementation — which is what the net10.0
+/// The device bridge's checks, and how it answers where Essentials has no implementation — which is what the net11.0
 /// build the tests run on is: every feature reaching the platform answers 501, never a 500.
 /// </summary>
 public class DeviceBridgeTests
@@ -88,7 +88,7 @@ public class DeviceBridgeTests
     {
         await using var fixture = await StartAsync();
 
-        // net10.0 Essentials takes the value and drops it.
+        // net11.0 Essentials takes the value and drops it.
         Assert.True((await Assert.ThrowsAsync<BridgeException>(() => fixture.Client.KeepScreenAwakeAsync())).IsNotSupported);
         Assert.False((await fixture.Client.GetKeepAwakeAsync()).KeepAwake);
 

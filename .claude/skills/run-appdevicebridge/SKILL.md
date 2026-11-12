@@ -19,7 +19,7 @@ and triggers hot reload. Screenshots land in `artifacts/run-appdevicebridge/`.
 
 ## Prerequisites
 
-Verified on this machine: .NET SDK 10.0.401 with the `maui` and `macos` workloads, Xcode 27.0, and `cliclick` at
+Verified on this machine: .NET SDK 11.0.100 with the `maui` and `macos` workloads, Xcode 27.0, and `cliclick` at
 `/opt/homebrew/bin/cliclick`. The terminal needs Screen Recording permission for `screencapture`.
 
 ## Run (agent path)
@@ -89,7 +89,7 @@ dev server.
   been added. Key: ProjectInstanceId { ProjectPath = …/nerdbank.gitversioning/…/PrivateP2PCaching.proj }`. The setting
   is committed in `Directory.Build.props`.
 - **gps and geofences are struck through on AppKit.** Shiny.Gps and Shiny.Geofencing have no macOS build, so this is expected.
-- **Use the AppKit head.** The Mac Catalyst head (`samples/Sample.Maui -f net10.0-maccatalyst`) builds, but exits at
+- **Use the AppKit head.** The Mac Catalyst head (`samples/Sample.Maui -f net11.0-maccatalyst`) builds, but exits at
   launch with code 133 and leaves no crash report. Unresolved.
 - **No `sleep`.** Agent shells here block it, so the driver waits with `perl -e 'select(...)'`.
 

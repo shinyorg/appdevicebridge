@@ -5,13 +5,13 @@
     <TargetFramework></TargetFramework>
 
     <!-- Multi-targeted because Shiny.Contacts only ships AddContactStore in its Android and iOS builds. Every
-         other head resolves net10.0, where the endpoints answer 501. -->
-    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
+         other head resolves net11.0, where the endpoints answer 501. -->
+    <TargetFrameworks>net11.0;net11.0-android;net11.0-ios</TargetFrameworks>
 
     <RootNamespace>Shiny.AppDeviceBridge.Contacts</RootNamespace>
     <Description>Device contacts for a Shiny.AppDeviceBridge web app, backed by Shiny.Contacts — access, paged search, read, photos, create, update and delete. One call: bridge.AddContactsBridge().</Description>
 
-    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">24.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
   </PropertyGroup>
 

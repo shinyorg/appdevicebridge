@@ -8,11 +8,11 @@
   <ItemGroup>
     <PackageReference Include="Shiny.Net.HttpServer" />
 
-    <!-- One AddShinyStores signature on every target, so this net10.0 build can call it and each head
+    <!-- One AddShinyStores signature on every target, so this net11.0 build can call it and each head
          still gets its platform store: Keychain, Android KeyStore, DPAPI, or a file on Linux. -->
     <PackageReference Include="Shiny.Extensions.Stores" />
 
-    <!-- The app bridge. Every registration it calls has one signature on every target, so this net10.0 build can call
+    <!-- The app bridge. Every registration it calls has one signature on every target, so this net11.0 build can call
          it and each head still gets its platform's implementation. Not AddBattery or AddConnectivity: those return
          void on the platform targets, so Shiny.AppDeviceBridge.Maui, which builds for each, calls them. -->
     <PackageReference Include="Shiny.Core" />

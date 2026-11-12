@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- net10.0 only: AddMdns, AddSsdp and AddWsDiscovery have one signature on every target and need no Shiny
+    <!-- net11.0 only: AddMdns, AddSsdp and AddWsDiscovery have one signature on every target and need no Shiny
          host, so each head's own platform build of Shiny.Net.Discovery is what runs. No MAUI. -->
     <RootNamespace>Shiny.AppDeviceBridge.Discovery</RootNamespace>
     <Description>Local network discovery for a Shiny.AppDeviceBridge web app, backed by Shiny.Net.Discovery — mDNS/DNS-SD (Bonjour), SSDP/UPnP and WS-Discovery (ONVIF): one-shot searches, live browsing streamed to the page as events, resolving, and publishing. One call: bridge.AddDiscoveryBridge().</Description>

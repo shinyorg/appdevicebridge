@@ -16,6 +16,7 @@ public static class SampleNav
             new NavItem("device", "Device", "phone", "app"),
             new NavItem("sensors", "Sensors", "pulse", "sensors"),
             new NavItem("biometrics", "Biometrics", "fingerprint", "biometrics"),
+            new NavItem("passkeys", "Passkeys", "key", "passkeys"),
             new NavItem("desktop", "Desktop", "monitor", "tray", "quickentry"),
             new NavItem("native-calls", "Native calls", "clock", "invoke")),
         new("Location",

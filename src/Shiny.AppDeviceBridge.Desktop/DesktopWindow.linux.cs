@@ -2,7 +2,7 @@
 namespace Shiny.AppDeviceBridge.Desktop;
 
 /// <summary>
-/// The net10.0 build: the maui-labs GTK4 head on Linux, unsupported anywhere else. A hidden GTK window has no taskbar
+/// The net11.0 build: the maui-labs GTK4 head on Linux, unsupported anywhere else. A hidden GTK window has no taskbar
 /// entry, and GtkApplication keeps running while it has windows, visible or not.
 /// </summary>
 sealed partial class DesktopWindow

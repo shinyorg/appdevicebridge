@@ -209,7 +209,7 @@ public class RegionGeofenceBridgeTests
         var server = provider.GetRequiredService<AppDeviceBridgeServer>();
         _ = server.Http;
 
-        // Plain net10.0 has no GPS to drive monitoring, so the bridge is there and answers 501.
+        // Plain net11.0 has no GPS to drive monitoring, so the bridge is there and answers 501.
         var bridge = Assert.Single(server.Bridges.OfType<RegionGeofenceBridge>());
         Assert.False(bridge.IsSupported);
         Assert.Same(serializerOptions, provider.GetRequiredService<WebAppRegionGeofenceOptions>().RegionSerializerOptions);

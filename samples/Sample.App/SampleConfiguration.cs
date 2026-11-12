@@ -136,6 +136,10 @@ public static class SampleConfiguration
 
                         // Touch ID / Face ID / fingerprint / Windows Hello, and NDEF tags (PC/SC readers on the desktops)
                         .AddBiometricsBridge()
+
+                        // Passkeys for one relying party. The ceremony only succeeds once the domain lists this app: an
+                        // associated domain (webcredentials:) on Apple, assetlinks.json on Android — a domain you control.
+                        .AddPasskeysBridge("shinylib.net")
                         .AddNfcBridge()
                         .AddNotificationsBridge()
                         .AddHttpTransfersBridge()

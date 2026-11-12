@@ -49,7 +49,7 @@ public class FoldersAndPhotosTests
         await using var _ = host;
         using var __ = webView;
 
-        // This test host is macOS or Windows running the net10.0 build, which only has GTK's picker on Linux.
+        // This test host is macOS or Windows running the net11.0 build, which only has GTK's picker on Linux.
         if (OperatingSystem.IsLinux())
             return;
 
@@ -68,7 +68,7 @@ public class FoldersAndPhotosTests
         await using var _ = host;
         using var __ = webView;
 
-        // No photo library in the net10.0 build.
+        // No photo library in the net11.0 build.
         var status = await webView.GetFromJsonAsync("/_bridge/photos", PhotosJsonContext.Default.PhotoStatus);
         Assert.False(status!.LibrarySupported);
         Assert.Equal(HttpStatusCode.NotImplemented, (await webView.GetAsync("/_bridge/photos/library")).StatusCode);

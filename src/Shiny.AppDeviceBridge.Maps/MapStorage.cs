@@ -137,7 +137,7 @@ sealed class MapStorage
         if (!(OperatingSystem.IsIOS() || OperatingSystem.IsMacCatalyst()))
             return;
 
-        // The attribute NSURLIsExcludedFromBackupKey sets, written directly so this net10.0 build needs no Apple bindings.
+        // The attribute NSURLIsExcludedFromBackupKey sets, written directly so this net11.0 build needs no Apple bindings.
         var value = "com.apple.backupd"u8.ToArray();
         _ = NativeMethods.setxattr(path, "com.apple.metadata:com_apple_backup_excludeItem", value, (nuint)value.Length, 0, 0);
     }

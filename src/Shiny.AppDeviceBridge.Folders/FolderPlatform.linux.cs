@@ -2,7 +2,7 @@
 namespace Shiny.AppDeviceBridge.Folders;
 
 /// <summary>
-/// The net10.0 build: GTK's file dialog on Linux, which the maui-labs GTK head runs; anywhere else there is no picker. A
+/// The net11.0 build: GTK's file dialog on Linux, which the maui-labs GTK head runs; anywhere else there is no picker. A
 /// Linux folder is a plain path.
 /// </summary>
 static partial class FolderPlatform

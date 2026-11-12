@@ -37,7 +37,7 @@ app, served from the device itself, updated from your own server, and able to ca
 
 | Package | Use it in | What it does |
 | --- | --- | --- |
-| `Shiny.AppDeviceBridge.Maui` | the app | `UseAppDeviceBridge(bridge => …)`: `AddShinyHttpServer` with the bridges on it, started with the app and restarted on resume; `MauiAppDeviceBridgeBuilder`, which the MAUI bridges extend; it also calls `UseShiny()`, registers Shiny's battery and connectivity, and supplies the app's UI thread; `AddDeviceBridge()` — browser, maps, share, haptics and vibration, keep-awake and clipboard — and `AddSensorsBridge()` — accelerometer, gyroscope, magnetometer, compass, barometer and orientation — over .NET MAUI Essentials; `UseTrafficMonitor` and `TrafficMonitorPage` for debugging |
+| `Shiny.AppDeviceBridge.Maui` | the app | `UseAppDeviceBridge(bridge => …)`: `AddShinyHttpServer` with the bridges on it, started with the app and restarted on resume; `MauiAppDeviceBridgeBuilder`, which the MAUI bridges extend; it also calls `UseShiny()`, registers Shiny's battery and connectivity, and supplies the app's UI thread; `AddDeviceBridge()` — browser, maps, share, haptics and vibration, keep-awake and clipboard — and `AddSensorsBridge()` — accelerometer, gyroscope, magnetometer, compass, barometer and orientation — and `AddPasskeysBridge("example.com")` — WebAuthn / FIDO2 passkeys with Face ID, Touch ID, Android Credential Manager and Windows Hello — over .NET MAUI Essentials; `UseTrafficMonitor` and `TrafficMonitorPage` for debugging |
 | `Shiny.AppDeviceBridge.WebView` | the app | `UseAppDeviceBridge(bridge => …, webApp => …)`, `WebAppHostView`, `WebAppHostPage`, `AllowWebPermissions`: the web app in a WebView, over-the-air updates, the dev server proxy, and the launch session |
 | `Shiny.AppDeviceBridge.Blazor` | the Blazor WebAssembly app | `AddWebAppHostClient()`: the page's transport, typed clients for the built-in bridges (`IHostBridge`, `ISettingsBridge`, `IFilesBridge`, `ILinksBridge`), `WebAppEvents`, `WebAppNativeCalls` (typed C# handlers for jobs, GPS, geofences and push), and `WebAppBridge` for endpoints of your own |
 | `Shiny.AppDeviceBridge.Client` | (dependency) | the typed-client foundation: `IBridgeTransport`, `BridgeException`, the `[BridgeClient]` attributes and the generator that implements them, and the built-in bridges' contracts |
@@ -708,6 +708,7 @@ WebView's session that's a `403`, so a caller outside the page can't probe which
 | Call directory | `GET calldirectory`, `POST calldirectory/access`, `GET calldirectory/entries/{phoneNumber}`, `PUT/DELETE calldirectory/entries`, `POST calldirectory/entries/remove`, `POST calldirectory/entries/replace`, `POST calldirectory/reload`, `POST calldirectory/normalize` | |
 | Age signals | `GET agesignals`, `POST agesignals/request`, `POST agesignals/significant-update` | |
 | Biometrics | `GET biometrics[?strength=Weak]`, `POST biometrics/authenticate` | |
+| Passkeys | `GET passkeys`, `POST passkeys/create`, `POST passkeys/assert` | |
 | NFC | `GET nfc`, `POST nfc/access`, `POST nfc/read`, `POST nfc/write`, `POST/DELETE nfc/scan`, `POST nfc/tags/{tagId}/{write,lock,release}` | `nfc.tag`, `nfc.scan` |
 | VPN | `GET vpn`, `PUT/DELETE vpn/profile`, `POST vpn/connect`, `POST vpn/disconnect` | `vpn.status` |
 | Maps | `GET maps`, `GET maps/regions`, `POST/DELETE maps/regions/{id}`, `DELETE maps/regions/{id}/directions`, `DELETE maps/regions/{id}/download`, `GET maps/tiles/{z}/{x}/{y}`, `GET maps/basemap/{z}/{x}/{y}`, `GET maps/traffic/{z}/{x}/{y}`, `GET maps/incidents/{z}/{x}/{y}`, `GET maps/glyphs/{fontstack}/{range}.pbf`, `GET maps/sprites/{name}` | `maps.download` |
@@ -1012,6 +1013,23 @@ BiometricPrompt (fingerprint, face, iris) on Android, and Windows Hello. Linux a
   show the prompt from (no Android activity, or a missing `NSFaceIDUsageDescription`).
 - **Security:** the answer is a local yes/no for the page's UI. Don't send it to a server as proof of identity.
 - **Platform setup:** iOS: `NSFaceIDUsageDescription` in Info.plist. Android and Windows need nothing.
+
+**Passkeys** (`Shiny.AppDeviceBridge.Maui`, added by `AddPasskeysBridge("example.com")`): create and sign in with passkeys
+(WebAuthn / FIDO2) through the passkeys API in .NET MAUI 11 Essentials — AuthenticationServices on iOS and Mac Catalyst,
+Credential Manager on Android, and Windows Hello. A loopback page can't use `navigator.credentials` for your domain, so
+the native app runs the ceremony. macOS (AppKit) and Linux answer `501`.
+- **Creating:** `POST passkeys/create` with `{ options, preferImmediatelyAvailable }`, where `options` is the relying
+  party server's `PublicKeyCredentialCreationOptions` JSON as it came, answers `{ id, response }`: the credential id and
+  the WebAuthn registration response JSON to post back to the server.
+- **Signing in:** `POST passkeys/assert` with the server's `PublicKeyCredentialRequestOptions` (it must carry `rpId`)
+  answers `{ id, userHandle, response }`. The bridge never makes challenges or verifies anything; the server does.
+- **Errors:** `400` for options without `rp.id` / `rpId` or that the platform rejects, `403` `rp_not_allowed` for a
+  relying party id the app did not register, `409` `cancelled` when the sheet is dismissed, `409` `failed` when the
+  ceremony fails (no domain association, no matching passkey).
+- **Security:** only the relying party ids passed to `AddPasskeysBridge` reach the authenticator. Apple and Android also
+  check the app's domain association, but Windows Hello does not tie a desktop app to a domain.
+- **Platform setup:** each relying party lists the app — `webcredentials:example.com` in the Apple entitlements plus the
+  site's `apple-app-site-association`, and the site's `assetlinks.json` on Android. Windows needs nothing.
 
 **NFC** (`Shiny.AppDeviceBridge.Nfc`, `AddNfcBridge()`): read and write NDEF tags (URLs, text, MIME, smart posters,
 Android app records) via Shiny.Nfc — Android reader mode, iOS CoreNFC, and PC/SC readers on Windows, macOS and Linux. A
@@ -1483,7 +1501,7 @@ downloaded a region. Every platform; on-device directions on Android and iOS wit
   Framework grant; Windows and Linux (GTK's file dialog) keep the path.
 - **Android folders aren't paths.** The files bridge reads and writes them through the Storage Access Framework,
   but bridges that hand the OS a file path — sharing, transfers, notification images — refuse them.
-- **A plain `net10.0` project that references it** (a shared setup project that mobile heads also use) compiles
+- **A plain `net11.0` project that references it** (a shared setup project that mobile heads also use) compiles
   against the Linux build, which references GirCore. GirCore's source generators then run in that project, and the code
   they add references GTK's assemblies, which a mobile app doesn't ship. iOS stops at launch with
   `Could not find GLib-2.0`. Remove the generators in that project's csproj:
@@ -1893,7 +1911,7 @@ Values your own code raises, such as those from a Shiny delegate the OS calls or
 listeners remain when one leaves, which is where a bridge stops a session nobody is watching.
 `routes.Events.Source("name", typeInfo)` gets or creates one mapped to an event, for a delegate to publish into.
 
-To give it a typed client, declare the API once in a plain `net10.0` project that references
+To give it a typed client, declare the API once in a plain `net11.0` project that references
 `Shiny.AppDeviceBridge.Client`. The generator implements the interface, and the same contracts serialize on
 both sides:
 

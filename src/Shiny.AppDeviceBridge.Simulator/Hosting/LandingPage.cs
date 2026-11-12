@@ -38,7 +38,7 @@ static class LandingPage
             <h1>Shiny.AppDeviceBridge simulator</h1>
             <p>The bridges are running, but no page is being served. Restart with one, so the page and the bridges share this origin:</p>
             <pre>shiny-bridge-sim --dev-server http://localhost:5080     # dotnet watch, Vite…
-            shiny-bridge-sim --app ./bin/Release/net10.0/publish/wwwroot</pre>
+            shiny-bridge-sim --app ./bin/Release/net11.0/publish/wwwroot</pre>
             <p>Platform: <code>{{WebUtility.HtmlEncode(state.Platform)}}</code> · app id: <code>{{WebUtility.HtmlEncode(state.AppId)}}</code></p>
             <table>
             <thead><tr><th>Bridge</th><th>Routes</th><th>Events</th><th>Supported</th></tr></thead>

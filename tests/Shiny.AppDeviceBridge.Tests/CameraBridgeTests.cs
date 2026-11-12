@@ -13,7 +13,7 @@ using AccessState = Shiny.AppDeviceBridge.Client.AccessState;
 /// <summary>
 /// The device camera bridge, with a fake camera screen attached: everything between a request and the camera control —
 /// the session, the refusals, the viewfinder stream, the events, and the filing. The control itself is platform UI, checked
-/// in the sample app. This test host is the net10.0 build, which has no camera, so the platform itself reports unsupported.
+/// in the sample app. This test host is the net11.0 build, which has no camera, so the platform itself reports unsupported.
 /// </summary>
 public class CameraBridgeTests
 {

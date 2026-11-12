@@ -163,7 +163,7 @@ public class BarcodesBridgeTests
 
     [Fact]
     public void The_linux_head_has_no_scanner()
-        // This test host is the net10.0 build, which is the one the maui-labs Linux head runs.
+        // This test host is the net11.0 build, which is the one the maui-labs Linux head runs.
         => Assert.False(new MediaBarcodeScanSource(new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider()).IsSupported);
 
     [Fact]

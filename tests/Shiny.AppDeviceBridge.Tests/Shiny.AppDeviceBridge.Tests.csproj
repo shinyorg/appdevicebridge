@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net11.0</TargetFramework>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
@@ -87,7 +87,7 @@
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.AiConversation/Shiny.AppDeviceBridge.AiConversation.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Speech/Shiny.AppDeviceBridge.Speech.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps/Shiny.AppDeviceBridge.Maps.csproj" />
-    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Valhalla/Shiny.AppDeviceBridge.Maps.Valhalla.csproj" SetTargetFramework="TargetFramework=net10.0" />
+    <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Valhalla/Shiny.AppDeviceBridge.Maps.Valhalla.csproj" SetTargetFramework="TargetFramework=net11.0" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.Maps.Blazor/Shiny.AppDeviceBridge.Maps.Blazor.csproj" />
     <ProjectReference Include="../../src/Shiny.AppDeviceBridge.MapPacks/Shiny.AppDeviceBridge.MapPacks.csproj" />
     <!-- As an analyzer, for the test-only [BridgeClient] interface; and as an assembly, to run it against bad declarations. -->

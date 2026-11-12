@@ -17,7 +17,7 @@ public class WindowBridgeTests
     [Fact]
     public async Task Says_it_is_unsupported_and_answers_501_without_a_window()
     {
-        // The test host is the plain net10.0 build off Linux: the real window answers unsupported.
+        // The test host is the plain net11.0 build off Linux: the real window answers unsupported.
         var services = new ServiceCollection()
             .AddSingleton(new WindowBridgeOptions())
             .AddSingleton<TrayPresence>()

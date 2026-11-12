@@ -5,7 +5,7 @@
     <ValidateXcodeVersion>false</ValidateXcodeVersion>
 
     <!-- A true AppKit app via dotnet/maui-labs — not Mac Catalyst. -->
-    <TargetFramework>net10.0-macos</TargetFramework>
+    <TargetFramework>net11.0-macos</TargetFramework>
     <OutputType>Exe</OutputType>
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>

@@ -229,6 +229,43 @@ export interface OrientationRequest {
     orientation: DisplayOrientation;
 }
 
+export interface PasskeyAssertRequest {
+    /** The relying party server's `PublicKeyCredentialRequestOptions` JSON, passed through as it came. */
+    options: unknown;
+    /** Only offer a passkey already on this device. Apple and Android; ignored on Windows. */
+    preferImmediatelyAvailable?: boolean;
+}
+
+export interface PasskeyAssertResult {
+    /** The credential id (base64url) of the passkey used. */
+    id: string;
+    /** The `user.id` (base64url) the relying party set at registration, for username-less sign-in; null when the authenticator does not return one. */
+    userHandle: string | null;
+    /** The WebAuthn authentication response JSON. Post it to the relying party server to verify. */
+    response: unknown;
+}
+
+export interface PasskeyCreateRequest {
+    /** The relying party server's `PublicKeyCredentialCreationOptions` JSON, passed through as it came. */
+    options: unknown;
+    /** Stay on this device: only create the passkey if the local authenticator can, with no QR code or "use another device" step. Apple and Android; ignored on Windows. */
+    preferImmediatelyAvailable?: boolean;
+}
+
+export interface PasskeyCreateResult {
+    /** The new passkey's credential id (base64url), the WebAuthn `PublicKeyCredential.id`. */
+    id: string;
+    /** The WebAuthn registration response JSON. Post it to the relying party server to verify and store. */
+    response: unknown;
+}
+
+export interface PasskeyStatus {
+    /** This platform and OS version can create and use passkeys. */
+    supported: boolean;
+    /** The relying party ids the app registered; options for any other id are refused. */
+    relyingPartyIds: string[];
+}
+
 export interface ScreenInfo {
     /** Physical pixels, as currently oriented. */
     width: number;
@@ -639,6 +676,26 @@ export class LinksBridge {
     /** A link arrived while the page is open. It is also left pending until consumed. */
     onLink(handler: (payload: AppLink) => void): Promise<() => void> {
         return this.transport.subscribe("app.link", json => handler(JSON.parse(json) as AppLink));
+    }
+}
+
+/** Creates and uses passkeys (WebAuthn / FIDO2 public-key credentials) with the platform authenticator: Face ID and Touch ID on iOS and Mac Catalyst, Android's credential manager, and Windows Hello. The page is the go-between — it fetches the options from its relying party server, hands them to the bridge as they are, and posts the response back for the server to verify. The bridge never creates challenges or verifies anything. Only the relying party ids the app registered are accepted. The macOS AppKit and Linux heads answer 501. */
+export class PasskeysBridge {
+    constructor(private readonly transport: BridgeTransport = browserTransport()) {}
+
+    /** Whether this platform and OS version can create and use passkeys, and the relying party ids the app accepts. */
+    getStatus(options?: { signal?: AbortSignal }): Promise<PasskeyStatus> {
+        return call<PasskeyStatus>(this.transport, "GET", `passkeys`, { signal: options?.signal });
+    }
+
+    /** Registers a new passkey through the native "create a passkey" sheet. Fails with 400 when the options have no `rp.id`, 403 `rp_not_allowed` when the app did not register that id, 409 `cancelled` when the user dismisses the sheet, and 409 `failed` when the ceremony fails — most often a missing associated domain (Apple) or Digital Asset Links file (Android) for the relying party. */
+    create(request: PasskeyCreateRequest, options?: { signal?: AbortSignal }): Promise<PasskeyCreateResult> {
+        return call<PasskeyCreateResult>(this.transport, "POST", `passkeys/create`, { json: request, signal: options?.signal });
+    }
+
+    /** Signs in with an existing passkey through the native sheet. Fails like `create`; the options must carry `rpId`, and 409 `failed` also covers no matching passkey on the device. */
+    assert(request: PasskeyAssertRequest, options?: { signal?: AbortSignal }): Promise<PasskeyAssertResult> {
+        return call<PasskeyAssertResult>(this.transport, "POST", `passkeys/assert`, { json: request, signal: options?.signal });
     }
 }
 

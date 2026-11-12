@@ -1,0 +1,47 @@
+@page "/passkeys"
+@inherits BridgePage
+@inject IPasskeysBridge PasskeysBridge
+
+<h1>Passkeys</h1>
+
+<p class="muted">Create and sign in with a passkey through Face ID, Touch ID, Android's credential manager or Windows Hello. The options come from your relying party server and the response goes back to it to verify; the app only accepts the relying party ids it registered, and the domain must list the app (an associated domain on Apple, assetlinks.json on Android).</p>
+
+<h2>Status</h2>
+<div class="actions">
+    <button @onclick="@(() => Run(() => PasskeysBridge.GetStatusAsync(), Json.PasskeyStatus))">Check</button>
+</div>
+
+<h2>Ceremony</h2>
+<p class="muted">Paste the server's <code>PublicKeyCredentialCreationOptions</code> or <code>PublicKeyCredentialRequestOptions</code> JSON.</p>
+<div class="actions">
+    <textarea @bind="options" rows="8" placeholder='{ "rp": { "id": "shinylib.net", "name": "Shiny" }, "challenge": "…", … }'></textarea>
+    <label><input type="checkbox" @bind="preferImmediatelyAvailable" /> This device only</label>
+    <button @onclick="Create">Create</button>
+    <button @onclick="Assert">Sign in</button>
+</div>
+
+<Output Value="@Output" Error="@Error" />
+
+@code {
+    static PasskeysJsonContext Json => PasskeysJsonContext.Default;
+
+    string options = "";
+    bool preferImmediatelyAvailable;
+
+    // a dismissed sheet is a 409 "cancelled", like a browser's NotAllowedError
+    Task Create() => Run(
+        () => PasskeysBridge.CreateAsync(new PasskeyCreateRequest(ParseOptions(), preferImmediatelyAvailable)),
+        Json.PasskeyCreateResult
+    );
+
+    Task Assert() => Run(
+        () => PasskeysBridge.AssertAsync(new PasskeyAssertRequest(ParseOptions(), preferImmediatelyAvailable)),
+        Json.PasskeyAssertResult
+    );
+
+    JsonElement ParseOptions()
+    {
+        using var document = JsonDocument.Parse(String.IsNullOrWhiteSpace(options) ? "{}" : options);
+        return document.RootElement.Clone();
+    }
+}

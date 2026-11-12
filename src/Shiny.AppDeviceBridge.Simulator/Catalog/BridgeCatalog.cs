@@ -118,6 +118,7 @@ public static class BridgeCatalog
             Describe(typeof(IAppBridge), AppJsonContext.Default),
             Describe(typeof(IDeviceBridge), DeviceJsonContext.Default),
             Describe(typeof(ISensorsBridge), SensorsJsonContext.Default),
+            Describe(typeof(IPasskeysBridge), PasskeysJsonContext.Default),
             Describe(typeof(AgeSignalsClient.IAgeSignalsBridge), AgeSignalsClient.AgeSignalsJsonContext.Default),
             Describe(typeof(AiClient.IAiConversationBridge), AiClient.AiConversationJsonContext.Default),
             Describe(typeof(AudioClient.IAudioBridge), AudioClient.AudioJsonContext.Default),

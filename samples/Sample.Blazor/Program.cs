@@ -85,6 +85,7 @@ builder.Services
     .AddInAppPurchasesBridgeClient()
     .AddBarcodesBridgeClient()
     .AddBiometricsBridgeClient()
+    .AddPasskeysBridgeClient()
     .AddNfcBridgeClient()
     .AddBridgeMaps();
 builder.Services.AddScoped<NativeCallHandlers>();

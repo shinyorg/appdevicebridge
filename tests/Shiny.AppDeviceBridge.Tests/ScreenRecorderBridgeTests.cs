@@ -449,7 +449,7 @@ public class ScreenRecorderBridgeTests
         var bridge = Assert.Single(provider.GetServices<IWebAppBridge>().OfType<ScreenRecorderBridge>());
         Assert.Equal("clips", Assert.Single(services, x => x.ServiceType == typeof(ScreenRecorderBridgeOptions)).ImplementationInstance is ScreenRecorderBridgeOptions o ? o.Folder : null);
 
-        // The net10.0 build registers the portal recorder on Linux and nothing anywhere else.
+        // The net11.0 build registers the portal recorder on Linux and nothing anywhere else.
         Assert.Equal(OperatingSystem.IsLinux(), provider.GetService<Native.IScreenRecorder>() is not null);
         if (!OperatingSystem.IsLinux())
             Assert.False(bridge.IsSupported);

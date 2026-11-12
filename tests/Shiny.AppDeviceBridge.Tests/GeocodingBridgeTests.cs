@@ -127,7 +127,7 @@ public class GeocodingBridgeTests
         var server = provider.GetRequiredService<AppDeviceBridgeServer>();
         _ = server.Http;
 
-        // Plain net10.0 has no platform geocoder: Shiny.Gps falls back to OpenStreetMap's Nominatim, so it is supported.
+        // Plain net11.0 has no platform geocoder: Shiny.Gps falls back to OpenStreetMap's Nominatim, so it is supported.
         var bridge = Assert.Single(server.Bridges.OfType<GeocodingBridge>());
         Assert.True(bridge.IsSupported);
     }

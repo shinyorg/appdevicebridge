@@ -61,7 +61,7 @@ change unless there's a reason not to.
      `shiny_valhalla_abi_version` and `ExpectedAbiVersion` together; bumping valhalla-mobile means regenerating
      `valhalla-config.json` from its `default.json` and building road networks with the matching Valhalla. Because that
      shim needs Xcode, `Shiny.AppDeviceBridge.Maps.Valhalla` is the one project left out of `Build.slnf`: CI cuts and
-     publishes its package from a separate macOS job, and the Windows job only ever builds its `net10.0` slice through
+     publishes its package from a separate macOS job, and the Windows job only ever builds its `net11.0` slice through
      the test project.
    - The trim/AOT analyzers are on for everything that ships. A change that introduces reflection or an
      unannotated dynamic dependency is a regression, not a warning to suppress.

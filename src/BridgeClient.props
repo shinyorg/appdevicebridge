@@ -2,7 +2,7 @@
 
   <!--
     Imported by every Shiny.AppDeviceBridge.*.Client project: a bridge's contracts, its [BridgeClient] interface and
-    the client generated from it. Plain net10.0 with no MAUI and no Blazor, because two very different apps reference
+    the client generated from it. Plain net11.0 with no MAUI and no Blazor, because two very different apps reference
     it — the WebAssembly page, for the typed client, and the native bridge, for the contracts it serializes.
 
     In a package, the generator arrives with Shiny.AppDeviceBridge.Client. In-repo it has to be referenced as an

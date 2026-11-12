@@ -7,14 +7,14 @@
 
     <!-- Multi-targeted because Shiny.Geofencing's registration methods only exist in its platform builds,
          with a different signature on each — so AddGeofenceBridge has to be compiled per platform to call
-         the right one. The plain net10.0 target serves the desktop heads, where the endpoints answer 501. -->
-    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
-    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+         the right one. The plain net11.0 target serves the desktop heads, where the endpoints answer 501. -->
+    <TargetFrameworks>net11.0;net11.0-android;net11.0-ios;net11.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net11.0-windows10.0.19041.0</TargetFrameworks>
 
     <RootNamespace>Shiny.AppDeviceBridge.Geofencing</RootNamespace>
     <Description>Geofencing endpoints for a Shiny.AppDeviceBridge web app, backed by Shiny.Geofencing — permissions, monitored regions, and enter/exit transitions delivered to the page as events and handler calls. One call: bridge.AddGeofenceBridge().</Description>
 
-    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">24.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>

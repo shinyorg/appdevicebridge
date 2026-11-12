@@ -1,8 +1,8 @@
 <Project>
     <PropertyGroup>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-        <MauiVersion>10.0.120</MauiVersion>
-        <MauiLabsVersion>0.1.0-preview.13.26526.5</MauiLabsVersion>
+        <MauiVersion>11.0.10</MauiVersion>
+        <MauiLabsVersion>0.1.0-preview.14.26555.2</MauiLabsVersion>
         <ShinyVersion>6.5.1</ShinyVersion>
         <DocumentDbVersion>14.1.0</DocumentDbVersion>
     </PropertyGroup>
@@ -11,20 +11,20 @@
         <PackageVersion Include="Nerdbank.GitVersioning" Version="3.10.91"/>
         <PackageVersion Include="Jint" Version="4.16.2"/>
         <PackageVersion Include="XenoAtom.Terminal.UI" Version="3.8.1"/>
-        <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.11"/>
+        <PackageVersion Include="Microsoft.Data.Sqlite" Version="11.0.0"/>
         <PackageVersion Include="SkiaSharp" Version="4.151.1"/>
         <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="4.151.1"/>
         <PackageVersion Include="Xamarin.AndroidX.DocumentFile" Version="1.1.0.3"/>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12"/>
-        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0"/>
+        <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="11.0.0"/>
         <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.11.0"/>
         <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.11.0"/>
         <PackageVersion Include="PolySharp" Version="1.16.0"/>
-        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12"/>
+        <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0"/>
         <PackageVersion Include="Microsoft.Maui.Controls" Version="$(MauiVersion)"/>
-        <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.12"/>
-        <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.12"/>
-        <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.12"/>
+        <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="11.0.0"/>
+        <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="11.0.0"/>
+        <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="11.0.0"/>
         <PackageVersion Include="Microsoft.Maui.Platforms.MacOS" Version="$(MauiLabsVersion)"/>
         <PackageVersion Include="Microsoft.Maui.Platforms.MacOS.Essentials" Version="$(MauiLabsVersion)"/>
         <PackageVersion Include="Microsoft.Maui.Platforms.Linux.Gtk4" Version="$(MauiLabsVersion)"/>
@@ -93,9 +93,9 @@
         <PackageVersion Include="Shiny.Printing.Rendering" Version="$(ShinyVersion)"/>
     </ItemGroup>
     <ItemGroup>
-        <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.12"/>
+        <PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="11.0.0"/>
         <PackageVersion Include="xunit.v3" Version="3.2.2"/>
-        <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0"/>
+        <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="11.0.0"/>
         <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="1.9.1"/>
     </ItemGroup>
 </Project>

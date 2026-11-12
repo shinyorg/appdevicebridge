@@ -4,10 +4,10 @@
     <!-- Cleared: src/Directory.Build.props sets the single target. -->
     <TargetFramework></TargetFramework>
 
-    <!-- On-device routing runs valhalla-mobile's native engine, which exists for Android and iOS. The net10.0 build lets
+    <!-- On-device routing runs valhalla-mobile's native engine, which exists for Android and iOS. The net11.0 build lets
          a shared project call AddOnDeviceDirections() on every head; there it registers nothing, and directions go
          online. Mac Catalyst is absent because valhalla-mobile's xcframework has no Catalyst slice. -->
-    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
+    <TargetFrameworks>net11.0;net11.0-android;net11.0-ios</TargetFrameworks>
 
     <RootNamespace>Shiny.AppDeviceBridge.Maps.Valhalla</RootNamespace>
     <Description>On-device turn-by-turn directions for Shiny.AppDeviceBridge.Maps, from Valhalla (via valhalla-mobile) running against the road network of a region the user downloaded — so directions work with no connection. Android and iOS; other platforms route online. One call: bridge.AddOnDeviceDirections().</Description>

@@ -5,9 +5,9 @@
     <TargetFramework></TargetFramework>
 
     <!-- Multi-targeted because Shiny.Health only has a backend in its iOS (HealthKit) and Android (Health Connect)
-         builds. Every other head — Mac Catalyst, Windows, macOS, Linux — resolves net10.0, registers nothing, and
+         builds. Every other head — Mac Catalyst, Windows, macOS, Linux — resolves net11.0, registers nothing, and
          answers 501. -->
-    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
+    <TargetFrameworks>net11.0;net11.0-android;net11.0-ios</TargetFrameworks>
 
     <RootNamespace>Shiny.AppDeviceBridge.Health</RootNamespace>
     <Description>Health data for a Shiny.AppDeviceBridge web app, backed by Shiny.Health — Apple HealthKit and Android Health Connect: permissions, bucketed reads, writes and live observation. One call: bridge.AddHealthBridge().</Description>

@@ -76,6 +76,6 @@ static partial class WebAppWebViewPermissions
         AttachPlatform(view, policy);
     }
 
-    // Implemented per platform; the GTK4 head (plain net10.0) has none.
+    // Implemented per platform; the GTK4 head (plain net11.0) has none.
     static partial void AttachPlatform(Microsoft.Maui.Controls.WebView view, WebAppWebPermissionPolicy policy);
 }
