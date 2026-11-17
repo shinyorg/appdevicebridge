@@ -37,6 +37,7 @@ sealed class SimulatorShell
         this.Traffic = new TrafficPanel(this);
         this.Trails = new TrailsPanel(this);
         this.Activity = new ActivityPanel();
+        this.Obd = new ObdPanel(this);
     }
 
     public SimulatorHost Host { get; }
@@ -57,10 +58,12 @@ sealed class SimulatorShell
 
     public ActivityPanel Activity { get; }
 
+    public ObdPanel Obd { get; }
+
     public State<bool> ExitRequested { get; } = new(false);
 
-    /// <summary>Bridges, Traffic, Trails, Activity: 0 to 3.</summary>
-    public void SelectTab(int index) => this.tab.Value = Math.Clamp(index, 0, 3);
+    /// <summary>Bridges, Traffic, Trails, Activity, OBD: 0 to 4.</summary>
+    public void SelectTab(int index) => this.tab.Value = Math.Clamp(index, 0, 4);
 
     public Visual Build()
     {
@@ -68,7 +71,8 @@ sealed class SimulatorShell
             new TabPage(new TextBlock(" Bridges "), this.Bridges.View),
             new TabPage(new TextBlock(" Traffic "), this.Traffic.View),
             new TabPage(new TextBlock(" Trails "), this.Trails.View),
-            new TabPage(new TextBlock(" Activity "), this.Activity.View)
+            new TabPage(new TextBlock(" Activity "), this.Activity.View),
+            new TabPage(new TextBlock(" OBD "), this.Obd.View)
         );
         tabs.SelectedIndex(this.tab.Bind.Value);
 
@@ -86,6 +90,9 @@ sealed class SimulatorShell
         this.State.Changed += this.Invalidate;
         this.Host.Traffic.Changed += (_, _) => this.InvalidateTraffic();
         this.Host.Trails.Changed += this.Invalidate;
+        this.Host.Obd.Changed += () => this.Post(this.Obd.Sync);
+        this.Host.Obd.Changed += this.Invalidate;
+        this.Host.Obd.Driven += this.Invalidate;
         this.State.Logged += record => this.Post(() => this.Activity.Append(record));
 
         foreach (var record in this.State.Activity.Reverse())
@@ -277,7 +284,7 @@ sealed class SimulatorShell
     }
 
     // Short, so the status on the left always fits; F1 lists every key.
-    string HintMarkup() => $"[{Ui.Muted}]F5 apply · Alt+1-4 tabs · F1 keys · Ctrl+Q quit[/]";
+    string HintMarkup() => $"[{Ui.Muted}]F5 apply · Alt+1-5 tabs · F1 keys · Ctrl+Q quit[/]";
 
     void AddCommands(Visual root)
     {
@@ -339,7 +346,7 @@ sealed class SimulatorShell
             Execute = _ => this.ShowHelp()
         });
 
-        for (var i = 0; i < 4; i++)
+        for (var i = 0; i < 5; i++)
         {
             var index = i;
             root.AddCommand(new Command
@@ -364,8 +371,11 @@ sealed class SimulatorShell
 
             [bold {Ui.Accent}]Traffic[/]  Every request the page made and what it got back. Filter by path, method or status.
 
-            [bold {Ui.Accent}]Trails[/]   Timed scripts: Ctrl+L loads a .gpx walk or a .trail.json. Play several at once, change
-                     the speed, loop. Ctrl+R records what you do in the Bridges tab as a new trail.
+            [bold {Ui.Accent}]Trails[/]   Timed scripts: Ctrl+L loads a .gpx or .kml walk or a .trail.json. Play several at once,
+                     change the speed, loop. A walk crosses the geofences the page monitors. Ctrl+R records what you do in the Bridges tab as a new trail.
+
+            [bold {Ui.Accent}]OBD[/]      Load a Shiny.Obd emulator profile: the page's obd bridge finds it as an adapter and reads it
+                     through the real bridge. F5 drives a scenario, and the live values follow the drive.
 
             [bold {Ui.Accent}]Values[/]   "$now" becomes the current time when sent; "$now-5m", "$now+2h", "$now+1d" offset it.
                      "$uuid" becomes a new GUID.
@@ -373,7 +383,7 @@ sealed class SimulatorShell
             [bold {Ui.Accent}]Files[/]    Ctrl+S saves a scenario — everything set here plus the trails — and Ctrl+O applies one.
                      Start with it again: shiny-bridge-sim --scenario file.json
 
-            [bold {Ui.Accent}]Keys[/]     Enter/Esc into and out of an editor · F5 apply, fire, play · Alt+1-4 tabs · Ctrl+L load trail
+            [bold {Ui.Accent}]Keys[/]     Enter/Esc into and out of an editor · F5 apply, fire, play · Alt+1-5 tabs · Ctrl+L load trail
                      Ctrl+R record · Ctrl+S save scenario · Ctrl+O apply scenario · F1 help · Ctrl+Q quit
             """;
 

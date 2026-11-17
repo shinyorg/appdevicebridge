@@ -1,5 +1,6 @@
 using System.Net;
 using Microsoft.Extensions.DependencyInjection;
+using Shiny.AppDeviceBridge.Obd;
 using Shiny.AppDeviceBridge.Simulator.Control;
 using Shiny.AppDeviceBridge.Simulator.Scenarios;
 using Shiny.AppDeviceBridge.Simulator.Simulation;
@@ -34,6 +35,7 @@ public sealed class SimulatorHost : IAsyncDisposable
         this.State = services.GetRequiredService<SimulatorState>();
         this.Traffic = services.GetRequiredService<TrafficRecorder>();
         this.Trails = services.GetRequiredService<TrailLibrary>();
+        this.Obd = services.GetRequiredService<ObdEmulation>();
     }
 
     public SimulatorOptions Options { get; }
@@ -46,6 +48,9 @@ public sealed class SimulatorHost : IAsyncDisposable
     public TrafficRecorder Traffic { get; }
 
     public TrailLibrary Trails { get; }
+
+    /// <summary>The emulated vehicle the <c>obd</c> bridge connects to while a profile is loaded.</summary>
+    public ObdEmulation Obd { get; }
 
     /// <summary>The container, for the stdio transport, which needs the same services the HTTP endpoint runs against.</summary>
     internal IServiceProvider Services => this.services;
@@ -98,6 +103,9 @@ public sealed class SimulatorHost : IAsyncDisposable
 
         var hub = new WebAppEventHub();
         var state = new SimulatorState(hub, bridgeOptions, time);
+        if (!options.SimulateGeofences)
+            state.Geofences.Enabled = false;
+
         // Both modes need the server and its tools; only --mcp puts an endpoint on the network, and only that endpoint
         // needs a token. An agent speaking over stdio already has the process.
         var mcp = options.Mcp || options.McpStdio;
@@ -113,18 +121,26 @@ public sealed class SimulatorHost : IAsyncDisposable
         services.AddSingleton(hub);
         services.AddSingleton(state);
         services.AddSingleton(sp => new TrailLibrary(sp.GetRequiredService<SimulatorState>()));
+        var obd = new ObdEmulation(state);
+        services.AddSingleton(obd);
+        services.AddSingleton<IObdVirtualAdapter>(obd);
         services.AddSingleton(sp => new SimulatorControl(
             sp.GetRequiredService<SimulatorState>(),
             sp.GetRequiredService<TrafficRecorder>(),
             sp.GetRequiredService<TrailLibrary>(),
-            sp.GetRequiredService<AppDeviceBridgeServer>()
+            sp.GetRequiredService<AppDeviceBridgeServer>(),
+            obd
         ));
 
         if (mcp)
             services.AddMcp(() => built!.GetRequiredService<SimulatorControl>());
 
-        foreach (var bridge in state.Bridges)
+        foreach (var bridge in state.Bridges.Where(x => x.Name != "obd"))
             services.AddSingleton<IWebAppBridge>(new SimulatedBridge(state, bridge));
+
+        // The real OBD bridge, over the emulated vehicle while a profile is loaded; the simulated one otherwise.
+        if (state.Find("obd") is { } obdBridge)
+            services.AddSingleton<IWebAppBridge>(sp => new ObdBridgeSwitch(state, obdBridge, new ObdBridge(sp), obd));
 
         services.AddShinyHttpServer(
             http =>
@@ -177,6 +193,9 @@ public sealed class SimulatorHost : IAsyncDisposable
         foreach (var path in options.Trails)
             host.Trails.Load(path);
 
+        if (options.ObdProfile is { } profile)
+            host.Obd.LoadAsync(profile).GetAwaiter().GetResult();
+
         return host;
     }
 
@@ -185,6 +204,7 @@ public sealed class SimulatorHost : IAsyncDisposable
         services.GetRequiredService<TrafficRecorder>(),
         services.GetRequiredService<TrailLibrary>(),
         services.GetRequiredService<AppDeviceBridgeServer>(),
+        services.GetRequiredService<ObdEmulation>(),
         "panel"
     );
 
@@ -203,6 +223,9 @@ public sealed class SimulatorHost : IAsyncDisposable
 
         if (this.PanelUrl is { } panel)
             this.State.Log($"web panel at {panel}");
+
+        if (this.Options.ObdDrive is { } drive)
+            this.Obd.Drive(drive);
 
         foreach (var name in this.Options.Play)
         {
@@ -269,6 +292,7 @@ public sealed class SimulatorHost : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         this.Trails.Dispose();
+        this.Obd.Dispose();
 
         if (this.Server.Http is { IsRunning: true } http)
             await http.StopAsync();

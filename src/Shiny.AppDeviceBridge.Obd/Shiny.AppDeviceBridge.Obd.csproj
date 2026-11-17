@@ -33,6 +33,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The simulator mounts the bridge's handlers behind its own routes, to switch between it and a simulated one. -->
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Simulator" />
+    <InternalsVisibleTo Include="Shiny.AppDeviceBridge.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />
     <ProjectReference Include="../Shiny.AppDeviceBridge.Obd.Client/Shiny.AppDeviceBridge.Obd.Client.csproj" />
   </ItemGroup>

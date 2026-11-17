@@ -24,7 +24,7 @@ sealed class TrailsPanel
         this.shell = shell;
 
         var toolbar = Ui.Toolbar(
-            Ui.Action("Load .gpx / .trail.json  Ctrl+L", this.Load),
+            Ui.Action("Load .gpx / .kml / .trail.json  Ctrl+L", this.Load),
             new Button(Ui.Live(() =>
             {
                 _ = this.shell.Revision;
@@ -35,7 +35,7 @@ sealed class TrailsPanel
         var rows = new ComputedVisual(() =>
         {
             _ = this.libraryVersion.Value;
-            return this.players.Count > 0 ? this.list : Ui.Empty("No trails yet. Load a .gpx walk or a .trail.json, or record one.");
+            return this.players.Count > 0 ? this.list : Ui.Empty("No trails yet. Load a .gpx or .kml walk or a .trail.json, or record one.");
         });
 
         var detail = new ComputedVisual(() =>
@@ -135,7 +135,7 @@ sealed class TrailsPanel
     public void Load()
         => this.shell.Prompt(
             "Load a trail",
-            "A .gpx file (a track, route or waypoints — played as gps.reading events at its recorded pace) or a .trail.json.",
+            "A .gpx, .kml or .kmz file (a track, route or points — played as gps.reading events at its recorded pace) or a .trail.json.",
             Environment.CurrentDirectory + Path.DirectorySeparatorChar,
             path =>
             {

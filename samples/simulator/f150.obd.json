@@ -1,0 +1,41 @@
+{
+  "$schema": "https://raw.githubusercontent.com/shinyorg/obd/main/obd-emulator.schema.json",
+  "formatVersion": 1,
+  "vehicle": {
+    "name": "2017 Ford F-150 XLT",
+    "vin": "1FTEW1EG5HFA12345",
+    "decodes": "2017 Ford F-150 XLT · 3.5L V6 EcoBoost",
+    "note": "A turbo pickup with a boost fault, for a page that reads trouble codes",
+    "ecuName": "PCM-EngineControl",
+    "calibrationId": "HL3A-12A650-AXA",
+    "unsupportedPids": ["5B"],
+    "storedDtcs": ["P0299"],
+    "pendingDtcs": [],
+    "freezeFrameDtc": "P0299",
+    "massKg": 2200,
+    "displacementLitres": 3.5,
+    "peakPowerWatts": 280000,
+    "peakTractiveForceN": 9000,
+    "idleRpm": 600,
+    "tankLitres": 98,
+    "gearRatios": [120, 75, 52, 40, 32, 26, 22, 19, 17, 15],
+    "shiftCeilingRpm": 5500
+  },
+  "scenarios": [
+    {
+      "name": "Commute",
+      "summary": "Out of the driveway, through town and onto the highway",
+      "steps": [
+        { "label": "Warm idle", "action": "idle", "targetSpeedKph": 0, "seconds": 5 },
+        { "label": "Pull away", "action": "accelerate", "targetSpeedKph": 50, "seconds": 12 },
+        { "label": "Through town", "action": "cruise", "targetSpeedKph": 50, "seconds": 30 },
+        { "label": "On-ramp", "action": "accelerate", "targetSpeedKph": 100, "seconds": 15 },
+        { "label": "Highway", "action": "cruise", "targetSpeedKph": 100, "seconds": 60 },
+        { "label": "Exit", "action": "brake", "targetSpeedKph": 0, "seconds": 15 }
+      ]
+    }
+  ],
+  "state": {
+    "permanentDtcs": ["P0420"]
+  }
+}

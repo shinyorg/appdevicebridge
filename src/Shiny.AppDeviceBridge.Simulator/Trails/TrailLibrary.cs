@@ -58,13 +58,18 @@ public sealed class TrailLibrary(SimulatorState state) : IDisposable
         this.Changed?.Invoke();
     }
 
-    /// <summary>Loads a <c>.gpx</c> as a GPS walk, or a trail's JSON.</summary>
-    public TrailPlayer Load(string path, TimeSpan? gpxInterval = null) => this.Add(ReadFile(path, gpxInterval));
+    /// <summary>Loads a <c>.gpx</c>, <c>.kml</c> or <c>.kmz</c> as a GPS walk, or a trail's JSON.</summary>
+    /// <param name="interval">For a walk: the gap between points that carry no time.</param>
+    public TrailPlayer Load(string path, TimeSpan? interval = null) => this.Add(ReadFile(path, interval));
 
-    public static Trail ReadFile(string path, TimeSpan? gpxInterval = null)
+    public static Trail ReadFile(string path, TimeSpan? interval = null)
     {
-        if (Path.GetExtension(path).Equals(".gpx", StringComparison.OrdinalIgnoreCase))
-            return GpxImporter.Import(path, gpxInterval);
+        var extension = Path.GetExtension(path).ToLowerInvariant();
+        if (extension == ".gpx")
+            return GpxImporter.Import(path, interval);
+
+        if (extension is ".kml" or ".kmz")
+            return KmlImporter.Import(path, interval);
 
         using var stream = File.OpenRead(path);
         var trail = JsonSerializer.Deserialize(stream, ScenarioJsonContext.Default.Trail) ?? throw new InvalidDataException($"{path} is not a trail.");

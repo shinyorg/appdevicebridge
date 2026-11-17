@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Reflection;
 using System.Text;
@@ -264,11 +265,70 @@ public class SimulatorServerTests : IAsyncLifetime
     {
         var geofences = new GeofencesBridgeClient(new BuiltInClientTests.HttpTransport(this.http));
 
+        await geofences.StartMonitoringAsync(new GeofenceRegion("home base", 43.64, -79.38, 100), TestContext.Current.CancellationToken);
+        var status = await geofences.GetStateAsync("home base", TestContext.Current.CancellationToken);
         await geofences.StopMonitoringAsync("home base", TestContext.Current.CancellationToken);
-        var status = await geofences.GetStateAsync("office", TestContext.Current.CancellationToken);
+
+        Assert.Equal("home base", status.Identifier);
+        Assert.Equal(1, this.State.FindRoute("geofences", "DELETE regions/{identifier}")!.Hits);
+        Assert.Empty(this.State.Geofences.Regions);
+    }
+
+    [Fact]
+    public async Task A_gps_reading_fires_the_geofences_the_page_monitors()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var geofences = new GeofencesBridgeClient(new BuiltInClientTests.HttpTransport(this.http));
+        await using var stream = await TestEventStream.OpenAsync(this.http, "geofence.status", ct);
+
+        await geofences.StartMonitoringAsync(new GeofenceRegion("harbour", 43.6400, -79.3800, 200), ct);
+        this.State.Fire("gps.reading", SimulatorTrailTests.Reading(43.6500, -79.3800));    // ~1.1 km north: starts outside, silently
+        Assert.Equal(GeofenceState.Exited, (await geofences.GetStateAsync("harbour", ct)).State);
+
+        this.State.Fire("gps.reading", SimulatorTrailTests.Reading(43.6405, -79.3800));
+        var entered = JsonSerializer.Deserialize(await stream.NextAsync("geofence.status", ct), GeofencingJsonContext.Default.GeofenceStatus)!;
+
+        this.State.Fire("gps.reading", SimulatorTrailTests.Reading(43.6500, -79.3800));
+        var exited = JsonSerializer.Deserialize(await stream.NextAsync("geofence.status", ct), GeofencingJsonContext.Default.GeofenceStatus)!;
+
+        Assert.Equal(new GeofenceStatus("harbour", GeofenceState.Entered), entered);
+        Assert.Equal(new GeofenceStatus("harbour", GeofenceState.Exited), exited);
+        Assert.Equal(2, this.State.FindEvent("geofence.status")!.Fired);
+        Assert.Equal("harbour", Assert.Single(await geofences.GetRegionsAsync(ct)).Identifier);
+    }
+
+    [Fact]
+    public async Task A_region_the_page_does_not_monitor_is_not_found_and_a_bad_one_is_refused()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var geofences = new GeofencesBridgeClient(new BuiltInClientTests.HttpTransport(this.http));
+
+        var missing = await Assert.ThrowsAsync<BridgeException>(() => geofences.GetStateAsync("office", ct));
+        var refused = await Assert.ThrowsAsync<BridgeException>(() => geofences.StartMonitoringAsync(new GeofenceRegion("bad", 43.64, -79.38, 0), ct));
+
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+
+        await geofences.StartMonitoringAsync(new GeofenceRegion("a", 1, 1, 10), ct);
+        await geofences.StartMonitoringAsync(new GeofenceRegion("b", 2, 2, 10), ct);
+        await geofences.StopAllMonitoringAsync(ct);
+        Assert.Empty(await geofences.GetRegionsAsync(ct));
+    }
+
+    [Fact]
+    public async Task With_geofence_simulation_off_the_bridge_answers_the_values_set_on_it()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var geofences = new GeofencesBridgeClient(new BuiltInClientTests.HttpTransport(this.http));
+        this.State.Geofences.Enabled = false;
+
+        await geofences.StartMonitoringAsync(new GeofenceRegion("harbour", 43.64, -79.38, 200), ct);
+        var status = await geofences.GetStateAsync("anything", ct);
+        this.State.Fire("gps.reading", SimulatorTrailTests.Reading(43.64, -79.38));
 
         Assert.NotNull(status);
-        Assert.Equal(1, this.State.FindRoute("geofences", "DELETE regions/{identifier}")!.Hits);
+        Assert.Empty(this.State.Geofences.Regions);
+        Assert.Equal(0, this.State.FindEvent("geofence.status")!.Fired);
     }
 
     [Fact]
@@ -489,6 +549,12 @@ public class SimulatorTrailTests
         }
     }
 
+    /// <summary>A whole <c>gps.reading</c> payload at a position.</summary>
+    internal static string Reading(double latitude, double longitude) => String.Create(CultureInfo.InvariantCulture, $$"""
+        { "latitude": {{latitude}}, "longitude": {{longitude}}, "positionAccuracy": 5, "timestamp": "$now", "heading": 0, "headingAccuracy": 5,
+          "altitude": 0, "speed": 1, "speedAccuracy": 1, "floor": 0, "isStationary": false }
+        """);
+
     static Trail WifiTrail() => new()
     {
         Name = "drop",
@@ -667,8 +733,8 @@ public class SimulatorTrailTests
     {
         var points = new[]
         {
-            new GpxImporter.GpxPoint(1, 1, null, null),
-            new GpxImporter.GpxPoint(1.001, 1, null, null)
+            new TrackPoint(1, 1, null, null),
+            new TrackPoint(1.001, 1, null, null)
         };
 
         var trail = GpxImporter.FromPoints(points, "route", TimeSpan.FromMilliseconds(750));
@@ -691,6 +757,212 @@ public class SimulatorTrailTests
     }
 }
 
+public class SimulatorKmlTests
+{
+    static Trail Import(string kml) => KmlImporter.Import(new MemoryStream(Encoding.UTF8.GetBytes(kml)), "fallback");
+
+    [Fact]
+    public void Imports_a_line_string_as_a_walk_one_point_per_interval()
+    {
+        var trail = Import("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <kml xmlns="http://www.opengis.net/kml/2.2">
+              <Document><name>Harbourfront</name>
+                <Placemark><LineString><coordinates>
+                  -79.3871,43.6426,80 -79.3871,43.6435,81
+                  -79.3858,43.6435
+                </coordinates></LineString></Placemark>
+              </Document>
+            </kml>
+            """);
+        var readings = trail.Steps.Where(x => x.Event == "gps.reading").ToList();
+
+        Assert.Equal("Harbourfront", trail.Name);
+        Assert.Equal([0, 1000, 1000], readings.Select(x => x.DelayMs));
+        Assert.Equal(43.6435, readings[1].Payload!["latitude"]!.GetValue<double>());
+        Assert.Equal(-79.3871, readings[1].Payload!["longitude"]!.GetValue<double>());
+        Assert.Equal(81, readings[1].Payload!["altitude"]!.GetValue<double>());
+        Assert.Contains(trail.Steps, x => x is { Bridge: "gps", Route: "GET current" });
+    }
+
+    [Fact]
+    public void Imports_a_gx_track_at_its_recorded_pace()
+    {
+        var trail = Import("""
+            <kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2">
+              <Placemark><gx:Track>
+                <when>2026-09-18T12:00:00Z</when>
+                <when>2026-09-18T12:00:10Z</when>
+                <gx:coord>-79.3871 43.6426 80</gx:coord>
+                <gx:coord>-79.3871 43.6435 81</gx:coord>
+              </gx:Track></Placemark>
+              <Placemark><LineString><coordinates>0,0 1,1</coordinates></LineString></Placemark>
+            </kml>
+            """);
+        var readings = trail.Steps.Where(x => x.Event == "gps.reading").ToList();
+
+        Assert.Equal("fallback", trail.Name);
+        Assert.Equal([0, 10_000], readings.Select(x => x.DelayMs));
+        Assert.InRange(readings[1].Payload!["speed"]!.GetValue<double>(), 9.5, 10.5);
+    }
+
+    [Fact]
+    public void Imports_point_placemarks_when_there_is_no_track_or_line()
+    {
+        var trail = Import("""
+            <kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+              <Placemark><name>Start</name><Point><coordinates>-79.38,43.64,0</coordinates></Point></Placemark>
+              <Placemark><name>End</name><Point><coordinates>-79.37,43.65,0</coordinates></Point></Placemark>
+            </Document></kml>
+            """);
+
+        Assert.Equal("Start", trail.Name);
+        Assert.Equal(2, trail.Steps.Count(x => x.Event == "gps.reading"));
+    }
+
+    [Fact]
+    public void Refuses_a_kml_with_nothing_to_walk()
+        => Assert.Throws<InvalidDataException>(() => Import("""<kml xmlns="http://www.opengis.net/kml/2.2"><Document/></kml>"""));
+
+    [Fact]
+    public void Loads_a_kmz_through_the_trail_library()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():n}.kmz");
+        try
+        {
+            using (var zip = System.IO.Compression.ZipFile.Open(path, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                using var writer = new StreamWriter(zip.CreateEntry("doc.kml").Open());
+                writer.Write("""<kml xmlns="http://www.opengis.net/kml/2.2"><Placemark><LineString><coordinates>1,1 1,1.001</coordinates></LineString></Placemark></kml>""");
+            }
+
+            var trail = TrailLibrary.ReadFile(path);
+
+            Assert.Equal(Path.GetFileNameWithoutExtension(path), trail.Name);
+            Assert.Equal(2, trail.Steps.Count(x => x.Event == "gps.reading"));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+}
+
+public class SimulatorGeofenceTests
+{
+    static SimulatorState NewState() => new(new WebAppEventHub(), new AppDeviceBridgeOptions { AppId = "test" });
+
+    static readonly GeofenceRegion Home = new("home", 43.6400, -79.3800, 200);
+
+    const double InLat = 43.6405, OutLat = 43.6500, Lon = -79.3800;
+
+    static List<string> Transitions(SimulatorState state) => [.. state.Activity
+        .Reverse()
+        .Select(x => x.Text)
+        .Where(x => x.StartsWith("geofence '", StringComparison.Ordinal) && (x.EndsWith(" entered", StringComparison.Ordinal) || x.EndsWith(" exited", StringComparison.Ordinal)))];
+
+    static void At(SimulatorState state, double latitude) => state.Fire("gps.reading", SimulatorTrailTests.Reading(latitude, Lon));
+
+    [Fact]
+    public void Starting_inside_enters_and_starting_outside_is_silent()
+    {
+        var state = NewState();
+        state.Geofences.Monitor(Home);
+        state.Geofences.Monitor(new GeofenceRegion("far", 10, 10, 50));
+
+        At(state, InLat);
+
+        Assert.Equal(["geofence 'home' entered"], Transitions(state));
+        Assert.Equal(GeofenceState.Exited, state.Geofences.GetStatus("far")!.State);
+    }
+
+    [Fact]
+    public void A_region_monitored_after_a_reading_is_checked_against_it_at_once()
+    {
+        var state = NewState();
+        At(state, InLat);
+
+        state.Geofences.Monitor(Home);
+
+        Assert.Equal(GeofenceState.Entered, state.Geofences.GetStatus("home")!.State);
+        Assert.Equal(1, state.FindEvent("geofence.status")!.Fired);
+    }
+
+    [Fact]
+    public void A_direction_turned_off_changes_the_state_without_firing()
+    {
+        var state = NewState();
+        state.Geofences.Monitor(Home with { NotifyOnEntry = false });
+
+        At(state, InLat);
+        Assert.Equal(GeofenceState.Entered, state.Geofences.GetStatus("home")!.State);
+        At(state, OutLat);
+
+        Assert.Equal(["geofence 'home' exited"], Transitions(state));
+    }
+
+    [Fact]
+    public void A_single_use_region_stops_being_monitored_after_its_first_transition()
+    {
+        var state = NewState();
+        state.Geofences.Monitor(Home with { SingleUse = true });
+        state.Geofences.Monitor(new GeofenceRegion("near", 43.6405, -79.3800, 50));
+
+        At(state, InLat);
+        At(state, OutLat);
+
+        Assert.Equal(["geofence 'home' entered", "geofence 'near' entered", "geofence 'near' exited"], Transitions(state));
+        Assert.Equal(["near"], state.Geofences.Regions.Select(x => x.Region.Identifier));
+        Assert.DoesNotContain("\"home\"", state.FindRoute("geofences", "GET regions")!.Behavior.Json);
+    }
+
+    [Fact]
+    public void Nothing_fires_while_the_simulation_is_off_or_the_bridge_is_unsupported()
+    {
+        var state = NewState();
+        state.Geofences.Monitor(Home);
+
+        state.Geofences.Enabled = false;
+        At(state, InLat);
+        state.Geofences.Enabled = true;
+        state.SetSupported("geofences", false);
+        At(state, InLat);
+
+        Assert.Equal(0, state.FindEvent("geofence.status")!.Fired);
+        Assert.Equal(GeofenceState.Unknown, state.Geofences.GetStatus("home")!.State);
+    }
+
+    [Fact]
+    public void A_recording_keeps_the_reading_and_not_the_geofence_it_fired()
+    {
+        var state = NewState();
+        state.Geofences.Monitor(Home);
+        var recording = new TrailRecording(state, "walk");
+
+        At(state, InLat);
+        var trail = recording.Stop();
+
+        Assert.Equal(1, state.FindEvent("geofence.status")!.Fired);
+        Assert.Equal(["gps.reading"], trail.Steps.Select(x => x.Event));
+    }
+
+    [Fact]
+    public async Task A_kml_walk_crosses_a_monitored_geofence()
+    {
+        var state = NewState();
+        state.Geofences.Monitor(Home);
+        var trail = KmlImporter.Import(new MemoryStream(Encoding.UTF8.GetBytes("""
+            <kml xmlns="http://www.opengis.net/kml/2.2"><Placemark><LineString><coordinates>
+              -79.3800,43.6500 -79.3800,43.6405 -79.3800,43.6500
+            </coordinates></LineString></Placemark></kml>
+            """)), "walk", TimeSpan.FromMilliseconds(1));
+
+        await new TrailPlayer(state, trail).Play().WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal(["geofence 'home' entered", "geofence 'home' exited"], Transitions(state));
+    }
+}
+
 public class SimulatorScenarioTests
 {
     [Fact]
@@ -699,6 +971,7 @@ public class SimulatorScenarioTests
         var state = new SimulatorState(new WebAppEventHub(), new AppDeviceBridgeOptions { AppId = "a" });
         state.Platform = "windows";
         state.StickyWrites = false;
+        state.Geofences.Enabled = false;
         state.SetSupported("ble", false);
         state.SetValue("wifi", "GET radio", """{ "enabled": true }""");
         state.SetBehavior("wifi", "POST connection", new RouteBehavior(ResponseMode.Error, "", 409, "conflict", "busy", DelayMs: 1500));
@@ -716,6 +989,7 @@ public class SimulatorScenarioTests
 
             Assert.Equal("windows", fresh.Platform);
             Assert.False(fresh.StickyWrites);
+            Assert.False(fresh.Geofences.Enabled);
             Assert.False(fresh.Find("ble")!.IsSupported);
             Assert.Contains("true", fresh.FindRoute("wifi", "GET radio")!.Behavior.Json);
             Assert.Equal(new RouteBehavior(ResponseMode.Error, fresh.FindRoute("wifi", "POST connection")!.DefaultJson, 409, "conflict", "busy", 1500), fresh.FindRoute("wifi", "POST connection")!.Behavior);
@@ -789,7 +1063,7 @@ public class SimulatorOptionsTests
     [Fact]
     public void Parses_every_option()
     {
-        var options = SimulatorOptions.Parse(["--dev-server", "http://localhost:5080", "--port", "6000", "--platform", "Android", "--app-id", "field", "--play", "walk", "--speed", "2.5", "--headless"]);
+        var options = SimulatorOptions.Parse(["--dev-server", "http://localhost:5080", "--port", "6000", "--platform", "Android", "--app-id", "field", "--play", "walk", "--speed", "2.5", "--headless", "--no-geofences"]);
 
         Assert.Equal(new Uri("http://localhost:5080/"), options.DevServer);
         Assert.Equal(6000, options.Port);
@@ -798,6 +1072,18 @@ public class SimulatorOptionsTests
         Assert.Equal(["walk"], options.Play);
         Assert.Equal(2.5, options.Speed);
         Assert.True(options.Headless);
+        Assert.False(options.SimulateGeofences);
+    }
+
+    [Fact]
+    public void Parses_the_obd_options_and_refuses_a_drive_without_a_vehicle()
+    {
+        var profile = Path.Combine(SimulatorCatalogTests.RepositoryRoot(), "samples", "simulator", "f150.obd.json");
+        var options = SimulatorOptions.Parse(["--obd", profile, "--obd-drive", "Commute"]);
+
+        Assert.Equal(profile, options.ObdProfile);
+        Assert.Equal("Commute", options.ObdDrive);
+        Assert.Throws<ArgumentException>(() => SimulatorOptions.Parse(["--obd-drive", "Commute"]));
     }
 
     [Theory]

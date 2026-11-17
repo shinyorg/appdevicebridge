@@ -53,7 +53,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.RegionGeofencing` | the app | `AddRegionGeofenceBridge(cfg => cfg.AddRegionSet(…))`: unlimited polygon, proximity and reverse-geocoded regions, monitored by background GPS, backed by Shiny.Geofencing.Regions (Android, iOS, Mac Catalyst) |
 | `Shiny.AppDeviceBridge.BluetoothLE` | the app | `AddBluetoothLEBridge()` |
 | `Shiny.AppDeviceBridge.Beacons` | the app | `AddBeaconsBridge(BeaconFeatures.All)`: iBeacon ranging and background region monitoring, Eddystone scanning, and broadcasting as a beacon, backed by Shiny.Beacons |
-| `Shiny.AppDeviceBridge.Obd` | the app | `AddObdBridge()`: OBD-II over Bluetooth LE or Wi-Fi adapters — decoded PIDs, VIN, trouble codes, live readings |
+| `Shiny.AppDeviceBridge.Obd` | the app | `AddObdBridge()`: OBD-II over Bluetooth LE or Wi-Fi adapters — decoded PIDs, VIN, trouble codes, live readings; `AddObdVirtualAdapter()` adds a demo or emulated vehicle |
 | `Shiny.AppDeviceBridge.Printers` | the app | `AddPrintersBridge()`: ESC/POS and TSPL receipt and label printers over Bluetooth LE or the network (raw TCP 9100, found over mDNS) — receipts the page builds, rendered to PDF too |
 | `Shiny.AppDeviceBridge.Printing` | the app | `AddPrintingBridge()`: the operating system's own printing — a PDF, image or HTML through AirPrint, Android's print dialog, the Windows spooler or CUPS |
 | `Shiny.AppDeviceBridge.Wifi` | the app | `AddWifiBridge(hotspot: false)`: current network and changes, scan, connect, known networks, radio, hotspot |
@@ -2112,8 +2112,12 @@ Open `http://127.0.0.1:5299/`. The page is served on the bridges' origin and nee
   call, a `204` null, or an error such as `501 not_supported` or `403 access_denied`, after an optional delay), fire any
   event, switch a bridge off, pick the platform.
 - **Traffic**: every request and response, from the same recorder as the MAUI traffic monitor.
-- **Trails**: timed scripts of those steps. A `.gpx` file plays as a GPS walk at its recorded pace, and Ctrl+R records what
-  you do as a trail.
+- **Trails**: timed scripts of those steps. A `.gpx`, `.kml` or `.kmz` file plays as a GPS walk at its recorded pace, and
+  Ctrl+R records what you do as a trail.
+- **Geofences**: the regions the page monitors are kept, and a GPS reading that crosses one fires `geofence.status`, as
+  the OS would. On by default; `--no-geofences` turns it off.
+- **OBD**: `--obd profile.json` loads a Shiny.Obd emulator profile as a vehicle the page scans for, connects to and reads
+  through the real OBD bridge. Driving one of its scenarios moves the live values the page's monitor reports.
 - `"$now"`, `"$now-5m"` and `"$uuid"` in a value are filled in each time it's sent.
 
 Ctrl+S saves a scenario of the whole setup. `--scenario setup.json --trail walk.gpx --play walk --headless` replays it

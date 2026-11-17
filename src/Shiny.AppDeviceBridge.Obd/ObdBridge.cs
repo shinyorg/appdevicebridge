@@ -58,6 +58,7 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
     const int UnresponsiveRounds = 3;
 
     readonly IBleManager? ble;
+    readonly IObdVirtualAdapter[] virtualAdapters;
     readonly WebAppEventSource<ObdMonitorReading> readings = new();
     readonly WebAppEventSource<ObdDisconnected> disconnected = new();
     readonly ILoggerFactory? loggerFactory;
@@ -68,10 +69,12 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
     ActiveConnection? active;
     ActiveMonitor? monitor;
     bool scanning;
+    ObdTransport lastScanTransport = ObdTransport.Ble;
 
     public ObdBridge(IServiceProvider services)
     {
         this.ble = services.GetOptionalService<IBleManager>();
+        this.virtualAdapters = [.. services.GetServices<IObdVirtualAdapter>()];
         this.loggerFactory = services.GetOptionalService<ILoggerFactory>();
     }
 
@@ -80,23 +83,51 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
     // Wi-Fi adapters are plain TCP, so there is always a transport; status reports whether BLE is one of them.
     public bool IsSupported => true;
 
-    public void Map(WebAppBridgeRoutes routes) => routes
-        .MapEvent("obd.reading", ct => this.readings.ListenAsync(this.OnReadingListenerStopped, ct), ObdJsonContext.Default.ObdMonitorReading)
-        .MapEvent("obd.disconnected", this.disconnected.ListenAsync, ObdJsonContext.Default.ObdDisconnected)
-        .MapGet("/status", this.StatusAsync)
-        .MapGet("/commands", CommandsAsync)
-        .MapPost("/scan", ctx => this.Guarded(ctx, () => this.ScanAsync(ctx)))
-        .MapGet("/adapters", this.AdaptersAsync)
-        .MapPost("/connection", this.ConnectAsync)
-        .MapDelete("/connection", this.DisconnectAsync)
-        .MapPost("/command", this.CommandAsync)
-        .MapPost("/raw", this.RawAsync)
-        .MapGet("/vin", ctx => this.WithConnection(ctx, async (c, ct) =>
-            await WebAppBridgeResults.Json(ctx, new ObdVin(await c.Execute(StandardCommands.Vin, ct)), ObdJsonContext.Default.ObdVin)))
-        .MapGet("/dtc", this.ReadCodesAsync)
-        .MapDelete("/dtc", this.ClearCodesAsync)
-        .MapPost("/monitor", this.StartMonitorAsync)
-        .MapDelete("/monitor", this.StopMonitorAsync);
+    public void Map(WebAppBridgeRoutes routes)
+    {
+        routes
+            .MapEvent("obd.reading", this.ListenReadings, ObdJsonContext.Default.ObdMonitorReading)
+            .MapEvent("obd.disconnected", this.ListenDisconnected, ObdJsonContext.Default.ObdDisconnected);
+
+        foreach (var (method, pattern, handler) in this.Routes())
+        {
+            _ = method switch
+            {
+                "GET" => routes.MapGet(pattern, handler),
+                "POST" => routes.MapPost(pattern, handler),
+                _ => routes.MapDelete(pattern, handler)
+            };
+        }
+    }
+
+    /// <summary>
+    /// Every route and its handler. <see cref="Map"/> mounts them; the simulator mounts them itself, behind its own
+    /// routes, so it can switch between this bridge and a simulated one without remounting either.
+    /// </summary>
+    internal IReadOnlyList<(string Method, string Pattern, RequestDelegate Handler)> Routes() =>
+    [
+        ("GET", "/status", this.StatusAsync),
+        ("GET", "/commands", CommandsAsync),
+        ("POST", "/scan", ctx => this.Guarded(ctx, () => this.ScanAsync(ctx))),
+        ("GET", "/adapters", this.AdaptersAsync),
+        ("POST", "/connection", this.ConnectAsync),
+        ("DELETE", "/connection", this.DisconnectAsync),
+        ("POST", "/command", this.CommandAsync),
+        ("POST", "/raw", this.RawAsync),
+        ("GET", "/vin", ctx => this.WithConnection(ctx, async (c, ct) =>
+            await WebAppBridgeResults.Json(ctx, new ObdVin(await c.Execute(StandardCommands.Vin, ct)), ObdJsonContext.Default.ObdVin))),
+        ("GET", "/dtc", this.ReadCodesAsync),
+        ("DELETE", "/dtc", this.ClearCodesAsync),
+        ("POST", "/monitor", this.StartMonitorAsync),
+        ("DELETE", "/monitor", this.StopMonitorAsync)
+    ];
+
+    /// <summary>One page stream's <c>obd.reading</c>. The monitor runs while there is at least one.</summary>
+    internal IAsyncEnumerable<ObdMonitorReading> ListenReadings(CancellationToken cancellationToken)
+        => this.readings.ListenAsync(this.OnReadingListenerStopped, cancellationToken);
+
+    internal IAsyncEnumerable<ObdDisconnected> ListenDisconnected(CancellationToken cancellationToken)
+        => this.disconnected.ListenAsync(cancellationToken: cancellationToken);
 
     ValueTask StatusAsync(HttpContext context)
     {
@@ -142,13 +173,24 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
             return;
         }
 
+        // Answered whatever the transport, ahead of the hardware: they are always in range.
+        IReadOnlyList<ObdAdapter> virtualFound = [.. this.AvailableVirtualAdapters().Select(x => new ObdAdapter(x.Id, x.Name, body.Transport, null, null))];
         IObdDeviceScanner scanner;
 
         if (body.Transport == ObdTransport.Ble)
         {
             if (this.ble is not { } b)
             {
-                await WebAppBridgeResults.NotSupported(context, "Bluetooth LE OBD adapters");
+                if (virtualFound.Count == 0)
+                {
+                    await WebAppBridgeResults.NotSupported(context, "Bluetooth LE OBD adapters");
+                    return;
+                }
+
+                lock (this.gate)
+                    this.lastScanTransport = body.Transport;
+
+                await WebAppBridgeResults.Json(context, virtualFound, ObdJsonContext.Default.IReadOnlyListObdAdapter);
                 return;
             }
 
@@ -173,6 +215,9 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
         {
             if (!this.scanning)
                 this.scanning = started = true;
+
+            if (started)
+                this.lastScanTransport = body.Transport;
         }
 
         if (!started)
@@ -181,7 +226,7 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
             return;
         }
 
-        var found = new List<ObdAdapter>();
+        var found = new List<ObdAdapter>(virtualFound);
         try
         {
             using var window = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
@@ -218,7 +263,13 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
     {
         IReadOnlyList<ObdAdapter> response;
         lock (this.gate)
-            response = [.. this.adapters.Values.Select(x => x.ToResponse())];
+        {
+            response =
+            [
+                .. this.AvailableVirtualAdapters().Select(x => new ObdAdapter(x.Id, x.Name, this.lastScanTransport, null, null)),
+                .. this.adapters.Values.Select(x => x.ToResponse())
+            ];
+        }
 
         return WebAppBridgeResults.Json(context, response, ObdJsonContext.Default.IReadOnlyListObdAdapter);
     }
@@ -252,14 +303,24 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
                 return;
             }
 
-            await this.Guarded(context, () => body.Transport == ObdTransport.Ble
-                ? this.ConnectBleAsync(context, body)
-                : this.ConnectWifiAsync(context, body));
+            var virtualAdapter = this.AvailableVirtualAdapters().FirstOrDefault(x => String.Equals(x.Id, body.PeripheralUuid, StringComparison.OrdinalIgnoreCase));
+
+            await this.Guarded(context, () => virtualAdapter is not null
+                ? this.ConnectVirtualAsync(context, body, virtualAdapter)
+                : body.Transport == ObdTransport.Ble
+                    ? this.ConnectBleAsync(context, body)
+                    : this.ConnectWifiAsync(context, body));
         }
         finally
         {
             this.exchange.Release();
         }
+    }
+
+    async ValueTask ConnectVirtualAsync(HttpContext context, ObdConnectRequest body, IObdVirtualAdapter adapter)
+    {
+        var connection = new ObdConnection(adapter.CreateTransport());
+        await this.OpenAsync(context, connection, ConnectTimeout(body), body.Transport, adapter.Id, adapter.Name);
     }
 
     async ValueTask ConnectBleAsync(HttpContext context, ObdConnectRequest body)
@@ -708,6 +769,8 @@ public sealed partial class ObdBridge : IWebAppBridge, IDisposable
     void PublishDisconnected(ActiveConnection a, string reason)
         => this.disconnected.Publish(new ObdDisconnected(reason, a.Transport, a.AdapterId));
 
+    IEnumerable<IObdVirtualAdapter> AvailableVirtualAdapters() => this.virtualAdapters.Where(x => x.IsAvailable);
+
     ILogger<T> Logger<T>() => this.loggerFactory?.CreateLogger<T>() ?? NullLogger<T>.Instance;
 
     static ValueTask NotConnected(HttpContext context)
@@ -883,6 +946,20 @@ public static class ObdBridgeExtensions
 #endif
 
         bridge.AddBridge<ObdBridge>();
+        return bridge;
+    }
+
+    /// <summary>
+    /// Offers an adapter that isn't hardware — the Shiny.Obd emulator, a demo vehicle — beside the ones the bridge finds.
+    /// Call it as many times as there are adapters.
+    /// </summary>
+    public static TBuilder AddObdVirtualAdapter<TBuilder>(this TBuilder bridge, IObdVirtualAdapter adapter)
+        where TBuilder : AppDeviceBridgeBuilder
+    {
+        ArgumentNullException.ThrowIfNull(bridge);
+        ArgumentNullException.ThrowIfNull(adapter);
+
+        bridge.Services.AddSingleton(adapter);
         return bridge;
     }
 }

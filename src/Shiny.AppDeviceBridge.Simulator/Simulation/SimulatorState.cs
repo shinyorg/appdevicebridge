@@ -188,11 +188,15 @@ public sealed class SimulatorState
         this.options = options;
         this.Time = time ?? TimeProvider.System;
         this.Bridges = [.. (bridges ?? BridgeCatalog.All).Select(x => new BridgeState(x))];
+        this.Geofences = new GeofenceSimulation(this);
     }
 
     public TimeProvider Time { get; }
 
     public IReadOnlyList<BridgeState> Bridges { get; }
+
+    /// <summary>The regions the page monitors, fired as the simulated GPS crosses them.</summary>
+    public GeofenceSimulation Geofences { get; }
 
     /// <summary>
     /// A PUT or POST whose body is the same contract its GET returns — <c>PUT wifi/radio</c>, <c>POST gps/listener</c> —
@@ -324,17 +328,37 @@ public sealed class SimulatorState
     {
         var evt = this.FindEvent(eventName) ?? throw new ArgumentException($"No bridge raises '{eventName}'.", nameof(eventName));
         var written = json ?? evt.Json;
+        var listeners = this.Publish(evt, written);
+        this.Applied?.Invoke(new TrailStep { Event = eventName, Payload = JsonNode.Parse(written) });
+        return listeners;
+    }
+
+    /// <summary>
+    /// Raises an event that follows from another — a geofence crossed by a GPS reading — without recording it: replaying
+    /// the reading raises it again.
+    /// </summary>
+    internal int Raise(string eventName, string json)
+    {
+        var evt = this.FindEvent(eventName) ?? throw new ArgumentException($"No bridge raises '{eventName}'.", nameof(eventName));
+        return this.Publish(evt, json);
+    }
+
+    int Publish(EventState evt, string written)
+    {
         var payload = PayloadTokens.Expand(written, this.Time);
         Validate(evt, payload);
 
         using var document = JsonDocument.Parse(payload);
-        var source = evt.Source ??= this.hub.Source(eventName, AppDeviceBridgeJsonContext.Default.JsonElement);
+        var source = evt.Source ??= this.hub.Source(evt.Event.Name, AppDeviceBridgeJsonContext.Default.JsonElement);
         var listeners = source.ListenerCount;
         source.Publish(document.RootElement.Clone());
 
         evt.Fire();
-        this.Log($"fired {eventName} → {listeners} stream{(listeners == 1 ? "" : "s")}");
-        this.Applied?.Invoke(new TrailStep { Event = eventName, Payload = JsonNode.Parse(written) });
+        this.Log($"fired {evt.Event.Name} → {listeners} stream{(listeners == 1 ? "" : "s")}");
+
+        if (evt.Event.Name == GeofenceSimulation.GpsEvent)
+            this.Geofences.OnReading(document.RootElement);
+
         return listeners;
     }
 

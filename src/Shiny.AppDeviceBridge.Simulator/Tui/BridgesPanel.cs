@@ -137,10 +137,15 @@ sealed class BridgesPanel
         var stickyBox = new CheckBox(new TextBlock("Sticky writes — a PUT or POST of what a GET returns becomes that GET's answer"), sticky.Bind.Value)
             .ValueChanged(() => state.StickyWrites = sticky.Value);
 
+        var geofences = new State<bool>(state.Geofences.Enabled);
+        var geofencesBox = new CheckBox(new TextBlock("Simulate geofences — GPS readings fire geofence.status for the regions the page monitors"), geofences.Bind.Value)
+            .ValueChanged(() => state.Geofences.Enabled = geofences.Value);
+
         this.sync = () =>
         {
             platform.Value = Math.Max(0, platforms.ToList().IndexOf(state.Platform));
             sticky.Value = state.StickyWrites;
+            geofences.Value = state.Geofences.Enabled;
         };
 
         var host = this.shell.Host;
@@ -162,6 +167,7 @@ sealed class BridgesPanel
             Ui.Dim("What GET /_bridge/host reports, and how every simulated bridge behaves."),
             Ui.Field("Platform", select.MinWidth(16)),
             stickyBox,
+            geofencesBox,
             new Rule(),
             info,
             new Rule(),

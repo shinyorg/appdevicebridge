@@ -22,6 +22,12 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- The real OBD bridge, mounted beside the simulated one and switched to while an emulated vehicle is loaded. -->
+        <ProjectReference Include="../Shiny.AppDeviceBridge.Obd/Shiny.AppDeviceBridge.Obd.csproj"/>
+        <PackageReference Include="Shiny.Obd.Emulator"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <EmbeddedResource Include="Control/panel.html" LogicalName="Shiny.AppDeviceBridge.Simulator.panel.html"/>
     </ItemGroup>
 

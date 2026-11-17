@@ -26,13 +26,22 @@ public sealed class SimulatorOptions
     /// <summary>A scenario to apply on start.</summary>
     public string? Scenario { get; set; }
 
-    /// <summary>Trails to load: <c>.gpx</c> or <c>.trail.json</c>.</summary>
+    /// <summary>Trails to load: <c>.gpx</c>, <c>.kml</c>, <c>.kmz</c> or <c>.trail.json</c>.</summary>
     public List<string> Trails { get; } = [];
 
     /// <summary>Trails to play as soon as the server is up, by name — the loaded file's name without its extension.</summary>
     public List<string> Play { get; } = [];
 
     public double Speed { get; set; } = 1;
+
+    /// <summary>GPS readings fire <c>geofence.status</c> for the regions the page monitors. On unless <c>--no-geofences</c>.</summary>
+    public bool SimulateGeofences { get; set; } = true;
+
+    /// <summary>A Shiny.Obd emulator profile to load: the vehicle the <c>obd</c> bridge connects to.</summary>
+    public string? ObdProfile { get; set; }
+
+    /// <summary>A scenario of the OBD profile (or a built-in one) to drive as soon as the server is up.</summary>
+    public string? ObdDrive { get; set; }
 
     /// <summary>No TUI: serve, apply, play, and print the activity log — for a test run or CI.</summary>
     public bool Headless { get; set; }
@@ -77,9 +86,12 @@ public sealed class SimulatorOptions
           --platform <name>      android | ios | maccatalyst | macos | windows | linux (default ios)
           --app-id <id>          the app id GET /_bridge/host reports (default simulator)
           --scenario <file>      apply a saved scenario on start
-          --trail <file>         load a trail: .gpx (a GPS walk) or .trail.json; repeatable
+          --trail <file>         load a trail: .gpx, .kml or .kmz (a GPS walk) or .trail.json; repeatable
           --play <name>          play a loaded trail on start; repeatable
           --speed <n>            playback speed for --play (default 1)
+          --no-geofences         GPS readings do not fire the geofences the page monitors
+          --obd <file>           load a Shiny.Obd emulator profile: the vehicle the obd bridge connects to
+          --obd-drive <name>     drive one of its scenarios on start (needs --obd)
           --data <dir>           where the settings and files bridges keep data (default: a temp folder)
           --headless             no TUI: serve, apply, play and log to the console
           --web                  no TUI: control the simulator from a browser panel at /_sim/ (the URL is printed)
@@ -159,6 +171,20 @@ public sealed class SimulatorOptions
                     options.Headless = true;
                     break;
 
+                case "--obd":
+                    options.ObdProfile = ExistingFile(arg, Next());
+                    break;
+
+                case "--obd-drive":
+                    options.ObdDrive = Next() is { Length: > 0 } drive
+                        ? drive
+                        : throw new ArgumentException("--obd-drive: expected a scenario name.");
+                    break;
+
+                case "--no-geofences":
+                    options.SimulateGeofences = false;
+                    break;
+
                 case "--web":
                     options.Web = true;
                     break;
@@ -202,6 +228,9 @@ public sealed class SimulatorOptions
         // stdout is the MCP protocol there, and the panel's address would be written into it.
         if (options.Web && options.McpStdio)
             throw new ArgumentException("Pass --web or --mcp-stdio, not both. --web with --mcp serves both over HTTP.");
+
+        if (options.ObdDrive is not null && options.ObdProfile is null)
+            throw new ArgumentException("--obd-drive: there is no vehicle to drive without --obd.");
 
         if (options.McpToken is not null && !options.Mcp)
             throw new ArgumentException("--mcp-token: there is nothing to guard without --mcp. Talking MCP over stdio needs no token.");

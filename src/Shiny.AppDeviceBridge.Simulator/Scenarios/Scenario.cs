@@ -30,6 +30,9 @@ public sealed class Scenario
 
     public bool? StickyWrites { get; set; }
 
+    /// <summary>Whether GPS readings fire the geofences the page monitors; on when absent.</summary>
+    public bool? SimulateGeofences { get; set; }
+
     public Dictionary<string, ScenarioBridge> Bridges { get; set; } = [];
 
     public List<Trail> Trails { get; set; } = [];
@@ -54,6 +57,7 @@ public sealed class Scenario
         {
             Platform = state.Platform,
             StickyWrites = state.StickyWrites ? null : false,
+            SimulateGeofences = state.Geofences.Enabled ? null : false,
             Trails = [.. trails]
         };
 
@@ -103,6 +107,9 @@ public sealed class Scenario
 
         if (this.StickyWrites is { } sticky)
             state.StickyWrites = sticky;
+
+        if (this.SimulateGeofences is { } geofences)
+            state.Geofences.Enabled = geofences;
 
         foreach (var (name, saved) in this.Bridges)
         {

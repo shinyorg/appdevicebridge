@@ -33,7 +33,7 @@ public sealed class SimulatedBridge(SimulatorState state, BridgeState bridge) : 
         }
     }
 
-    async ValueTask HandleAsync(HttpContext context, RouteState route)
+    internal async ValueTask HandleAsync(HttpContext context, RouteState route)
     {
         route.Hit();
         state.OnChanged();
@@ -58,6 +58,9 @@ public sealed class SimulatedBridge(SimulatorState state, BridgeState bridge) : 
                 await WebAppBridgeResults.NoContent(context);
                 return;
         }
+
+        if (bridge.Name == GeofenceSimulation.Bridge && await state.Geofences.TryAnswerAsync(context, route.Route))
+            return;
 
         if (state.StickyWrites && route.Route is { Method: "PUT" or "POST", BodyType: { } bodyType } && !IsRaw(bodyType) && context.Request.HasBody)
             this.StoreWrite(route, bodyType, await context.Request.ReadBodyAsStringAsync(MaxStoredBody, context.RequestAborted));

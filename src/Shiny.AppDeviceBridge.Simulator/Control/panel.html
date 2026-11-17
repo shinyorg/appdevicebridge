@@ -103,6 +103,7 @@
     <span class="origin hint">page at <a id="origin" target="_blank" rel="noopener"></a></span>
     <label>platform <select id="platform"></select></label>
     <label><input type="checkbox" id="sticky"> sticky writes</label>
+    <label><input type="checkbox" id="geofences"> simulate geofences</label>
     <span class="spacer"></span>
     <span class="hint" id="summary"></span>
   </header>
@@ -120,6 +121,7 @@
         <button data-tab="traffic" class="active">Traffic</button>
         <button data-tab="activity">Activity</button>
         <button data-tab="trails">Trails</button>
+        <button data-tab="obd">OBD</button>
         <button data-tab="scenario">Scenario</button>
       </div>
 
@@ -138,10 +140,20 @@
         <div id="trails"></div>
         <h4>Load a trail</h4>
         <div class="tools">
-          <input type="text" id="trail-path" placeholder="path to a .gpx or .trail.json on this machine" autocomplete="off">
+          <input type="text" id="trail-path" placeholder="path to a .gpx, .kml, .kmz or .trail.json on this machine" autocomplete="off">
           <button id="load-trail">Load</button>
         </div>
         <p class="msg" id="trail-msg"></p>
+      </div>
+
+      <div class="pane" id="pane-obd" hidden>
+        <div id="obd"></div>
+        <h4>Load an OBD profile</h4>
+        <div class="tools">
+          <input type="text" id="obd-path" placeholder="path to a Shiny.Obd emulator profile .json on this machine" autocomplete="off">
+          <button id="load-obd">Load</button>
+        </div>
+        <p class="msg" id="obd-msg"></p>
       </div>
 
       <div class="pane" id="pane-scenario" hidden>
@@ -257,6 +269,7 @@
   for (const p of PLATFORMS) $("platform").append(el("option", { value: p }, p));
   $("platform").addEventListener("change", e => call("set_platform", { platform: e.target.value }).then(poll));
   $("sticky").addEventListener("change", e => call("set_sticky_writes", { on: e.target.checked }));
+  $("geofences").addEventListener("change", e => call("set_geofence_simulation", { on: e.target.checked }));
   $("recording").addEventListener("change", e => call("set_recording", { on: e.target.checked }).then(poll));
   $("clear-traffic").addEventListener("click", () => call("clear_traffic").then(() => { openExchanges.clear(); poll(); }));
   $("traffic-match").addEventListener("input", () => poll());
@@ -267,6 +280,7 @@
     a.href = status.origin || "#";
     if (document.activeElement !== $("platform")) $("platform").value = status.platform;
     $("sticky").checked = status.stickyWrites;
+    $("geofences").checked = status.simulateGeofences;
     $("recording").checked = status.isRecording;
     $("summary").textContent = `${status.bridges} bridges · ${status.exchanges} requests · app id ${status.appId}`;
   }
@@ -503,7 +517,7 @@
 
   function renderTrails(trails) {
     const list = $("trails");
-    if (!trails.length) { list.replaceChildren(el("div", { class: "empty" }, "No trails loaded. Load a .gpx walk or a .trail.json below, or start with --trail.")); return; }
+    if (!trails.length) { list.replaceChildren(el("div", { class: "empty" }, "No trails loaded. Load a .gpx or .kml walk or a .trail.json below, or start with --trail.")); return; }
 
     list.replaceChildren(...trails.map(t => {
       const speed = el("input", { type: "number", min: 0.1, step: 0.5, value: t.speed, style: "width: 4.5rem" });
@@ -523,6 +537,40 @@
           el("button", { onclick: act("remove_trail") }, "Remove")));
     }));
   }
+
+  function renderObd(v) {
+    const pane = $("obd");
+    if (!v.loaded) { pane.replaceChildren(el("div", { class: "empty" }, "No vehicle. Load a Shiny.Obd emulator profile below, or start with --obd; until then the obd bridge answers the values set on its routes.")); return; }
+
+    const act = (op, extra) => () => call(op, extra).then(poll).catch(e => say($("obd-msg"), e.message));
+    const codes = v.storedDtcs.length + v.pendingDtcs.length ? `stored ${v.storedDtcs.join(" ") || "–"} · pending ${v.pendingDtcs.join(" ") || "–"}` : "no trouble codes";
+    pane.replaceChildren(
+      el("div", { class: "card" },
+        el("div", { class: "row" },
+          el("strong", { style: "flex: 1" }, v.vehicle),
+          el("span", { class: `badge ${v.driving ? "value" : ""}` }, v.driving ? "driving" : "parked")),
+        el("div", { class: "hint mono" }, `${v.vin} · ${v.profile}`),
+        el("div", { class: "hint" }, `${codes}${v.milOn ? " · MIL on" : ""}${v.engineOff ? " · engine off (NO DATA)" : ""}`),
+        v.driving ? el("div", { class: "hint" }, `${v.scenario}: ${v.step} · ${v.elapsed}${v.laps ? ` · lap ${v.laps + 1}` : ""}`) : null,
+        v.driving ? el("pre", {}, `speed ${v.speedKph.toFixed(0)} km/h · gear ${v.gear} · ${v.rpm.toFixed(0)} rpm\nthrottle ${v.throttlePercent.toFixed(0)} % · load ${v.loadPercent.toFixed(0)} % · coolant ${v.coolantTemperature.toFixed(0)} °C · fuel ${v.fuelRateLitresPerHour.toFixed(1)} L/h`) : null,
+        el("div", { class: "row", style: "margin-top: .4rem" },
+          el("button", { onclick: act("stop_obd") }, "Stop"),
+          el("button", { onclick: act("unload_obd_profile") }, "Unload"))),
+      ...v.scenarios.map(s => el("div", { class: "card" },
+        el("div", { class: "row" },
+          el("strong", { style: "flex: 1" }, s.name),
+          el("span", { class: "hint" }, `${Math.round(s.seconds)} s${s.loops ? " · loops" : ""}${s.fromProfile ? "" : " · built-in"}`),
+          el("button", { class: v.driving && v.scenario === s.name ? "" : "primary", onclick: act("drive_obd", { scenario: s.name }) }, v.driving && v.scenario === s.name ? "Restart" : "Drive")),
+        el("div", { class: "hint" }, s.summary))));
+  }
+
+  $("load-obd").addEventListener("click", async () => {
+    try {
+      const v = await call("load_obd_profile", { path: $("obd-path").value.trim() });
+      say($("obd-msg"), `loaded ${v.vehicle}`, true);
+      poll();
+    } catch (e) { say($("obd-msg"), e.message); }
+  });
 
   $("load-trail").addEventListener("click", async () => {
     try {
@@ -571,6 +619,7 @@
       if (tab === "traffic") renderTraffic(await call("get_traffic", { match: $("traffic-match").value.trim() || null, limit: 200, bodies: openExchanges.size > 0 }));
       else if (tab === "activity") renderActivity(await call("get_activity", { limit: 300 }));
       else if (tab === "trails") renderTrails(status.trails);
+      else if (tab === "obd") renderObd(await call("get_obd"));
     } catch (e) {
       if (e.status === 401) return;
     } finally {

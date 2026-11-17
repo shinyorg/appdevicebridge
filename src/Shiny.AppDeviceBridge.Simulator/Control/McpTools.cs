@@ -109,6 +109,12 @@ public static class McpTools
                 idempotent: true
             ),
             Tool(
+                "set_geofence_simulation",
+                "Whether gps.reading events — fired by hand or by a trail — fire geofence.status for the regions the page monitors through POST geofences/regions, and whether the geofences bridge keeps those regions. On by default; off, the bridge answers only the values set on its routes.",
+                ([Description("False to stop simulating geofences.")] bool on) => control().SetGeofenceSimulation(on),
+                idempotent: true
+            ),
+            Tool(
                 "fire_event",
                 "Raises a native event on the page's event stream, as the device would. Check the returned listener count: zero means the page has not subscribed and the event went nowhere.",
                 (
@@ -138,8 +144,8 @@ public static class McpTools
             ),
             Tool(
                 "load_trail_file",
-                "Loads a trail from a file on this machine: a .gpx, which plays as a GPS walk at its recorded pace, or a .trail.json.",
-                ([Description("Path to a .gpx or .trail.json file.")] string path) => control().LoadTrailFile(path)
+                "Loads a trail from a file on this machine: a .gpx, .kml or .kmz, which plays as a GPS walk at its recorded pace (and crosses the page's geofences), or a .trail.json.",
+                ([Description("Path to a .gpx, .kml, .kmz or .trail.json file.")] string path) => control().LoadTrailFile(path)
             ),
             Tool(
                 "play_trail",
@@ -166,6 +172,34 @@ public static class McpTools
                 "Stops a trail and forgets it.",
                 ([Description("The trail's name.")] string name) => control().RemoveTrail(name),
                 destructive: true
+            ),
+            Tool(
+                "get_obd",
+                "The emulated OBD vehicle: the profile loaded, the vehicle and VIN, its trouble codes, the scenarios it can drive, and the live drive — step, speed, rpm, gear, load, coolant, fuel rate.",
+                () => control().GetObd(),
+                readOnly: true
+            ),
+            Tool(
+                "load_obd_profile",
+                "Loads a Shiny.Obd emulator profile (obd-emulator.schema.json: a vehicle, driving scenarios and fault state) from a file on this machine. The obd bridge then has an adapter in range: the page scans, finds 'shiny-obd-emulator', connects with it as peripheralUuid and reads through the real bridge.",
+                ([Description("Path to the profile's .json.")] string path) => control().LoadObdProfile(path)
+            ),
+            Tool(
+                "unload_obd_profile",
+                "Forgets the emulated vehicle; the obd bridge answers the values set on its routes again.",
+                () => control().UnloadObdProfile(),
+                idempotent: true
+            ),
+            Tool(
+                "drive_obd",
+                "Starts driving a scenario from its first step, so the vehicle's live values move: the profile's own, or a built-in one. Runs in the background at real time.",
+                ([Description("The scenario's name, as get_obd lists it; the chosen one when omitted.")] string? scenario = null) => control().DriveObd(scenario)
+            ),
+            Tool(
+                "stop_obd",
+                "Stops the drive. The vehicle keeps the values it reached.",
+                () => control().StopObd(),
+                idempotent: true
             ),
             Tool(
                 "apply_scenario",

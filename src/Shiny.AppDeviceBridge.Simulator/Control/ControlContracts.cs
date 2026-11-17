@@ -9,6 +9,8 @@ public sealed record SimulatorStatus(
     string Platform,
     string AppId,
     bool StickyWrites,
+    bool SimulateGeofences,
+    string? ObdProfile,
     bool IsRecording,
     int Bridges,
     int Exchanges,
@@ -89,6 +91,37 @@ public sealed record TrailStatus(
     long DurationMs
 );
 
+/// <summary>
+/// The emulated OBD vehicle: the profile loaded, what it is, and what the drive is doing. While <see cref="Loaded"/> is
+/// false the <c>obd</c> bridge answers the values set on its routes.
+/// </summary>
+public sealed record ObdVehicleStatus(
+    bool Loaded,
+    string? Profile,
+    string? Vehicle,
+    string? Vin,
+    IReadOnlyList<ObdScenarioInfo> Scenarios,
+    string? Scenario,
+    bool Driving,
+    string? Step,
+    string? Elapsed,
+    int Laps,
+    double SpeedKph,
+    double Rpm,
+    string Gear,
+    double ThrottlePercent,
+    double LoadPercent,
+    double CoolantTemperature,
+    double FuelRateLitresPerHour,
+    bool MilOn,
+    bool EngineOff,
+    IReadOnlyList<string> StoredDtcs,
+    IReadOnlyList<string> PendingDtcs
+);
+
+/// <param name="FromProfile">One of the loaded profile's own, rather than the emulator's built-in drives.</param>
+public sealed record ObdScenarioInfo(string Name, string Summary, double Seconds, bool Loops, bool FromProfile);
+
 /// <summary>One request the page made and what it got back.</summary>
 public sealed record TrafficEntry(
     string Id,
@@ -118,6 +151,7 @@ public sealed record ActivityEntry(DateTimeOffset At, string Text);
 [JsonSerializable(typeof(EventDetail))]
 [JsonSerializable(typeof(FireResult))]
 [JsonSerializable(typeof(TrailStatus))]
+[JsonSerializable(typeof(ObdVehicleStatus))]
 [JsonSerializable(typeof(TrafficEntry))]
 [JsonSerializable(typeof(ActivityEntry))]
 [JsonSerializable(typeof(IReadOnlyList<BridgeSummary>))]

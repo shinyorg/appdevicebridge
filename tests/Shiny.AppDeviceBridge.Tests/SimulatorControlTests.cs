@@ -43,6 +43,14 @@ public class SimulatorControlTests : IAsyncLifetime
     }
 
     [Fact]
+    public void Switches_geofence_simulation()
+    {
+        Assert.True(this.control.GetStatus().SimulateGeofences);
+        Assert.False(this.control.SetGeofenceSimulation(false).SimulateGeofences);
+        Assert.Contains(this.control.GetActivity(), x => x.Text.Contains("turned geofence simulation off"));
+    }
+
+    [Fact]
     public void Describes_a_route_with_a_sample_of_its_contract()
     {
         var route = this.control.GetRoute("wifi", "GET current");

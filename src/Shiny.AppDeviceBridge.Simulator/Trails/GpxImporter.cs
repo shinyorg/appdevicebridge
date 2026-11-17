@@ -13,11 +13,6 @@ namespace Shiny.AppDeviceBridge.Simulator.Trails;
 /// </summary>
 public static class GpxImporter
 {
-    const double EarthRadiusMeters = 6_371_000;
-
-    /// <summary>A point of the walk.</summary>
-    public sealed record GpxPoint(double Latitude, double Longitude, double? Elevation, DateTimeOffset? Time);
-
     /// <summary>Named after the file's track or route, or the file itself when it names neither.</summary>
     /// <param name="interval">The gap between points that carry no time; and the gap used when <paramref name="useTimestamps"/> is off.</param>
     /// <param name="useTimestamps">Replays the recorded pace when the file has times; otherwise one point per <paramref name="interval"/>.</param>
@@ -40,9 +35,9 @@ public static class GpxImporter
     }
 
     /// <summary>Track points, else route points, else waypoints — whatever the file has, in order.</summary>
-    public static IReadOnlyList<GpxPoint> Read(Stream gpx) => Read(XDocument.Load(gpx));
+    public static IReadOnlyList<TrackPoint> Read(Stream gpx) => Read(XDocument.Load(gpx));
 
-    static IReadOnlyList<GpxPoint> Read(XDocument document)
+    static IReadOnlyList<TrackPoint> Read(XDocument document)
     {
         foreach (var kind in new[] { "trkpt", "rtept", "wpt" })
         {
@@ -54,7 +49,7 @@ public static class GpxImporter
         throw new InvalidDataException("The GPX file has no track points, route points or waypoints.");
     }
 
-    public static Trail FromPoints(IReadOnlyList<GpxPoint> points, string name, TimeSpan interval, bool useTimestamps = true)
+    public static Trail FromPoints(IReadOnlyList<TrackPoint> points, string name, TimeSpan interval, bool useTimestamps = true)
     {
         var trail = new Trail { Name = name };
 
@@ -64,11 +59,11 @@ public static class GpxImporter
             var previous = i > 0 ? points[i - 1] : null;
             var gap = previous is null ? TimeSpan.Zero : Gap(previous, point, interval, useTimestamps);
 
-            var distance = previous is null ? 0 : Distance(previous, point);
+            var distance = previous?.DistanceTo(point) ?? 0;
             var speed = gap > TimeSpan.Zero ? distance / gap.TotalSeconds : 0;
             var heading = previous is null
-                ? (i + 1 < points.Count ? Bearing(point, points[i + 1]) : 0)
-                : Bearing(previous, point);
+                ? (i + 1 < points.Count ? point.BearingTo(points[i + 1]) : 0)
+                : previous.BearingTo(point);
 
             var reading = new GpsReading(
                 point.Latitude,
@@ -101,7 +96,7 @@ public static class GpxImporter
         return trail;
     }
 
-    static GpxPoint Point(XElement element)
+    static TrackPoint Point(XElement element)
     {
         var lat = Double.Parse(element.Attribute("lat")?.Value ?? throw new InvalidDataException("A point has no lat."), CultureInfo.InvariantCulture);
         var lon = Double.Parse(element.Attribute("lon")?.Value ?? throw new InvalidDataException("A point has no lon."), CultureInfo.InvariantCulture);
@@ -109,33 +104,11 @@ public static class GpxImporter
         double? elevation = Child(element, "ele") is { } ele && Double.TryParse(ele, NumberStyles.Float, CultureInfo.InvariantCulture, out var e) ? e : null;
         DateTimeOffset? time = Child(element, "time") is { } t && DateTimeOffset.TryParse(t, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var parsed) ? parsed : null;
 
-        return new GpxPoint(lat, lon, elevation, time);
+        return new TrackPoint(lat, lon, elevation, time);
     }
 
     static string? Child(XElement element, string name) => element.Elements().FirstOrDefault(x => x.Name.LocalName == name)?.Value;
 
-    static TimeSpan Gap(GpxPoint from, GpxPoint to, TimeSpan interval, bool useTimestamps)
+    static TimeSpan Gap(TrackPoint from, TrackPoint to, TimeSpan interval, bool useTimestamps)
         => useTimestamps && from.Time is { } a && to.Time is { } b && b > a ? b - a : interval;
-
-    /// <summary>Great-circle distance in meters.</summary>
-    public static double Distance(GpxPoint a, GpxPoint b)
-    {
-        var dLat = Radians(b.Latitude - a.Latitude);
-        var dLon = Radians(b.Longitude - a.Longitude);
-        var h = Math.Pow(Math.Sin(dLat / 2), 2) + Math.Cos(Radians(a.Latitude)) * Math.Cos(Radians(b.Latitude)) * Math.Pow(Math.Sin(dLon / 2), 2);
-        return 2 * EarthRadiusMeters * Math.Asin(Math.Min(1, Math.Sqrt(h)));
-    }
-
-    /// <summary>Initial bearing from <paramref name="a"/> to <paramref name="b"/>, degrees from north.</summary>
-    public static double Bearing(GpxPoint a, GpxPoint b)
-    {
-        var lat1 = Radians(a.Latitude);
-        var lat2 = Radians(b.Latitude);
-        var dLon = Radians(b.Longitude - a.Longitude);
-        var y = Math.Sin(dLon) * Math.Cos(lat2);
-        var x = Math.Cos(lat1) * Math.Sin(lat2) - Math.Sin(lat1) * Math.Cos(lat2) * Math.Cos(dLon);
-        return (Math.Atan2(y, x) * 180 / Math.PI + 360) % 360;
-    }
-
-    static double Radians(double degrees) => degrees * Math.PI / 180;
 }

@@ -6,6 +6,7 @@ using Shiny.AppDeviceBridge.Simulator.Hosting;
 using Shiny.AppDeviceBridge.Simulator.Scenarios;
 using Shiny.AppDeviceBridge.Simulator.Simulation;
 using Shiny.AppDeviceBridge.Simulator.Trails;
+using Shiny.Obd;
 
 namespace Shiny.AppDeviceBridge.Simulator.Control;
 
@@ -19,7 +20,7 @@ namespace Shiny.AppDeviceBridge.Simulator.Control;
 /// </para>
 /// </summary>
 /// <param name="actor">Who the activity log says made a change: <c>agent</c> over MCP, <c>panel</c> from the web panel.</param>
-public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traffic, TrailLibrary trails, AppDeviceBridgeServer server, string actor = "agent")
+public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traffic, TrailLibrary trails, AppDeviceBridgeServer server, ObdEmulation obd, string actor = "agent")
 {
     /// <summary>Text kept per body in <see cref="GetTraffic"/>, so one exchange cannot fill an agent's context.</summary>
     public const int MaxBodyText = 4 * 1024;
@@ -28,7 +29,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
     public static SimulatorControl For(SimulatorHost host, string actor = "agent")
     {
         ArgumentNullException.ThrowIfNull(host);
-        return new SimulatorControl(host.State, host.Traffic, host.Trails, host.Server, actor);
+        return new SimulatorControl(host.State, host.Traffic, host.Trails, host.Server, host.Obd, actor);
     }
 
     public SimulatorStatus GetStatus() => new(
@@ -36,6 +37,8 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
         state.Platform,
         state.AppId,
         state.StickyWrites,
+        state.Geofences.Enabled,
+        obd.Profile,
         traffic.IsRecording,
         state.Bridges.Count,
         traffic.Snapshot().Count,
@@ -169,6 +172,13 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
         return this.GetStatus();
     }
 
+    public SimulatorStatus SetGeofenceSimulation(bool on)
+    {
+        state.Geofences.Enabled = on;
+        state.Log($"{actor} turned geofence simulation {(on ? "on" : "off")}");
+        return this.GetStatus();
+    }
+
     /// <summary>Raises an event on the page's stream, as the native side would.</summary>
     /// <exception cref="ArgumentException">No bridge raises it, or the payload is not its contract.</exception>
     public FireResult FireEvent(string name, JsonNode? payload = null)
@@ -193,7 +203,7 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
 
     public IReadOnlyList<TrailStatus> ListTrails() => [.. trails.Players.Select(Describe)];
 
-    /// <summary>Loads a trail from a <c>.gpx</c> or <c>.trail.json</c> file, replacing one of the same name.</summary>
+    /// <summary>Loads a trail from a <c>.gpx</c>, <c>.kml</c>, <c>.kmz</c> or <c>.trail.json</c> file, replacing one of the same name.</summary>
     /// <exception cref="FileNotFoundException">There is no such file.</exception>
     public TrailStatus LoadTrailFile(string path)
     {
@@ -267,6 +277,80 @@ public sealed class SimulatorControl(SimulatorState state, TrafficRecorder traff
         var player = this.Trail(name);
         trails.Remove(player);
         state.Log($"{actor} removed the trail {player.Trail.Name}");
+    }
+
+    public ObdVehicleStatus GetObd()
+    {
+        var vehicle = obd.Vehicle;
+        var player = obd.Player;
+        var own = obd.ProfileScenarios.Select(x => x.Name).ToHashSet();
+        var loaded = obd.IsAvailable;
+
+        return new ObdVehicleStatus(
+            loaded,
+            obd.Profile,
+            loaded ? vehicle.Vehicle.Name : null,
+            loaded ? vehicle.Vehicle.Vin : null,
+            loaded ? [.. player.Scenarios.Select(x => new ObdScenarioInfo(x.Name, x.Summary, x.Duration.TotalSeconds, x.Loops, own.Contains(x.Name)))] : [],
+            loaded ? player.Scenario?.Name : null,
+            loaded && player.IsRunning,
+            loaded && player.IsRunning ? player.StepLabel : null,
+            loaded && player.IsRunning ? player.ElapsedLabel : null,
+            player.Laps,
+            player.SpeedKph,
+            player.Rpm,
+            player.GearLabel,
+            player.ThrottlePercent,
+            player.LoadPercent,
+            player.CoolantTemperature,
+            player.FuelRate,
+            vehicle.MilOn,
+            vehicle.EngineOff,
+            [.. vehicle.StoredDtcs],
+            [.. vehicle.PendingDtcs]
+        );
+    }
+
+    /// <summary>Loads a Shiny.Obd emulator profile: the vehicle the <c>obd</c> bridge connects to from now on.</summary>
+    /// <exception cref="ArgumentException">The file is not a profile the emulator reads.</exception>
+    public ObdVehicleStatus LoadObdProfile(string path)
+    {
+        var full = Path.GetFullPath(path);
+        if (!File.Exists(full))
+            throw new FileNotFoundException($"There is no OBD profile at {full}.", full);
+
+        try
+        {
+            obd.LoadAsync(full).GetAwaiter().GetResult();
+        }
+        catch (ObdException ex)
+        {
+            throw new ArgumentException(ex.Message, nameof(path), ex);
+        }
+
+        state.Log($"{actor} loaded the OBD profile {obd.Profile}");
+        return this.GetObd();
+    }
+
+    public ObdVehicleStatus UnloadObdProfile()
+    {
+        obd.Unload();
+        return this.GetObd();
+    }
+
+    /// <summary>Drives a scenario — by name, or the one chosen — from its first step.</summary>
+    /// <exception cref="ArgumentException">No profile is loaded, or no scenario has that name.</exception>
+    public ObdVehicleStatus DriveObd(string? scenario = null)
+    {
+        var chosen = obd.Drive(scenario);
+        state.Log($"{actor} drove {chosen.Name}");
+        return this.GetObd();
+    }
+
+    public ObdVehicleStatus StopObd()
+    {
+        obd.StopDriving();
+        return this.GetObd();
     }
 
     /// <summary>Applies a saved scenario: the platform, which bridges exist, what routes answer, and its trails.</summary>
