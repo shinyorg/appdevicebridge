@@ -1,0 +1,79 @@
+name: CI
+
+# Every push to main, and every pull request into it: build and test the packages the way a release builds them,
+# without publishing. Releases come from tags - see release.yml. Runners and toolchain pins match release.yml - bump
+# them together.
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'skills/**'
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Everything but Shiny.AppDeviceBridge.Maps.Valhalla, which Build.slnf leaves out: 15 projects add their
+  # net11.0-windows target only on Windows, so the packages are cut here.
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+
+    - name: Setup .NET 11.0
+      uses: actions/setup-dotnet@v6
+      with:
+          dotnet-version: '11.0.100'
+          workloads: maui, macos
+
+    - name: Build
+      run: dotnet build Build.slnf /restore -m -property:Configuration=Release
+
+    # Debug, so the test build doesn't pack every referenced project a second time. The summary line reports how many
+    # were skipped: the remote-caller tests skip on a runner without a LAN address.
+    - name: Test
+      run: dotnet test tests/Shiny.AppDeviceBridge.Tests/Shiny.AppDeviceBridge.Tests.csproj -property:Configuration=Debug -property:TestingPlatformCaptureOutput=false
+
+    - name: Post Test Results
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-results
+        path: 'tests/**/TestResults/**'
+        retention-days: 5
+
+    - name: Post NuGet Artifacts
+      uses: actions/upload-artifact@v7
+      with:
+        name: nugets
+        path: |
+          src/**/bin/Release/*.nupkg
+          src/**/bin/Release/*.snupkg
+        retention-days: 5
+
+  # Shiny.AppDeviceBridge.Maps.Valhalla is the one package the Windows runner cannot cut: its iOS target compiles
+  # native/shiny-valhalla with xcrun. It has no Windows-only target framework, so a macOS runner builds it whole.
+  valhalla:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+
+    - name: Setup .NET 11.0
+      uses: actions/setup-dotnet@v6
+      with:
+          dotnet-version: '11.0.100'
+          workloads: maui
+
+    - name: Build
+      run: dotnet build src/Shiny.AppDeviceBridge.Maps.Valhalla/Shiny.AppDeviceBridge.Maps.Valhalla.csproj /restore -m -property:Configuration=Release

@@ -5,7 +5,7 @@ description: Run, start, launch, screenshot, click through, hot-reload, or stop 
 
 # Run the Shiny.AppDeviceBridge sample
 
-Paths are relative to the repository root (`webapphost/`). macOS only.
+Paths are relative to the repository root (`appdevicebridge/`). macOS only.
 
 The sample is three processes:
 
@@ -85,9 +85,6 @@ dev server.
 - **Save files in place.** Saving a `wwwroot` file by writing a temp file and renaming it crashed `dotnet watch`
   (`Unexpected true - file HotReloadMSBuildWorkspace.cs line 158`), and the Blazor app exited. `heading` writes in
   place. To recover: `down` then `up`.
-- **`dotnet watch` needs `NBGV_CacheMode=None`.** Without it, it failed with `An item with the same key has already
-  been added. Key: ProjectInstanceId { ProjectPath = …/nerdbank.gitversioning/…/PrivateP2PCaching.proj }`. The setting
-  is committed in `Directory.Build.props`.
 - **gps and geofences are struck through on AppKit.** Shiny.Gps and Shiny.Geofencing have no macOS build, so this is expected.
 - **Use the AppKit head.** The Mac Catalyst head (`samples/Sample.Maui -f net11.0-maccatalyst`) builds, but exits at
   launch with code 133 and leaves no crash report. Unresolved.

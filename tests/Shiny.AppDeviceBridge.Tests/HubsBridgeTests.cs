@@ -112,7 +112,9 @@ public class HubsBridgeTests
         HubDisconnect? disconnect = null;
         client.Disconnected += (_, d) => disconnect = d;
 
-        await client.Hub.Kick("kicked");
+        // the page aborts the connection in place of replying, so the call ends either way - completed, or failed by the close
+        var kick = await Record.ExceptionAsync(() => client.Hub.Kick("kicked"));
+        Assert.True(kick is null or BleHubDisconnectedException, kick?.ToString());
 
         await WaitFor(() => disconnect is not null);
         Assert.Equal(new HubDisconnect(NativeReason.ServerDisconnect, "kicked"), disconnect);

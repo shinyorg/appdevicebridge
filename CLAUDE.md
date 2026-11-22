@@ -90,14 +90,33 @@ change unless there's a reason not to.
    - This file is packed into the NuGet package (`PackageReadmeFile` in `Directory.Build.props`).
      Update the package table, the bridges table and any inline guidance when behavior changes.
 
+## Releasing
+
+`main` is the only working branch (`v1`–`v4` are left as they are). Versions come from git tags, not the
+repo — there is no `version.json` / Nerdbank.GitVersioning:
+
+- Push a `v4.0.0` (or `v4.0.0-beta.1`) tag on a `main` commit, or run the **Release** workflow by hand
+  with a version (it creates the tag). `release.yml` builds `Build.slnf` on Windows and
+  `Shiny.AppDeviceBridge.Maps.Valhalla` on macOS with `-p:Version=<tag>`, runs the tests, then pushes every
+  package to NuGet (trusted publishing) and creates a GitHub release with generated notes. A `-suffix`
+  makes both prerelease.
+- **CI** (`ci.yml`) builds and tests every push / PR to `main` the way a release does and publishes
+  nothing. Its runners and toolchain pins match `release.yml` — bump them together.
+- `skills/` syncs to shinyorg/skills only as the last job of a release (`release.yml` calls
+  `sync-skills.yml`), so the published skills always match a shipped version. Run **Sync Skills** by hand
+  to re-sync without releasing.
+- Untagged builds are `0.0.0-dev` (`Directory.Build.props`).
+- When you tag, promote the `## <version> TBD` heading in `release-notes.mdx` to the release date.
+
 ## Release notes
 
 Release notes live in the documentation repo at
 `~/Desktop/dev/documentation/src/content/docs/appdevicebridge/release-notes.mdx`.
 
-**Which version does a note go against?** Use the `version` field in `version.json` (this repo uses
-Nerdbank.GitVersioning) — **the raw version portion only** (strip any prerelease/build-metadata
-suffix, e.g. `1.0.0-beta.{height}` → `1.0.0`).
+**Which version does a note go against?** The next version to be tagged (see *Releasing* above) — the
+existing `## <version> TBD` section at the top of the file. There is no version in the repo; if no TBD
+section exists, take the latest `v*` tag (`git tag --sort=-v:refname | head -1`) and pick the next
+major/minor/patch for the kind of change. Use the raw version only (a `v4.0.0-beta.1` tag → `4.0`).
 
 **Heading style — match the existing file.** Feature/minor releases are headed by `major.minor`
 (`## 1.1 - June 13, 2026`); patch releases use the full `major.minor.patch` (`## 1.0.2 - May 30,

@@ -11,7 +11,7 @@
 
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <Copyright>Copyright (c) $([System.DateTime]::Now.Year) Allan Ritchie</Copyright>
-        <RepositoryUrl>https://github.com/shinyorg/webapphost</RepositoryUrl>
+        <RepositoryUrl>https://github.com/shinyorg/appdevicebridge</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
 
         <PackageIcon>icon.png</PackageIcon>
@@ -20,11 +20,9 @@
         <PackageProjectUrl>https://shinylib.net</PackageProjectUrl>
         <PackageTags>maui webview blazor react spa hybrid ota update httpserver shiny</PackageTags>
 
-        <!-- Nerdbank's default cache mode adds its PrivateP2PCaching project to every project graph, and dotnet watch
-         refuses a graph where two projects share it ("An item with the same key has already been added") — which
-         breaks hot reload for Sample.Blazor and Shiny.AppDeviceBridge.Blazor. Computing the version in each project
-         instead costs a little build time and nothing else. -->
-        <NBGV_CacheMode>None</NBGV_CacheMode>
+        <!-- local / CI builds only - release.yml stamps the real version from the v* tag with -p:Version -->
+        <Version Condition="'$(Version)' == ''">0.0.0-dev</Version>
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)' == 'Release'">
@@ -40,13 +38,6 @@
         <None Include="$(MSBuildThisFileDirectory)nuget.png" Pack="true" PackagePath="icon.png" Visible="false" />
         <None Include="$(MSBuildThisFileDirectory)nuget.txt" Pack="true" PackagePath="readme.txt" Visible="false" />
         <None Include="$(MSBuildThisFileDirectory)readme.md" Pack="true" PackagePath="\" Visible="false" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Nerdbank.GitVersioning">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-        </PackageReference>
     </ItemGroup>
 
 </Project>

@@ -2,13 +2,12 @@
     <PropertyGroup>
         <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
         <MauiVersion>11.0.10</MauiVersion>
-        <MauiLabsVersion>0.1.0-preview.14.26555.2</MauiLabsVersion>
-        <ShinyVersion>6.6.0</ShinyVersion>
+        <MauiLabsVersion>0.1.0-preview.14.26567.2</MauiLabsVersion>
+        <ShinyVersion>7.0.0</ShinyVersion>
         <DocumentDbVersion>14.1.0</DocumentDbVersion>
     </PropertyGroup>
     <ItemGroup>
         <PackageVersion Include="GirCore.Gtk-4.0" Version="0.8.1"/>
-        <PackageVersion Include="Nerdbank.GitVersioning" Version="3.10.91"/>
         <PackageVersion Include="Jint" Version="4.16.2"/>
         <PackageVersion Include="XenoAtom.Terminal.UI" Version="3.8.1"/>
         <PackageVersion Include="Microsoft.Data.Sqlite" Version="11.0.0"/>
@@ -32,9 +31,9 @@
         <PackageVersion Include="Microsoft.Maui.DevFlow.Agent" Version="$(MauiLabsVersion)"/>
     </ItemGroup>
     <ItemGroup>
-        <PackageVersion Include="Shiny.Net.HttpServer" Version="2.2.1"/>
-        <PackageVersion Include="Shiny.Net.HttpServer.Ssh" Version="2.2.1"/>
-        <PackageVersion Include="Shiny.Net.HttpServer.Mcp" Version="2.2.1"/>
+        <PackageVersion Include="Shiny.Net.HttpServer" Version="3.0.0"/>
+        <PackageVersion Include="Shiny.Net.HttpServer.Ssh" Version="3.0.0"/>
+        <PackageVersion Include="Shiny.Net.HttpServer.Mcp" Version="3.0.0"/>
         <PackageVersion Include="Shiny.UniversalHubs.Host" Version="1.5.0"/>
         <PackageVersion Include="Shiny.UniversalHubs.Client" Version="1.5.0"/>
         <PackageVersion Include="Shiny.UniversalHubs.Multipeer" Version="1.5.0"/>

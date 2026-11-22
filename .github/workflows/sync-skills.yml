@@ -1,11 +1,9 @@
 name: Sync Skills
 
+# Skills only reach shinyorg/skills with a release: release.yml calls this once the packages are on NuGet, so the
+# published skills always describe a shipped version. Run it by hand to re-sync.
 on:
-  push:
-    branches:
-      - 'v*'
-    paths:
-      - 'skills/**'
+  workflow_call:
   workflow_dispatch:
 
 jobs:
@@ -67,17 +65,17 @@ jobs:
         with:
           token: ${{ secrets.SKILLS_REPO_TOKEN }}
           path: skills-repo
-          commit-message: "Update skills from shinyorg/webapphost"
+          commit-message: "Update skills from shinyorg/appdevicebridge"
           title: "Update skills from Shiny AppDeviceBridge (${{ github.ref_name }})"
           body: |
-            This PR updates the `shiny` plugin skills from the [Shiny AppDeviceBridge repository](https://github.com/shinyorg/webapphost).
+            This PR updates the `shiny` plugin skills from the [Shiny AppDeviceBridge repository](https://github.com/shinyorg/appdevicebridge).
 
-            **Source branch:** `${{ github.ref_name }}`
+            **Source ref:** `${{ github.ref_name }}`
             **Source commit:** ${{ github.sha }}
             **Triggered by:** @${{ github.actor }}
 
             ---
-            *This PR was automatically created by the [sync-skills workflow](https://github.com/shinyorg/webapphost/actions/workflows/sync-skills.yml).*
+            *This PR was automatically created by the [sync-skills workflow](https://github.com/shinyorg/appdevicebridge/actions/workflows/sync-skills.yml).*
           branch: update-skills-appdevicebridge-${{ github.ref_name }}
           delete-branch: true
           labels: |
