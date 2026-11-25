@@ -49,7 +49,7 @@ change unless there's a reason not to.
      the session is a security change — call it out.
    - **Always run the tests and ensure coverage after every feature/bugfix prompt** — a change is not done
      until the suite is green *and* the new/changed behavior has a test proving it. Run the **full** suite
-     (`dotnet test tests/Shiny.AppDeviceBridge.Tests/Shiny.AppDeviceBridge.Tests.csproj`), not a filtered
+     (`dotnet test --project tests/Shiny.AppDeviceBridge.Tests/Shiny.AppDeviceBridge.Tests.csproj`), not a filtered
      subset. Some tests reach this machine's LAN address to exercise remote access and skip when there is
      none — say so if they skipped rather than reporting them as passing.
    - `native/shinyrpi-camera` is the C shim behind `Shiny.AppDeviceBridge.RpiCamera`. MSBuild never builds it (it links

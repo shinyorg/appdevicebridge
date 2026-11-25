@@ -63,7 +63,7 @@ jobs:
 
     # Before anything is published. Debug, so the test build doesn't pack every referenced project a second time.
     - name: Test
-      run: dotnet test tests/Shiny.AppDeviceBridge.Tests/Shiny.AppDeviceBridge.Tests.csproj -property:Configuration=Debug -property:TestingPlatformCaptureOutput=false
+      run: dotnet test --project tests/Shiny.AppDeviceBridge.Tests/Shiny.AppDeviceBridge.Tests.csproj -c Debug
 
     - name: Post Test Results
       if: ${{ always() }}

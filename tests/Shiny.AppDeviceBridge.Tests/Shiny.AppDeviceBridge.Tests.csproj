@@ -7,9 +7,9 @@
     <IsTestProject>true</IsTestProject>
     <RootNamespace>Shiny.AppDeviceBridge.Tests</RootNamespace>
 
-    <!-- xunit v3 runs on Microsoft.Testing.Platform: the test assembly is its own runner. -->
+    <!-- xunit v3 runs on Microsoft.Testing.Platform v2: the test assembly is its own runner, and global.json puts
+         dotnet test in MTP mode, so it takes the project through its project option. -->
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
-    <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
   </PropertyGroup>
 
   <ItemGroup>

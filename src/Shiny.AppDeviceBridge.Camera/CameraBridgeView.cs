@@ -4,7 +4,7 @@ using Shiny.AppDeviceBridge.Client;
 using Shiny.Maui.Controls.Camera;
 using NativeFacing = Shiny.Controls.Camera.CameraFacing;
 using NativeFilter = Shiny.Controls.Camera.CameraFilter;
-using PreviewScaleMode = Shiny.Controls.Camera.PreviewScaleMode;
+using PreviewScaleMode = Shiny.Controls.Analysis.PreviewScaleMode;
 
 namespace Shiny.AppDeviceBridge.Camera;
 

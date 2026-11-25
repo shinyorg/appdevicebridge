@@ -173,17 +173,30 @@ public static class GpsBridgeExtensions
 {
     /// <summary>
     /// Adds <c>/_bridge/gps</c> and registers Shiny's GPS service for the platform — there is nothing
-    /// else to call. Where the platform has no GPS support the endpoints answer 501.
+    /// else to call. Android, iOS, Mac Catalyst, macOS (AppKit) and Windows use Shiny.Gps; Linux uses GeoClue2
+    /// through Shiny.Gps.Linux. Where the platform has no GPS support the endpoints answer 501.
     /// </summary>
+    /// <remarks>
+    /// On Linux, GeoClue's agent shows and remembers its answer by the app's desktop id, which defaults to the entry
+    /// assembly's name. To set it, call <c>services.AddLinuxGps(o => o.DesktopId = "com.mycompany.myapp")</c> before
+    /// the bridge: on Linux an <see cref="IGpsManager"/> the app registered first is kept.
+    /// </remarks>
     public static TBuilder AddGpsBridge<TBuilder>(this TBuilder bridge)
         where TBuilder : AppDeviceBridgeBuilder
     {
         ArgumentNullException.ThrowIfNull(bridge);
 
-#if ANDROID || IOS || MACCATALYST || WINDOWS
+#if ANDROID || IOS || MACCATALYST || WINDOWS || MACOS
         // The delegate is how a reading reaches the web app while it is in the background. Shiny runs every
         // registered delegate, so the app's own keep working alongside it.
         bridge.Services.AddGps<WebAppGpsDelegate>();
+#elif GPS_LINUX
+        // Keep a GPS manager the app registered first - its own AddLinuxGps(o => o.DesktopId = …) - and only add
+        // the delegate. Otherwise GeoClue2 on Linux, and the bridge answers 501 anywhere else.
+        if (bridge.Services.Any(x => x.ServiceType == typeof(IGpsManager)))
+            bridge.Services.AddSingleton<IGpsDelegate, WebAppGpsDelegate>();
+        else if (OperatingSystem.IsLinux())
+            bridge.Services.AddLinuxGps<WebAppGpsDelegate>();
 #endif
 
         bridge.AddBridge<GpsBridge>();

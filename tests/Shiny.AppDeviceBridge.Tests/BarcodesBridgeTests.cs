@@ -4,11 +4,10 @@ using System.Text.Json;
 using Shiny.AppDeviceBridge.Barcodes;
 using Shiny.AppDeviceBridge.Barcodes.Client;
 using Shiny.AppDeviceBridge.Client;
-using Shiny.Maui.Controls.Camera;
-using Shiny.Maui.Controls.Camera.Barcode;
+using Shiny.Maui.Controls.Analysis.Barcode;
 using Shiny.Maui.Controls.Camera.Media;
-using Native = Shiny.Controls.Camera;
-using NativeMode = Shiny.Maui.Controls.Camera.Barcode.BarcodeScanMode;
+using Native = Shiny.Controls.Analysis;
+using NativeMode = Shiny.Maui.Controls.Analysis.Barcode.BarcodeScanMode;
 
 namespace Shiny.AppDeviceBridge.Tests;
 
@@ -169,10 +168,12 @@ public class BarcodesBridgeTests
     [Fact]
     public void A_one_code_scan_closes_on_the_first_read_with_no_done_button()
     {
-        var options = MediaBarcodeScanSource.ToOptions(new BarcodeScanRequest(), _ => { });
+        var request = new BarcodeScanRequest();
+        var options = MediaBarcodeScanSource.ToOptions(request, _ => { });
+        var analyzer = MediaBarcodeScanSource.ToAnalyzer(request);
 
-        Assert.Equal(NativeMode.Standard, options.Mode);
-        Assert.False(options.AutoZoom);
+        Assert.Equal(NativeMode.Standard, analyzer.Mode);
+        Assert.False(analyzer.AutoZoom);
         Assert.Equal(1, options.MaxResults);
         Assert.False(options.ShowDoneButton);
         Assert.False(options.ShowResultCount);
@@ -184,23 +185,22 @@ public class BarcodesBridgeTests
     public void A_long_range_request_becomes_the_scanners_options()
     {
         MediaScanEndReason? ended = null;
-        var options = MediaBarcodeScanSource.ToOptions(
-            new BarcodeScanRequest(
-                Mode: BarcodeScanMode.LongRange,
-                AutoZoom: true,
-                MaxResults: 0,
-                FilterDuplicates: false,
-                TimeoutSeconds: 30,
-                ScanWindow: new BarcodeRegion(0.1, 0.4, 0.8, 0.2),
-                TorchOn: true,
-                Title: "Aisle 4",
-                Instructions: "Point at the shelf labels"
-            ),
-            r => ended = r
+        var request = new BarcodeScanRequest(
+            Mode: BarcodeScanMode.LongRange,
+            AutoZoom: true,
+            MaxResults: 0,
+            FilterDuplicates: false,
+            TimeoutSeconds: 30,
+            ScanWindow: new BarcodeRegion(0.1, 0.4, 0.8, 0.2),
+            TorchOn: true,
+            Title: "Aisle 4",
+            Instructions: "Point at the shelf labels"
         );
+        var options = MediaBarcodeScanSource.ToOptions(request, r => ended = r);
+        var analyzer = MediaBarcodeScanSource.ToAnalyzer(request);
 
-        Assert.Equal(NativeMode.LongRange, options.Mode);
-        Assert.True(options.AutoZoom);
+        Assert.Equal(NativeMode.LongRange, analyzer.Mode);
+        Assert.True(analyzer.AutoZoom);
         Assert.Null(options.MaxResults);
         Assert.True(options.ShowDoneButton);
         Assert.True(options.ShowResultCount);
@@ -216,15 +216,13 @@ public class BarcodesBridgeTests
     }
 
     [Fact]
-    public void Tunes_the_long_range_analyzer_on_the_scanners_camera()
+    public void Tunes_the_long_range_analyzer_the_scanner_runs()
     {
-        var analyzer = new BarcodeAnalyzer();
-        var options = MediaBarcodeScanSource.ToOptions(
-            new BarcodeScanRequest(Mode: BarcodeScanMode.LongRange, MaxAutoZoom: 6, FullFrameInterval: 0, MaxNativeCropsPerFrame: 4, UncheckedConfirmations: 3),
-            _ => { }
+        var analyzer = MediaBarcodeScanSource.ToAnalyzer(
+            new BarcodeScanRequest(Mode: BarcodeScanMode.LongRange, MaxAutoZoom: 6, FullFrameInterval: 0, MaxNativeCropsPerFrame: 4, UncheckedConfirmations: 3, Formats: [BarcodeFormat.QrCode, BarcodeFormat.Ean13])
         );
 
-        options.ConfigureCamera!(new CameraView { Analyzer = analyzer });
+        Assert.Equal([Native.BarcodeFormat.QrCode, Native.BarcodeFormat.Ean13], analyzer.Formats!);
 
         Assert.Equal(6, analyzer.MaxAutoZoom);
         Assert.Equal(0, analyzer.FullFrameInterval);

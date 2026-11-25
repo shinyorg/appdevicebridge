@@ -33,7 +33,9 @@ public static class MauiProgram
             // use NSURLSession already.
             .AddMapsBridge(o => o.HttpMessageHandlerFactory = () => new NSUrlSessionHandler()))
 #if DEBUG
-        .AddMauiDevFlowAgent()
+        // File logging reads FileSystem.CacheDirectory while the builder is configured, which the maui-labs preview.15
+        // AppKit head throws for (Essentials connects after Build()), so the app crashed at launch.
+        .AddMauiDevFlowAgent(o => o.EnableFileLogging = false)
         .AddDevFlowWebView()
 #endif
         .DiagLogging()

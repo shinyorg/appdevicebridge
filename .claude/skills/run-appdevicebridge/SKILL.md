@@ -85,7 +85,12 @@ dev server.
 - **Save files in place.** Saving a `wwwroot` file by writing a temp file and renaming it crashed `dotnet watch`
   (`Unexpected true - file HotReloadMSBuildWorkspace.cs line 158`), and the Blazor app exited. `heading` writes in
   place. To recover: `down` then `up`.
-- **gps and geofences are struck through on AppKit.** Shiny.Gps and Shiny.Geofencing have no macOS build, so this is expected.
+- **geofences and motion are struck through on AppKit.** Shiny.Geofencing has no macOS build and macOS has no motion
+  activity, so this is expected. GPS works there since Shiny 7.1.0.
+- **The DevFlow agent must keep file logging off** (`AddMauiDevFlowAgent(o => o.EnableFileLogging = false)`). On maui-labs
+  preview.15 Essentials is only connected after `Build()`, and its file logging reads `FileSystem.CacheDirectory` while
+  the builder is configured: the app throws `NotImplementedInReferenceAssemblyException` at launch and never opens `:5780`.
+  Running the app binary directly (`App Bridge.app/Contents/MacOS/Sample.MacOS`) prints a startup exception like that.
 - **Use the AppKit head.** The Mac Catalyst head (`samples/Sample.Maui -f net11.0-maccatalyst`) builds, but exits at
   launch with code 133 and leaves no crash report. Unresolved.
 - **No `sleep`.** Agent shells here block it, so the driver waits with `perl -e 'select(...)'`.

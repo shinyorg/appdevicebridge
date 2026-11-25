@@ -1,16 +1,17 @@
 using Microsoft.Extensions.DependencyInjection;
 using Shiny.AppDeviceBridge.Barcodes.Client;
 using Shiny.AppDeviceBridge.Client;
-using Shiny.Maui.Controls.Camera.Barcode;
+using Shiny.Maui.Controls.Analysis;
+using Shiny.Maui.Controls.Analysis.Barcode;
 using Shiny.Maui.Controls.Camera.Media;
-using Native = Shiny.Controls.Camera;
+using Native = Shiny.Controls.Analysis;
 using BarcodeScanMode = Shiny.AppDeviceBridge.Barcodes.Client.BarcodeScanMode;
-using NativeMode = Shiny.Maui.Controls.Camera.Barcode.BarcodeScanMode;
+using NativeMode = Shiny.Maui.Controls.Analysis.Barcode.BarcodeScanMode;
 
 namespace Shiny.AppDeviceBridge.Barcodes;
 
 /// <summary>
-/// The scanner <see cref="IMediaService"/> shows: the camera full screen with a <see cref="BarcodeAnalyzer"/> attached,
+/// The scanner <see cref="IMediaService"/> shows: the camera full screen running a <see cref="BarcodeAnalyzer"/>,
 /// its permission prompt, and its own done and close buttons. It puts itself on the UI thread.
 /// </summary>
 sealed class MediaBarcodeScanSource(IServiceProvider services) : IBarcodeScanSource
@@ -29,20 +30,41 @@ sealed class MediaBarcodeScanSource(IServiceProvider services) : IBarcodeScanSou
         // The scanner reports why it closed after the last code and before the sequence ends.
         var ended = MediaScanEndReason.Stopped;
         var options = ToOptions(request, reason => ended = reason);
+        var analyzer = ToAnalyzer(request);
 
-        await foreach (var barcode in media.ScanBarcodesAsync(request.FilterDuplicates, ToNative(request.Formats), options, cancellationToken))
+        // IMediaService.ScanAsync rather than the ScanBarcodesAsync verb, which builds its own analyzer: the long-range
+        // tuning a request names has to be on the analyzer the scanner runs.
+        var scan = media.ScanAsync(
+            new FrameScanRequest<Native.DetectedBarcode>
+            {
+                Analyzer = analyzer,
+                Subscribe = emit => analyzer.OnDetected = args =>
+                {
+                    // a frame can hold several codes; each is its own result
+                    foreach (var barcode in args.Barcodes)
+                        emit(barcode);
+
+                    return Task.FromResult(true); // stay armed: the scanner decides when to stop
+                },
+                // the same digits as an EAN-13 and as a QR code are two different codes
+                DuplicateKey = b => $"{b.Format}|{b.Value}",
+                Describe = b => b.Value
+            },
+            options,
+            cancellationToken
+        );
+
+        await foreach (var barcode in scan)
             detected(ToContract(barcode));
 
         return ToContract(ended);
     }
 
-    internal static BarcodeScanOptions ToOptions(BarcodeScanRequest r, Action<MediaScanEndReason> ended)
+    internal static MediaScanOptions ToOptions(BarcodeScanRequest r, Action<MediaScanEndReason> ended)
     {
         var single = r.MaxResults == 1;
-        return new BarcodeScanOptions
+        return new MediaScanOptions
         {
-            Mode = r.Mode == BarcodeScanMode.LongRange ? NativeMode.LongRange : NativeMode.Standard,
-            AutoZoom = r.AutoZoom,
             MaxResults = r.MaxResults == 0 ? null : r.MaxResults,
             FilterDuplicates = r.FilterDuplicates,
             Timeout = r.TimeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null,
@@ -54,16 +76,24 @@ sealed class MediaBarcodeScanSource(IServiceProvider services) : IBarcodeScanSou
             // A one-code scan closes itself on the first read: a count and a done button would only be noise.
             ShowResultCount = !single,
             ShowDoneButton = !single,
-
-            // The long-range tuning is on the analyzer rather than the options; the scanner hands over its camera, which
-            // carries the analyzer, before it starts.
-            ConfigureCamera = camera =>
-            {
-                if (camera.Analyzer is BarcodeAnalyzer analyzer)
-                    Configure(analyzer, r);
-            },
             OnEnded = ended
         };
+    }
+
+    /// <summary>The analyzer the scanner runs: the request's mode, auto-zoom, formats and long-range tuning.</summary>
+    internal static BarcodeAnalyzer ToAnalyzer(BarcodeScanRequest r)
+    {
+        var analyzer = new BarcodeAnalyzer
+        {
+            Mode = r.Mode == BarcodeScanMode.LongRange ? NativeMode.LongRange : NativeMode.Standard,
+            AutoZoom = r.AutoZoom
+        };
+
+        if (ToNative(r.Formats) is { } formats)
+            analyzer.Formats = formats;
+
+        Configure(analyzer, r);
+        return analyzer;
     }
 
     /// <summary>The long-range settings a request names; the analyzer's defaults for the rest.</summary>

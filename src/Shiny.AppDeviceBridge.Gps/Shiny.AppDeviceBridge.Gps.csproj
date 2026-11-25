@@ -5,10 +5,10 @@
          TargetFrameworks when both are set. -->
     <TargetFramework></TargetFramework>
 
-    <!-- Multi-targeted because Shiny.Gps' registration methods only exist in its platform builds,
-         with a different signature on each — so AddGpsBridge and AddMotionActivityBridge have to be compiled per platform to call
-         the right one. The plain net11.0 target serves the desktop heads, where GPS and motion answer 501 and geocoding uses Nominatim. -->
-    <TargetFrameworks>net11.0;net11.0-android;net11.0-ios;net11.0-maccatalyst</TargetFrameworks>
+    <!-- Multi-targeted because each platform registers GPS differently: Shiny.Gps on Android, iOS, Mac Catalyst, macOS
+         (AppKit) and Windows, and Shiny.Gps.Linux (GeoClue2) on Linux, which only the plain net11.0 build references.
+         Motion activity is only on Android, iOS and Mac Catalyst. -->
+    <TargetFrameworks>net11.0;net11.0-android;net11.0-ios;net11.0-maccatalyst;net11.0-macos</TargetFrameworks>
     <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net11.0-windows10.0.19041.0</TargetFrameworks>
 
     <RootNamespace>Shiny.AppDeviceBridge.Gps</RootNamespace>
@@ -17,12 +17,23 @@
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">24.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-maccatalyst'))">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-macos'))">14.0</SupportedOSPlatformVersion>
     <SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-windows'))">10.0.17763.0</SupportedOSPlatformVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Shiny.Gps" />
   </ItemGroup>
+
+  <!-- Linux GPS is GeoClue2 over D-Bus, shipped separately so no other platform carries it. Only the net11.0 build
+       references it, and it is only registered when the process is actually on Linux. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net11.0'">
+    <PackageReference Include="Shiny.Gps.Linux" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net11.0'">
+    <DefineConstants>$(DefineConstants);GPS_LINUX</DefineConstants>
+  </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="../Shiny.AppDeviceBridge/Shiny.AppDeviceBridge.csproj" />

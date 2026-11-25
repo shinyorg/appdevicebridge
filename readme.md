@@ -48,7 +48,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Simulator` | a .NET tool | `shiny-bridge-sim`: a terminal UI (or, with `--web`, a browser panel) that serves every bridge with answers you set, events you fire and trails you play (GPX walks included), with a traffic monitor, and an MCP endpoint an AI agent can drive it through — test a page without a device. See [Simulator](#simulator) |
 | `Shiny.AppDeviceBridge.Core` | (dependency) | protocol contracts, version ordering, release signatures |
 | `Shiny.AppDeviceBridge.AspNetCore` | your server | `AddWebAppReleases`, `MapWebAppReleases`, file-system release store |
-| `Shiny.AppDeviceBridge.Gps` | the app | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()`: GPS, motion activity and reverse geocoding, backed by Shiny.Gps |
+| `Shiny.AppDeviceBridge.Gps` | the app | `AddGpsBridge()`, `AddMotionActivityBridge()`, `AddGeocodingBridge()`: GPS (Android, iOS, Mac Catalyst, macOS, Windows, and Linux through GeoClue2 / Shiny.Gps.Linux), motion activity (Android, iOS, Mac Catalyst) and reverse geocoding (all platforms), backed by Shiny.Gps |
 | `Shiny.AppDeviceBridge.Geofencing` | the app | `AddGeofenceBridge()`: geofence regions and transitions, backed by Shiny.Geofencing |
 | `Shiny.AppDeviceBridge.RegionGeofencing` | the app | `AddRegionGeofenceBridge(cfg => cfg.AddRegionSet(…))`: unlimited polygon, proximity and reverse-geocoded regions, monitored by background GPS, backed by Shiny.Geofencing.Regions (Android, iOS, Mac Catalyst) |
 | `Shiny.AppDeviceBridge.BluetoothLE` | the app | `AddBluetoothLEBridge()` |
@@ -861,7 +861,7 @@ because it needs its own setup: `NSMotionUsageDescription` on iOS (the permissio
 and `ACTIVITY_RECOGNITION` with Google Play Services on Android. Other platforms return `501`.
 
 **Geocoding:** `AddGeocodingBridge()` turns a position into addresses with the platform geocoder: MapKit/CoreLocation on
-iOS and Mac Catalyst, `android.location.Geocoder` on Android, and OpenStreetMap's Nominatim on Windows, Linux, macOS and
+iOS, Mac Catalyst and macOS, `android.location.Geocoder` on Android, and OpenStreetMap's Nominatim on Windows, Linux and
 Android devices without a geocoding backend. `GET geocoding/reverse?latitude=&longitude=` returns
 placemarks, most relevant first: `name`, `subThoroughfare` (street number), `thoroughfare`, `subLocality`, `locality`,
 `subAdministrativeArea`, `administrativeArea`, `postalCode`, `countryCode`, `countryName` and `formattedAddress`. Any part

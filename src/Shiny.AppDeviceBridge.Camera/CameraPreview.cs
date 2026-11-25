@@ -1,4 +1,4 @@
-using Shiny.Controls.Camera;
+using Shiny.Controls.Analysis;
 
 namespace Shiny.AppDeviceBridge.Camera;
 
@@ -166,7 +166,7 @@ sealed class CameraPreviewAnalyzer(CameraPreview preview, CameraBridgeOptions op
         }
     }
 
-    public async ValueTask<IReadOnlyList<OverlayBox>?> AnalyzeAsync(CameraFrame frame, CancellationToken ct)
+    public async ValueTask<IReadOnlyList<OverlayBox>?> AnalyzeAsync(VideoFrame frame, CancellationToken ct)
     {
         try
         {

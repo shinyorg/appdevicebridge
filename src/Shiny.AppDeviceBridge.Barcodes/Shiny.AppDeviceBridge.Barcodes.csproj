@@ -4,7 +4,7 @@
     <!-- Cleared: src/Directory.Build.props sets the single target. -->
     <TargetFramework></TargetFramework>
 
-    <!-- The scanner is Shiny.Maui.Controls.Camera.Barcode's modal scanner on each head: Apple Vision on Apple platforms,
+    <!-- The scanner is Shiny.Maui.Controls.Camera's modal scanner running Shiny.Maui.Controls.Analysis.Barcode on each head: Apple Vision on Apple platforms,
          ML Kit on Android, ZXing.Net on Windows, with the controls' own long-range engine on all of them. net11.0 serves
          the maui-labs Linux head, which has no camera and answers 501. -->
     <TargetFrameworks>net11.0;net11.0-android;net11.0-ios;net11.0-maccatalyst;net11.0-macos</TargetFrameworks>
@@ -24,7 +24,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Maui.Controls" />
-    <PackageReference Include="Shiny.Maui.Controls.Camera.Barcode" />
+    <PackageReference Include="Shiny.Maui.Controls.Camera" />
+    <PackageReference Include="Shiny.Maui.Controls.Analysis.Barcode" />
   </ItemGroup>
 
   <ItemGroup>
