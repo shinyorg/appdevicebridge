@@ -6,7 +6,7 @@
         <MauiDevFlowVersion>$(MauiLabsVersion)</MauiDevFlowVersion>
         <ShinyVersion>7.2.0</ShinyVersion>
         <ShinyControlsVersion>3.0.0</ShinyControlsVersion>
-        <DocumentDbVersion>14.4.1</DocumentDbVersion>
+        <DocumentDbVersion>15.0.0</DocumentDbVersion>
     </PropertyGroup>
     <ItemGroup>
         <PackageVersion Include="GirCore.Gtk-4.0" Version="0.8.1"/>
@@ -33,9 +33,9 @@
         <PackageVersion Include="Microsoft.Maui.DevFlow.Agent" Version="$(MauiDevFlowVersion)"/>
     </ItemGroup>
     <ItemGroup>
-        <PackageVersion Include="Shiny.Net.HttpServer" Version="3.1.2"/>
-        <PackageVersion Include="Shiny.Net.HttpServer.Ssh" Version="3.1.2"/>
-        <PackageVersion Include="Shiny.Net.HttpServer.Mcp" Version="3.1.2"/>
+        <PackageVersion Include="Shiny.Net.HttpServer" Version="3.2.0"/>
+        <PackageVersion Include="Shiny.Net.HttpServer.Ssh" Version="3.2.0"/>
+        <PackageVersion Include="Shiny.Net.HttpServer.Mcp" Version="3.2.0"/>
         <PackageVersion Include="Shiny.UniversalHubs.Host" Version="2.0.1"/>
         <PackageVersion Include="Shiny.UniversalHubs.Client" Version="2.0.1"/>
         <PackageVersion Include="Shiny.UniversalHubs.Multipeer" Version="2.0.1"/>
