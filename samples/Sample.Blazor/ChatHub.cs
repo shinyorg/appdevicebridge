@@ -7,9 +7,10 @@ namespace Sample.Blazor;
 
 /// <summary>
 /// The Hubs page's chat: a Universal Hub whose logic is this page's, hosted by the app over BLE, Wi-Fi and Multipeer.
-/// Another device running the sample joins it from its own Hubs page; a native app joins it with this contract:
+/// Another device running the sample joins it from its own Hubs page; a native app joins it with this contract —
+/// <c>services.AddUniversalHubClient&lt;IChatHub&gt;("chat", o =&gt; o.UseHttp("_adbsample._tcp").UseBluetoothLE(HubProtocolOptions.DefaultServiceUuid, Characteristic))</c>:
 /// <code>
-/// [BleHubClient]
+/// [UniversalHubContract]
 /// public interface IChatHub
 /// {
 ///     Task Send(string text);

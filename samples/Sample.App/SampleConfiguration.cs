@@ -118,10 +118,10 @@ public static class SampleConfiguration
                         .AddHubsBridge(
                             server => server
                                 // what other devices list this one as, over every transport
-                                .Ble(o => o.LocalName = HubHostName())
-                                .AllowDynamicHubs(o => o.ServiceTypes.Add("_adbsample._tcp"))
+                                .Configure(o => o.LocalName = HubHostName())
+                                .Http(o => o.DynamicServiceTypes.Add("_adbsample._tcp"))
                                 .Multipeer("adbsample-mc"),
-                            clients => clients.Multipeer("adbsample-mc")
+                            clients => clients.UseMultipeer("adbsample-mc")
                         )
                         .AddPushBridge(o => o.DispatchToWebApp = true)
 

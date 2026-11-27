@@ -143,7 +143,7 @@
             if (WebAppHubs.Hubs[ChatHub.HubName] is ChatHub chat)
                 chat.Said += OnSaid;
 
-            client = await HubsBridge.CreateClientAsync(new HubClientRequest(ChatHub.Characteristic, ChatHub.ServiceType));
+            client = await HubsBridge.CreateClientAsync(new HubClientRequest(ChatHub.HubName, ChatHub.ServiceType, ChatHub.Characteristic));
             return hub;
         }, Json.HubInfo);
 
@@ -283,7 +283,8 @@
         {
             transports.HasFlag(HubTransports.Ble) ? "Bluetooth LE" : null,
             transports.HasFlag(HubTransports.Http) ? "Wi-Fi" : null,
-            transports.HasFlag(HubTransports.Multipeer) ? "Multipeer" : null
+            transports.HasFlag(HubTransports.Multipeer) ? "Multipeer" : null,
+            transports.HasFlag(HubTransports.Nearby) ? "Nearby" : null
         }.Where(x => x is not null));
 
     public override async ValueTask DisposeAsync()

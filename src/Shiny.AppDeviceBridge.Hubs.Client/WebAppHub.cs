@@ -9,8 +9,8 @@ using Shiny.AppDeviceBridge.Client;
 namespace Shiny.AppDeviceBridge.Hubs.Client;
 
 /// <summary>
-/// A Universal Hub whose logic is this web app's. The app serves it over BLE, Wi-Fi and Multipeer; each call a client
-/// makes runs here, with the caller in <see cref="Connection"/>. Methods are mapped by name — no generated code, every
+/// A Universal Hub whose logic is this web app's. The app serves it over Wi-Fi, Bluetooth LE, and Multipeer or Nearby when
+/// it adds them; each call a client makes runs here, with the caller in <see cref="Connection"/>. Methods are mapped by name — no generated code, every
 /// value read and written through source-generated JSON metadata — and must match the names in the clients' contract.
 /// <code>
 /// public sealed class GameHub(GameEngine engine) : WebAppHub
@@ -319,11 +319,18 @@ public sealed class WebAppHubMethods
 
 
 /// <summary>How a <see cref="WebAppHub"/> is served: everything the definition takes but its methods, which come from <c>Map</c>.</summary>
-/// <param name="Name">Letters, digits, <c>-</c>, <c>_</c> and <c>.</c>, up to 64.</param>
-/// <param name="CharacteristicUuid">The BLE characteristic, also the HTTP path. Clients use the same one.</param>
-/// <param name="ServiceType">An mDNS service type the app allows for web app hubs, such as <c>_myapp._tcp</c>.</param>
-public sealed record WebAppHubOptions(string Name, string CharacteristicUuid, string ServiceType)
+/// <param name="Name">Letters, digits, <c>-</c>, <c>_</c> and <c>.</c>, up to 64. Clients ask for the hub by this name.</param>
+public sealed record WebAppHubOptions(string Name)
 {
+    /// <summary>An mDNS service type the app allows for web app hubs, such as <c>_myapp._tcp</c>. Null for the app's default.</summary>
+    public string? ServiceType { get; init; }
+
+    /// <summary>Serve the hub over Bluetooth LE as this characteristic. Null keeps it off BLE.</summary>
+    public string? CharacteristicUuid { get; init; }
+
+    /// <summary>The GATT service the characteristic is in. Null for the app's dynamic hub service.</summary>
+    public string? ServiceUuid { get; init; }
+
     /// <summary>Counted across every transport; null for no limit.</summary>
     public int? MaxClients { get; init; } = 8;
 
@@ -364,7 +371,7 @@ public sealed class WebAppHubs(IServiceProvider services, IHubsBridge bridge, IW
             }
 
             infos.Add(await bridge.DefineAsync(
-                new HubDefinition(options.Name, options.CharacteristicUuid, options.ServiceType, registration.Methods!, options.MaxClients, options.AllowTunnel),
+                new HubDefinition(options.Name, registration.Methods!, options.ServiceType, options.CharacteristicUuid, options.ServiceUuid, options.MaxClients, options.AllowTunnel),
                 cancellationToken
             ));
         }
@@ -420,7 +427,7 @@ public static class WebAppHubServiceCollectionExtensions
     /// <code>
     /// builder.Services
     ///     .AddWebAppHostClient()
-    ///     .AddWebAppHub&lt;GameHub&gt;(new("game", "6e400010-…", "_myapp._tcp") { MaxClients = 6 });
+    ///     .AddWebAppHub&lt;GameHub&gt;(new("game") { ServiceType = "_myapp._tcp", CharacteristicUuid = "6e400010-…", MaxClients = 6 });
     /// </code>
     /// </summary>
     public static IServiceCollection AddWebAppHub<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicConstructors)] THub>(

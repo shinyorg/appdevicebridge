@@ -13,8 +13,10 @@ export interface HubClientChanged {
 
 export interface HubClientInfo {
     id: string;
-    characteristicUuid: string;
-    serviceType: string;
+    hub: string;
+    serviceType: string | null;
+    characteristicUuid: string | null;
+    serviceUuid: string | null;
     status: HubClientStatus;
     /** How it is connected now; `None` when it is not. */
     transport: HubTransports;
@@ -29,14 +31,18 @@ export interface HubClientPush {
     arguments: unknown[];
 }
 
-/** A client for the hub on `characteristicUuid` — this app joining another device's hub. */
+/** A client for the hub named `hub` — this app joining another device's hub — set up with the hub's own settings, as its host gave them. Wi-Fi always, Bluetooth LE when `characteristicUuid` is given, and whatever else the app shares between its hub clients (Multipeer, Nearby). */
 export interface HubClientRequest {
-    characteristicUuid: string;
-    /** The hub's mDNS service type, browsed for over Wi-Fi. */
-    serviceType: string;
+    hub: string;
+    /** The hub's mDNS service type, browsed for over Wi-Fi. Null for the default. */
+    serviceType?: string | null;
+    /** The hub's BLE characteristic. Null keeps the client off BLE. */
+    characteristicUuid?: string | null;
+    /** The GATT service its characteristic is in. Null for Universal Hubs' default service. */
+    serviceUuid?: string | null;
 }
 
-export type HubClientStatus = "Disconnected" | "Connecting" | "Connected" | "Disconnecting";
+export type HubClientStatus = "Disconnected" | "Connecting" | "Connected" | "Disconnecting" | "Reconnecting";
 
 export interface HubClientStream {
     streamId: string;
@@ -59,7 +65,7 @@ export interface HubConnectRequest {
     url?: string | null;
     /** The name this client goes by on the host. */
     name?: string | null;
-    /** Tried first when the host is reachable more than one way; the rest follow as Wi-Fi, Multipeer, BLE. */
+    /** Tried first when the host is reachable more than one way; the rest follow in the order the client's transports were set up. */
     prefer?: HubTransports;
     /** The only transports that may be used. */
     allowed?: HubTransports;
@@ -79,16 +85,18 @@ export interface HubConnectionInfo {
     connectedAt: string;
 }
 
-/** A hub the web app serves. Defining it again with the same values changes nothing. */
+/** A hub the web app serves. Defining it again with the same values changes nothing. It is served over every transport the app set up: Wi-Fi, Multipeer and Nearby always, Bluetooth LE only when it has a `characteristicUuid`. */
 export interface HubDefinition {
-    /** Letters, digits, `-`, `_` and `.`, up to 64. Calls reach the web app as the native call `hub:{name}`. */
+    /** Letters, digits, `-`, `_` and `.`, up to 64. Clients ask for the hub by this name on every transport, and calls reach the web app as the native call `hub:{name}`. */
     name: string;
-    /** The hub's BLE characteristic, also its HTTP path. Clients use the same one. */
-    characteristicUuid: string;
-    /** The mDNS service type, such as `_myapp._tcp`: one the app allows for web app hubs. */
-    serviceType: string;
     /** Every method clients may call. Anything else is answered as not found without reaching the web app. */
     methods: HubMethod[];
+    /** The mDNS service type it is advertised under over Wi-Fi, such as `_myapp._tcp`: one the app allows for web app hubs. Null for the app's default. */
+    serviceType?: string | null;
+    /** Serve it over Bluetooth LE as this characteristic, 128-bit or 16/32-bit. Null keeps it off BLE. */
+    characteristicUuid?: string | null;
+    /** The GATT service its characteristic is in. Null for the app's dynamic hub service. */
+    serviceUuid?: string | null;
     /** Counted across every transport; null for no limit. */
     maxClients?: number | null;
     /** Let clients reach the hub through a tunnel — the public internet. */
@@ -99,7 +107,7 @@ export interface HubDefinition {
 export type HubDisconnectReason = "ClientDisconnect" | "ClientTimeout" | "ServerDisconnect" | "ServerShutdown" | "ConnectionFailed";
 
 export interface HubDiscoverRequest {
-    /** Where to look: BLE scanning, mDNS browsing, Multipeer. */
+    /** Where to look: BLE scanning, mDNS browsing, Multipeer, Nearby. */
     transports?: HubTransports;
 }
 
@@ -122,9 +130,10 @@ export interface HubHostSeen {
 
 export interface HubInfo {
     name: string;
-    characteristicUuid: string;
-    serviceType: string;
     methods: HubMethod[];
+    serviceType: string | null;
+    characteristicUuid: string | null;
+    serviceUuid: string | null;
     maxClients: number | null;
     allowTunnel: boolean;
     /** Where the hub is accepting clients right now. */
@@ -193,9 +202,9 @@ export interface HubStreamEnd {
 }
 
 /** How hub clients reach this device. Flags: a hub can run on several at once. */
-export type HubTransports = "None" | "Ble" | "Http" | "Multipeer" | "All";
+export type HubTransports = "None" | "Ble" | "Http" | "Multipeer" | "Nearby" | "All";
 
-/** Universal Hubs whose logic lives in the web app — and joining other devices' hubs (`clients`). The app hosts them over BLE, Wi-Fi and Multipeer; every call a client makes reaches the web app as the native call `hub:{name}`, carrying a `HubCall` — answered by the page while it is open — and the web app's `HubCallReply` goes back to the client. Define a hub once per launch (again with the same values changes nothing), start it, and push to its clients from here. A host without `AddHubsBridge` answers 501. */
+/** Universal Hubs whose logic lives in the web app — and joining other devices' hubs (`clients`). The app hosts them over Wi-Fi, Bluetooth LE, and Multipeer or Nearby when it adds them; every call a client makes reaches the web app as the native call `hub:{name}`, carrying a `HubCall` — answered by the page while it is open — and the web app's `HubCallReply` goes back to the client. Define a hub once per launch (again with the same values changes nothing), start it, and push to its clients from here. A host without `AddHubsBridge` answers 501. */
 export class HubsBridge {
     constructor(private readonly transport: BridgeTransport = browserTransport()) {}
 

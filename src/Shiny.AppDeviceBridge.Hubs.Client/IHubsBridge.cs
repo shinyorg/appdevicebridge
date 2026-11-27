@@ -4,9 +4,10 @@ using Shiny.AppDeviceBridge.Client;
 namespace Shiny.AppDeviceBridge.Hubs.Client;
 
 /// <summary>
-/// Universal Hubs whose logic lives in the web app — and joining other devices' hubs (<c>clients</c>). The app hosts them over BLE, Wi-Fi and Multipeer; every call a client
-/// makes reaches the web app as the native call <c>hub:{name}</c>, carrying a <see cref="HubCall"/> — answered by the page
-/// while it is open — and the web app's <see cref="HubCallReply"/> goes back to the client. Define a hub
+/// Universal Hubs whose logic lives in the web app — and joining other devices' hubs (<c>clients</c>). The app hosts them
+/// over Wi-Fi, Bluetooth LE, and Multipeer or Nearby when it adds them; every call a client makes reaches the web app as
+/// the native call <c>hub:{name}</c>, carrying a <see cref="HubCall"/> — answered by the page while it is open — and the
+/// web app's <see cref="HubCallReply"/> goes back to the client. Define a hub
 /// once per launch (again with the same values changes nothing), start it, and push to its clients from here. A host
 /// without <c>AddHubsBridge</c> answers 501.
 /// </summary>

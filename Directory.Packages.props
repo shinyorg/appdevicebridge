@@ -7,6 +7,7 @@
         <ShinyVersion>7.2.0</ShinyVersion>
         <ShinyControlsVersion>3.0.0</ShinyControlsVersion>
         <DocumentDbVersion>15.0.0</DocumentDbVersion>
+        <UniversalHubsVersion>3.0.0</UniversalHubsVersion>
     </PropertyGroup>
     <ItemGroup>
         <PackageVersion Include="GirCore.Gtk-4.0" Version="0.8.1"/>
@@ -36,10 +37,10 @@
         <PackageVersion Include="Shiny.Net.HttpServer" Version="3.2.0"/>
         <PackageVersion Include="Shiny.Net.HttpServer.Ssh" Version="3.2.0"/>
         <PackageVersion Include="Shiny.Net.HttpServer.Mcp" Version="3.2.0"/>
-        <PackageVersion Include="Shiny.UniversalHubs.Host" Version="2.0.1"/>
-        <PackageVersion Include="Shiny.UniversalHubs.Client" Version="2.0.1"/>
-        <PackageVersion Include="Shiny.UniversalHubs.Multipeer" Version="2.0.1"/>
-        <PackageVersion Include="Shiny.BluetoothLE.Hubs" Version="2.0.1"/>
+        <PackageVersion Include="Shiny.UniversalHubs" Version="$(UniversalHubsVersion)"/>
+        <PackageVersion Include="Shiny.UniversalHubs.BluetoothLE" Version="$(UniversalHubsVersion)"/>
+        <PackageVersion Include="Shiny.UniversalHubs.Http" Version="$(UniversalHubsVersion)"/>
+        <PackageVersion Include="Shiny.UniversalHubs.Multipeer" Version="$(UniversalHubsVersion)"/>
         <PackageVersion Include="Shiny.Extensions.Stores" Version="6.0.2"/>
         <PackageVersion Include="Shiny.Maui.Controls.Desktop" Version="$(ShinyControlsVersion)"/>
         <PackageVersion Include="Shiny.Maui.Controls.Camera" Version="$(ShinyControlsVersion)"/>

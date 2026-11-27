@@ -16,7 +16,10 @@ public enum HubTransports
     /// <summary>Apple's MultipeerConnectivity, between Apple devices; needs Shiny.UniversalHubs.Multipeer in the app.</summary>
     Multipeer = 4,
 
-    All = Ble | Http | Multipeer
+    /// <summary>Google Nearby Connections, between Android, iOS and macOS; needs Shiny.UniversalHubs.Nearby in the app.</summary>
+    Nearby = 8,
+
+    All = Ble | Http | Multipeer | Nearby
 }
 
 public enum HubMethodKind
@@ -41,18 +44,26 @@ public enum HubDisconnectReason
 /// <param name="Name">The method name clients call, exactly as their contract spells it.</param>
 public sealed record HubMethod(string Name, HubMethodKind Kind = HubMethodKind.Invoke);
 
-/// <summary>A hub the web app serves. Defining it again with the same values changes nothing.</summary>
-/// <param name="Name">Letters, digits, <c>-</c>, <c>_</c> and <c>.</c>, up to 64. Calls reach the web app as the native call <c>hub:{name}</c>.</param>
-/// <param name="CharacteristicUuid">The hub's BLE characteristic, also its HTTP path. Clients use the same one.</param>
-/// <param name="ServiceType">The mDNS service type, such as <c>_myapp._tcp</c>: one the app allows for web app hubs.</param>
+/// <summary>
+/// A hub the web app serves. Defining it again with the same values changes nothing. It is served over every transport the
+/// app set up: Wi-Fi, Multipeer and Nearby always, Bluetooth LE only when it has a <see cref="CharacteristicUuid"/>.
+/// </summary>
+/// <param name="Name">
+/// Letters, digits, <c>-</c>, <c>_</c> and <c>.</c>, up to 64. Clients ask for the hub by this name on every transport, and
+/// calls reach the web app as the native call <c>hub:{name}</c>.
+/// </param>
 /// <param name="Methods">Every method clients may call. Anything else is answered as not found without reaching the web app.</param>
+/// <param name="ServiceType">The mDNS service type it is advertised under over Wi-Fi, such as <c>_myapp._tcp</c>: one the app allows for web app hubs. Null for the app's default.</param>
+/// <param name="CharacteristicUuid">Serve it over Bluetooth LE as this characteristic, 128-bit or 16/32-bit. Null keeps it off BLE.</param>
+/// <param name="ServiceUuid">The GATT service its characteristic is in. Null for the app's dynamic hub service.</param>
 /// <param name="MaxClients">Counted across every transport; null for no limit.</param>
 /// <param name="AllowTunnel">Let clients reach the hub through a tunnel — the public internet.</param>
 public sealed record HubDefinition(
     string Name,
-    string CharacteristicUuid,
-    string ServiceType,
     IReadOnlyList<HubMethod> Methods,
+    string? ServiceType = null,
+    string? CharacteristicUuid = null,
+    string? ServiceUuid = null,
     int? MaxClients = 8,
     bool AllowTunnel = false
 );
@@ -61,9 +72,10 @@ public sealed record HubDefinition(
 /// <param name="Connections">Clients connected, over every transport.</param>
 public sealed record HubInfo(
     string Name,
-    string CharacteristicUuid,
-    string ServiceType,
     IReadOnlyList<HubMethod> Methods,
+    string? ServiceType,
+    string? CharacteristicUuid,
+    string? ServiceUuid,
     int? MaxClients,
     bool AllowTunnel,
     HubTransports RunningTransports,
@@ -161,18 +173,36 @@ public enum HubClientStatus
     Disconnected,
     Connecting,
     Connected,
-    Disconnecting
+    Disconnecting,
+
+    /// <summary>The link dropped and the client is getting back onto it; calls fail until it is <see cref="Connected"/> again.</summary>
+    Reconnecting
 }
 
-/// <summary>A client for the hub on <paramref name="CharacteristicUuid"/> — this app joining another device's hub.</summary>
-/// <param name="ServiceType">The hub's mDNS service type, browsed for over Wi-Fi.</param>
-public sealed record HubClientRequest(string CharacteristicUuid, string ServiceType);
+/// <summary>
+/// A client for the hub named <paramref name="Hub"/> — this app joining another device's hub — set up with the hub's own
+/// settings, as its host gave them. Wi-Fi always, Bluetooth LE when <paramref name="CharacteristicUuid"/> is given, and
+/// whatever else the app shares between its hub clients (Multipeer, Nearby).
+/// </summary>
+/// <param name="ServiceType">The hub's mDNS service type, browsed for over Wi-Fi. Null for the default.</param>
+/// <param name="CharacteristicUuid">The hub's BLE characteristic. Null keeps the client off BLE.</param>
+/// <param name="ServiceUuid">The GATT service its characteristic is in. Null for Universal Hubs' default service.</param>
+public sealed record HubClientRequest(string Hub, string? ServiceType = null, string? CharacteristicUuid = null, string? ServiceUuid = null);
 
 /// <param name="Transport">How it is connected now; <see cref="HubTransports.None"/> when it is not.</param>
 /// <param name="HostName">The host it is connected to.</param>
-public sealed record HubClientInfo(string Id, string CharacteristicUuid, string ServiceType, HubClientStatus Status, HubTransports Transport, string? HostName);
+public sealed record HubClientInfo(
+    string Id,
+    string Hub,
+    string? ServiceType,
+    string? CharacteristicUuid,
+    string? ServiceUuid,
+    HubClientStatus Status,
+    HubTransports Transport,
+    string? HostName
+);
 
-/// <param name="Transports">Where to look: BLE scanning, mDNS browsing, Multipeer.</param>
+/// <param name="Transports">Where to look: BLE scanning, mDNS browsing, Multipeer, Nearby.</param>
 public sealed record HubDiscoverRequest(HubTransports Transports = HubTransports.All);
 
 /// <summary>A host found, changed or gone (<see cref="Transports"/> is <see cref="HubTransports.None"/>), merged across transports by name.</summary>
@@ -184,7 +214,7 @@ public sealed record HubHostSeen(string ClientId, string Name, string? HostId, H
 /// <param name="Host">A host's name, as discovery reported it.</param>
 /// <param name="Url">Or a host's address — <c>http://192.168.1.20:5780</c>, a tunnel's public URL — reached over Wi-Fi only.</param>
 /// <param name="Name">The name this client goes by on the host.</param>
-/// <param name="Prefer">Tried first when the host is reachable more than one way; the rest follow as Wi-Fi, Multipeer, BLE.</param>
+/// <param name="Prefer">Tried first when the host is reachable more than one way; the rest follow in the order the client's transports were set up.</param>
 /// <param name="Allowed">The only transports that may be used.</param>
 /// <param name="Properties">Sent to the host in the handshake.</param>
 public sealed record HubConnectRequest(

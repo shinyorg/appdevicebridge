@@ -63,7 +63,7 @@ builder.Services
     .AddDiscoveryBridgeClient()
 
     // The Hubs page's chat, served from this page; it registers the hubs bridge client too.
-    .AddWebAppHub<ChatHub>(new(ChatHub.HubName, ChatHub.Characteristic, ChatHub.ServiceType) { MaxClients = 8 })
+    .AddWebAppHub<ChatHub>(new(ChatHub.HubName) { ServiceType = ChatHub.ServiceType, CharacteristicUuid = ChatHub.Characteristic, MaxClients = 8 })
     .AddTransfersBridgeClient()
     .AddGpsBridgeClient()
     .AddGeofencesBridgeClient()

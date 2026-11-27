@@ -58,7 +58,7 @@ app, served from the device itself, updated from your own server, and able to ca
 | `Shiny.AppDeviceBridge.Printing` | the app | `AddPrintingBridge()`: the operating system's own printing — a PDF, image or HTML through AirPrint, Android's print dialog, the Windows spooler or CUPS |
 | `Shiny.AppDeviceBridge.Wifi` | the app | `AddWifiBridge(hotspot: false)`: current network and changes, scan, connect, known networks, radio, hotspot |
 | `Shiny.AppDeviceBridge.Discovery` | the app | `AddDiscoveryBridge(DiscoveryProtocols.All)`: mDNS/Bonjour, SSDP/UPnP, WS-Discovery search, browse, resolve and publish |
-| `Shiny.AppDeviceBridge.Hubs` | the app | `AddHubsBridge(server => server.AllowDynamicHubs(…))`: Universal Hubs over BLE, Wi-Fi and Multipeer whose logic lives in the web app, so it ships with a web app update |
+| `Shiny.AppDeviceBridge.Hubs` | the app | `AddHubsBridge(server => server.Http(o => o.DynamicServiceTypes.Add(…)))`: Universal Hubs 3 over Wi-Fi, BLE, Multipeer and Nearby whose logic lives in the web app, so it ships with a web app update |
 | `Shiny.AppDeviceBridge.Hubs.Client` | the page | `IHubsBridge`, and `WebAppHub` + `AddWebAppHub<THub>(…)` to write a hub's methods in C# |
 | `Shiny.AppDeviceBridge.AutoUpdate` | the app | `AddWebAppAutoUpdate()`: web app updates while the app is closed, from a Shiny.Jobs check and Shiny.Net.Http background transfers, verified and served next launch |
 | `Shiny.AppDeviceBridge.Push` | the app | `AddPushBridge()`: register, unregister, token, tags, and optionally push payloads for the web app |
@@ -807,29 +807,36 @@ Android; the Access Wi-Fi Information and Hotspot Configuration entitlements on 
   `CHANGE_WIFI_MULTICAST_STATE`.
 
 **Hubs** (`Shiny.AppDeviceBridge.Hubs`, added by `AddHubsBridge(server => …)`): Universal Hubs the web app defines,
-starts and answers. The app serves them over BLE, Wi-Fi and Multipeer on its own server; other devices connect with an
-ordinary Universal Hubs client, and every call reaches the web app as the native call `hub:{name}`, answered by the page while
-it's open.
-- **The app fixes what hubs may use**, because the platforms fix it at build time: `server.AllowDynamicHubs(o =>
-  o.ServiceTypes.Add("_myapp._tcp"))` (iOS lists each in `NSBonjourServices`) and how many (`MaxHubs`, 6). The configure
-  callback is Universal Hubs' `AddUniversalServer` builder, so compiled hubs can sit beside the web app's.
+starts and answers, on Universal Hubs 3. The app serves them over Wi-Fi on its own server, Bluetooth LE, and Multipeer or
+Nearby when it adds them; other devices connect with an ordinary Universal Hubs client, by the hub's name, and every call
+reaches the web app as the native call `hub:{name}`, answered by the page while it's open.
+- **A hub is its name.** Wi-Fi serves every web app hub, under its `serviceType` or the app's default; BLE serves one only
+  when it has a `characteristicUuid` (in its `serviceUuid`, else the app's dynamic hub service); Multipeer and Nearby
+  serve every one once the app sets them up (`server.Multipeer("myapp-mc")`, `server.Nearby(…)`).
+- **The app fixes what hubs may use**, because the platforms fix it at build time: `server.Http(o =>
+  o.DynamicServiceTypes.Add("_myapp._tcp"))` (iOS lists each in `NSBonjourServices`), `server.BluetoothLE(o =>
+  o.DynamicServiceUuid = …)` and how many (`server.AllowDynamicHubs(o => o.MaxHubs = …)`, 6). The configure callback is
+  Universal Hubs' `AddUniversalServer` builder, so compiled hubs can sit beside the web app's.
 - **A Blazor page** derives from `WebAppHub`, maps its methods by name in `Map` with source-generated JSON metadata, and
-  registers it with `AddWebAppHub<GameHub>(new("game", uuid, "_myapp._tcp"))`; on every load, `WebAppHubs.DefineAsync()`
-  then `StartAsync("game")`. **Any other page** imports `hostHub` from `/_bridge/hubs/client.js`.
+  registers it with `AddWebAppHub<GameHub>(new("game") { ServiceType = "_myapp._tcp", CharacteristicUuid = uuid })`; on
+  every load, `WebAppHubs.DefineAsync()` then `StartAsync("game")`. **Any other page** imports `hostHub` from
+  `/_bridge/hubs/client.js`.
 - **Names are the contract:** method and event names, and the JSON shape, must match the clients' contract. Methods not
   in the definition never reach the page. A thrown `HubException` keeps its type for the client.
-- Defining again with the same values keeps the hub and its clients; a changed characteristic, service type, client limit
-  or tunnel setting replaces it. With nothing to answer `hub:{name}`, clients are refused and calls fail with
+- Defining again with the same values keeps the hub and its clients; a changed service type, characteristic, service,
+  client limit or tunnel setting replaces it. With nothing to answer `hub:{name}`, clients are refused and calls fail with
   `HubUnavailable`.
 - Wi-Fi on every head; BLE on Android, iOS and Mac Catalyst, and on Windows and macOS once the app calls
-  `services.AddBluetoothLeHosting()` (without it, `All` skips BLE); Multipeer on Apple with `Shiny.UniversalHubs.Multipeer`.
-  A transport that can't start is skipped; none answers `503`.
-- **Joining** another device's hub — compiled or a web app's — goes through `hubs/clients`: create a client for a
-  characteristic and service type, discover hosts on the transports you pick (`hubs.client.host`), connect by a found
-  host's name or an address with a `prefer`red and `allowed` set of transports, then invoke, stream and receive pushes
-  by name. The sample's Hubs page does both: a chat the page hosts, with the transports to broadcast on and to join over
+  `services.AddBluetoothLeHosting()` (without it, `All` skips BLE); Multipeer on Apple with `Shiny.UniversalHubs.Multipeer`;
+  Nearby on Android, iOS and macOS with `Shiny.UniversalHubs.Nearby`. A transport that can't start is skipped; none, or
+  only transports the app didn't set up, answers `503`.
+- **Joining** another device's hub — compiled or a web app's — goes through `hubs/clients`: create a client for a hub's
+  name with the settings its host gave it (`serviceType`, and `characteristicUuid` / `serviceUuid` for BLE), discover
+  hosts on the transports you pick (`hubs.client.host`), connect by a found host's name or an address with a `prefer`red
+  and `allowed` set of transports, then invoke, stream and receive pushes by name. Multipeer and Nearby come from the
+  `clients` options every client shares (`clients => clients.UseMultipeer("myapp-mc")`). The sample's Hubs page does both: a chat the page hosts, with the transports to broadcast on and to join over
   as checkboxes.
-- **Security:** the hub routes are at `/hubs`, outside the bridge prefix, so the bridge policy doesn't cover them — each
+- **Security:** the hub routes are WebSockets at `/hubs/{name}`, outside the bridge prefix, so the bridge policy doesn't cover them — each
   hub's own rules do (`MaxClients`, the page refusing a client, `AllowTunnel`). Other devices reach them only when the
   server listens past loopback; `/_bridge` stays on-device either way. Hub arguments come from other devices: treat them
   as untrusted.

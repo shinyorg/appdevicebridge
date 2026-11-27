@@ -10,15 +10,22 @@ using Shiny.AppDeviceBridge.Client;
 using Shiny.AppDeviceBridge.Hubs;
 using Shiny.AppDeviceBridge.Hubs.Client;
 using Shiny.BluetoothLE.Hosting;
-using Shiny.BluetoothLE.Hubs;
 using Shiny.Net.HttpServer;
 using Shiny.UniversalHubs;
-using HubDisconnect = Shiny.BluetoothLE.Hubs.HubDisconnect;
-using NativeReason = Shiny.BluetoothLE.Hubs.HubDisconnectReason;
+using HubClientStatus = Shiny.AppDeviceBridge.Hubs.Client.HubClientStatus;
+using HubDefinition = Shiny.AppDeviceBridge.Hubs.Client.HubDefinition;
+using HubDisconnectReason = Shiny.AppDeviceBridge.Hubs.Client.HubDisconnectReason;
+using HubMethodKind = Shiny.AppDeviceBridge.Hubs.Client.HubMethodKind;
+using HubDisconnect = Shiny.UniversalHubs.HubDisconnect;
+using HubException = Shiny.AppDeviceBridge.Hubs.Client.HubException;
+using HubTransports = Shiny.AppDeviceBridge.Hubs.Client.HubTransports;
+using NativeHubException = Shiny.UniversalHubs.HubException;
+using NativeReason = Shiny.UniversalHubs.HubDisconnectReason;
+using NativeStatus = Shiny.UniversalHubs.HubClientStatus;
 
 namespace Shiny.AppDeviceBridge.Tests;
 
-[BleHubClient]
+[UniversalHubContract]
 public interface IWebGameHub
 {
     Task<MoveResult> MakeMove(int cell);
@@ -49,9 +56,9 @@ public class HubsBridgeTests
 
     static readonly HubDefinition Game = new(
         "game",
-        Characteristic,
-        ServiceType,
         [new HubMethod("MakeMove"), new HubMethod("Fail"), new HubMethod("Kick"), new HubMethod("Count", HubMethodKind.Stream)],
+        ServiceType,
+        Characteristic,
         MaxClients: 3
     );
 
@@ -69,7 +76,7 @@ public class HubsBridgeTests
 
         var connected = fixture.Page.Calls.First(x => x.Kind == HubCallKind.Connected);
         Assert.Equal("Alice", connected.Connection.Name);
-        Assert.Equal(Shiny.AppDeviceBridge.Hubs.Client.HubTransports.Http, connected.Connection.Transport);
+        Assert.Equal(HubTransports.Http, connected.Connection.Transport);
 
         var move = fixture.Page.Calls.Single(x => x.Kind == HubCallKind.Invoke);
         Assert.Equal("MakeMove", move.Method);
@@ -77,7 +84,7 @@ public class HubsBridgeTests
 
         var info = (await fixture.Bridge.GetHubsAsync()).Single();
         Assert.Equal(1, info.Connections);
-        Assert.Equal(Shiny.AppDeviceBridge.Hubs.Client.HubTransports.Http, info.RunningTransports);
+        Assert.Equal(HubTransports.Http, info.RunningTransports);
     }
 
     [Fact]
@@ -88,12 +95,12 @@ public class HubsBridgeTests
         await fixture.DefineAndStartAsync(Game);
         await using var client = await fixture.ConnectAsync("Alice");
 
-        var rule = await Assert.ThrowsAsync<BleHubRemoteException>(() => client.Hub.Fail());
+        var rule = await Assert.ThrowsAsync<HubRemoteException>(() => client.Hub.Fail());
         Assert.Equal("GameRule", rule.RemoteErrorType);
         Assert.Equal("Not your turn", rule.Message);
 
         // not in the definition: answered without reaching the web app
-        var missing = await Assert.ThrowsAsync<BleHubRemoteException>(() => client.Hub.Missing());
+        var missing = await Assert.ThrowsAsync<HubRemoteException>(() => client.Hub.Missing());
         Assert.Equal("HubMethodNotFound", missing.RemoteErrorType);
         Assert.DoesNotContain(fixture.Page.Calls, x => x.Method == "Missing");
     }
@@ -105,7 +112,7 @@ public class HubsBridgeTests
         fixture.Page.Handle("hub:game", ScriptedGame);
         await fixture.DefineAndStartAsync(Game);
 
-        var refused = await Assert.ThrowsAsync<BleHubException>(() => fixture.ConnectAsync("Mallory"));
+        var refused = await Assert.ThrowsAsync<NativeHubException>(() => fixture.ConnectAsync("Mallory"));
         Assert.Contains("No Mallory", refused.Message);
 
         await using var client = await fixture.ConnectAsync("Alice");
@@ -114,11 +121,11 @@ public class HubsBridgeTests
 
         // the page aborts the connection in place of replying, so the call ends either way - completed, or failed by the close
         var kick = await Record.ExceptionAsync(() => client.Hub.Kick("kicked"));
-        Assert.True(kick is null or BleHubDisconnectedException, kick?.ToString());
+        Assert.True(kick is null or HubDisconnectedException, kick?.ToString());
 
         await WaitFor(() => disconnect is not null);
         Assert.Equal(new HubDisconnect(NativeReason.ServerDisconnect, "kicked"), disconnect);
-        await WaitFor(() => fixture.Page.Calls.Any(x => x.Kind == HubCallKind.Disconnected && x.Reason == Shiny.AppDeviceBridge.Hubs.Client.HubDisconnectReason.ServerDisconnect));
+        await WaitFor(() => fixture.Page.Calls.Any(x => x.Kind == HubCallKind.Disconnected && x.Reason == HubDisconnectReason.ServerDisconnect));
     }
 
     [Fact]
@@ -147,7 +154,7 @@ public class HubsBridgeTests
         Assert.Equal(["hello all", "not alice"], bobChat);
 
         await fixture.Bridge.DisconnectAsync("game", aliceId, "bye");
-        await WaitFor(() => alice.Status == BleHubClientStatus.Disconnected);
+        await WaitFor(() => alice.Status == NativeStatus.Disconnected);
     }
 
     [Fact]
@@ -176,10 +183,10 @@ public class HubsBridgeTests
         // the page goes away: no page to run the hub
         fixture.Page.Unhandle("hub:game");
 
-        var call = await Assert.ThrowsAsync<BleHubRemoteException>(() => client.Hub.MakeMove(1));
+        var call = await Assert.ThrowsAsync<HubRemoteException>(() => client.Hub.MakeMove(1));
         Assert.Equal("HubUnavailable", call.RemoteErrorType);
 
-        var refused = await Assert.ThrowsAsync<BleHubException>(() => fixture.ConnectAsync("Bob"));
+        var refused = await Assert.ThrowsAsync<NativeHubException>(() => fixture.ConnectAsync("Bob"));
         Assert.Contains("not running game", refused.Message);
     }
 
@@ -201,7 +208,7 @@ public class HubsBridgeTests
         client.Disconnected += (_, d) => disconnect = d;
         var replaced = await fixture.Bridge.DefineAsync(Game with { MaxClients = 6 });
         Assert.Equal(0, replaced.Connections);
-        Assert.Equal(Shiny.AppDeviceBridge.Hubs.Client.HubTransports.None, replaced.RunningTransports);
+        Assert.Equal(HubTransports.None, replaced.RunningTransports);
         await WaitFor(() => disconnect is not null);
         Assert.Equal(NativeReason.ServerShutdown, disconnect!.Reason);
 
@@ -216,14 +223,18 @@ public class HubsBridgeTests
 
         await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.DefineAsync(Game with { Name = "has space" }));
         await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.DefineAsync(Game with { Name = "streams" }));
+        await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.DefineAsync(Game with { Name = "-game" }));
         await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.DefineAsync(Game with { CharacteristicUuid = "nope" }));
+        await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.DefineAsync(Game with { CharacteristicUuid = null, ServiceUuid = "180F" }));
         await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.DefineAsync(Game with { ServiceType = "_other._tcp" }));
         await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.DefineAsync(Game with { Methods = [new HubMethod("A"), new HubMethod("A")] }));
         await AssertStatus(HttpStatusCode.NotFound, () => fixture.Bridge.StartAsync("nobody", new HubStartRequest()));
 
         await fixture.Bridge.DefineAsync(Game);
+
+        // another hub on the same characteristic
         await AssertStatus(HttpStatusCode.Conflict, () => fixture.Bridge.DefineAsync(Game with { Name = "chat" }));
-        await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.StartAsync("game", new HubStartRequest(Shiny.AppDeviceBridge.Hubs.Client.HubTransports.None)));
+        await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.StartAsync("game", new HubStartRequest(HubTransports.None)));
         await AssertStatus(HttpStatusCode.Gone, () => fixture.Bridge.SendStreamItemAsync("unknown", JsonSerializer.SerializeToElement(1, WebGameJson.Default.Int32)));
     }
 
@@ -244,16 +255,16 @@ public class HubsBridgeTests
         var services = new ServiceCollection()
             .AddSingleton<IBridgeTransport>(fixture.Page)
             .AddSingleton<IWebAppNativeCalls>(fixture.Page)
-            .AddWebAppHub<CSharpGameHub>(new WebAppHubOptions("game", Characteristic, ServiceType) { MaxClients = 3 })
+            .AddWebAppHub<CSharpGameHub>(new WebAppHubOptions("game") { ServiceType = ServiceType, CharacteristicUuid = Characteristic, MaxClients = 3 })
             .BuildServiceProvider();
         await using var _ = services;
 
         var hubs = services.GetRequiredService<WebAppHubs>();
         var defined = Assert.Single(await hubs.DefineAsync());
         Assert.Contains(defined.Methods, x => x is { Name: "Count", Kind: HubMethodKind.Stream });
-        await hubs.StartAsync("game", Shiny.AppDeviceBridge.Hubs.Client.HubTransports.Http);
+        await hubs.StartAsync("game", HubTransports.Http);
 
-        var refused = await Assert.ThrowsAsync<BleHubException>(() => fixture.ConnectAsync("Mallory"));
+        var refused = await Assert.ThrowsAsync<NativeHubException>(() => fixture.ConnectAsync("Mallory"));
         Assert.Contains("No Mallory", refused.Message);
 
         await using var client = await fixture.ConnectAsync("Alice");
@@ -263,7 +274,7 @@ public class HubsBridgeTests
         Assert.Equal(new MoveResult(true, 5), await client.Hub.MakeMove(5));
         await WaitFor(() => chat.Contains("Alice took 5"));
 
-        var rule = await Assert.ThrowsAsync<BleHubRemoteException>(() => client.Hub.Fail());
+        var rule = await Assert.ThrowsAsync<HubRemoteException>(() => client.Hub.Fail());
         Assert.Equal("GameRule", rule.RemoteErrorType);
 
         var items = new List<int>();
@@ -280,6 +291,45 @@ public class HubsBridgeTests
     }
 
     [Fact]
+    public async Task A_hub_without_a_characteristic_stays_off_Bluetooth()
+    {
+        await using var fixture = await Fixture.StartAsync(noBluetooth: false);
+        fixture.Page.Handle("hub:game", ScriptedGame);
+
+        // no characteristic: Wi-Fi only, whatever the page asks for
+        var defined = await fixture.Bridge.DefineAsync(Game with { CharacteristicUuid = null });
+        Assert.Null(defined.CharacteristicUuid);
+
+        var ble = await Assert.ThrowsAsync<BridgeException>(() => fixture.Bridge.StartAsync("game", new HubStartRequest(HubTransports.Ble)));
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, ble.StatusCode);
+
+        // Multipeer and Nearby are the app's to add; this one has neither
+        var missing = await Assert.ThrowsAsync<BridgeException>(() => fixture.Bridge.StartAsync("game", new HubStartRequest(HubTransports.Multipeer | HubTransports.Nearby)));
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, missing.StatusCode);
+
+        var started = await fixture.Bridge.StartAsync("game", new HubStartRequest());
+        Assert.Equal(HubTransports.Http, started.RunningTransports);
+
+        await using var client = await fixture.ConnectAsync("Alice");
+        Assert.Equal(new MoveResult(true, 8), await client.Hub.MakeMove(8));
+    }
+
+    [Fact]
+    public void Transports_map_to_the_pages_flags_by_type()
+    {
+        Assert.Equal(HubTransports.Http, HubTransportFlags.Of(typeof(HttpHostTransport)));
+        Assert.Equal(HubTransports.Http, HubTransportFlags.Of(typeof(HttpClientTransport)));
+        Assert.Equal(HubTransports.Ble, HubTransportFlags.Of(typeof(BleHostTransport)));
+        Assert.Equal(HubTransports.Ble, HubTransportFlags.Of(typeof(BleClientTransport)));
+        Assert.Equal(HubTransports.None, HubTransportFlags.Of(typeof(string)));
+        Assert.Equal(HubTransports.None, HubTransportFlags.Of((Type?)null));
+        Assert.Equal(HubTransports.Ble | HubTransports.Http, HubTransportFlags.Of([typeof(BleHostTransport), typeof(HttpHostTransport), typeof(string)]));
+
+        Assert.Equal(new[] { typeof(HttpHostTransport) }, HubTransportFlags.Select([typeof(BleHostTransport), typeof(HttpHostTransport), typeof(string)], HubTransports.Http | HubTransports.Multipeer));
+        Assert.Empty(HubTransportFlags.Select([typeof(string)], HubTransports.All));
+    }
+
+    [Fact]
     public async Task Without_Bluetooth_hosting_registered_hubs_run_over_wifi()
     {
         // Windows, macOS or Linux where the app registered no BLE hosting: All skips BLE rather than failing
@@ -288,7 +338,7 @@ public class HubsBridgeTests
 
         await fixture.Bridge.DefineAsync(Game);
         var started = await fixture.Bridge.StartAsync("game", new HubStartRequest());
-        Assert.Equal(Shiny.AppDeviceBridge.Hubs.Client.HubTransports.Http, started.RunningTransports);
+        Assert.Equal(HubTransports.Http, started.RunningTransports);
 
         await using var client = await fixture.ConnectAsync("Alice");
         Assert.Equal(new MoveResult(true, 7), await client.Hub.MakeMove(7));
@@ -309,14 +359,15 @@ public class HubsBridgeTests
         await using var __ = await fixture.Bridge.OnClientChangedAsync(c => { changes.Enqueue(c); return Task.CompletedTask; });
         await using var ___ = await fixture.Bridge.OnStreamItemAsync(i => { items.Enqueue(i); return Task.CompletedTask; });
 
-        var client = await fixture.Bridge.CreateClientAsync(new HubClientRequest(Characteristic, ServiceType));
+        var client = await fixture.Bridge.CreateClientAsync(new HubClientRequest("game", ServiceType, Characteristic));
         Assert.Equal(HubClientStatus.Disconnected, client.Status);
+        Assert.Equal("game", client.Hub);
         await AssertStatus(HttpStatusCode.Conflict, () => fixture.Bridge.InvokeAsync(client.Id, new HubInvokeRequest("MakeMove", [Int(1)])));
 
         // this device's own hub, by address: a host on the network the page was told about, or a tunnel's URL
-        var connected = await fixture.Bridge.ConnectAsync(client.Id, new HubConnectRequest(Url: fixture.Origin, Name: "Joiner", Allowed: Shiny.AppDeviceBridge.Hubs.Client.HubTransports.Http));
+        var connected = await fixture.Bridge.ConnectAsync(client.Id, new HubConnectRequest(Url: fixture.Origin, Name: "Joiner", Allowed: HubTransports.Http));
         Assert.Equal(HubClientStatus.Connected, connected.Status);
-        Assert.Equal(Shiny.AppDeviceBridge.Hubs.Client.HubTransports.Http, connected.Transport);
+        Assert.Equal(HubTransports.Http, connected.Transport);
         await WaitFor(() => changes.Any(x => x.Status == HubClientStatus.Connected));
         Assert.Contains(fixture.Page.Calls, x => x is { Kind: HubCallKind.Connected, Connection.Name: "Joiner" });
 
@@ -345,15 +396,19 @@ public class HubsBridgeTests
     public async Task Joining_checks_its_requests()
     {
         await using var fixture = await Fixture.StartAsync();
-        await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.CreateClientAsync(new HubClientRequest("nope", ServiceType)));
+        await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.CreateClientAsync(new HubClientRequest("")));
+        await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.CreateClientAsync(new HubClientRequest("has space", ServiceType)));
+        await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.CreateClientAsync(new HubClientRequest("game", ServiceType, "nope")));
+        await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.CreateClientAsync(new HubClientRequest("game", ServiceType, ServiceUuid: "180F")));
 
-        var client = await fixture.Bridge.CreateClientAsync(new HubClientRequest(Characteristic, ServiceType));
+        var client = await fixture.Bridge.CreateClientAsync(new HubClientRequest("game", ServiceType, Characteristic));
         await AssertStatus(HttpStatusCode.Conflict, () => fixture.Bridge.DiscoverAsync(client.Id, new HubDiscoverRequest()));   // nobody listening
         await AssertStatus(HttpStatusCode.NotFound, () => fixture.Bridge.ConnectAsync(client.Id, new HubConnectRequest(Host: "Nowhere")));
         await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.ConnectAsync(client.Id, new HubConnectRequest()));
+        await AssertStatus(HttpStatusCode.BadRequest, () => fixture.Bridge.ConnectAsync(client.Id, new HubConnectRequest(Url: fixture.Origin, Allowed: HubTransports.Multipeer)));
 
         // nothing hosts the hub: the host refuses, and the client says why
-        var refused = await Assert.ThrowsAsync<BridgeException>(() => fixture.Bridge.ConnectAsync(client.Id, new HubConnectRequest(Url: fixture.Origin, Allowed: Shiny.AppDeviceBridge.Hubs.Client.HubTransports.Http)));
+        var refused = await Assert.ThrowsAsync<BridgeException>(() => fixture.Bridge.ConnectAsync(client.Id, new HubConnectRequest(Url: fixture.Origin, Allowed: HubTransports.Http)));
         Assert.Equal("refused", refused.Code);
         await AssertStatus(HttpStatusCode.NotFound, () => fixture.Bridge.RemoveClientAsync("unknown"));
     }
@@ -370,7 +425,7 @@ public class HubsBridgeTests
         services.AddShinyHttpServer(http =>
         {
             http.Options.Port = 5781;
-            http.AddAppDeviceBridge(bridge => bridge.AddHubsBridge(server => server.AllowDynamicHubs(o => o.ServiceTypes.Add(ServiceType))));
+            http.AddAppDeviceBridge(bridge => bridge.AddHubsBridge(server => server.Http(o => o.DynamicServiceTypes.Add(ServiceType))));
         }, autoStart: false);
 
         using var provider = services.BuildServiceProvider();
@@ -379,7 +434,8 @@ public class HubsBridgeTests
         Assert.Equal(5781, options.Port);
         Assert.Equal(IPAddress.Loopback, options.Address);
         Assert.NotNull(provider.GetService<IDynamicHubs>());
-        Assert.False(provider.GetRequiredService<UniversalHubHostOptions>().ManageHttpServer);
+        Assert.False(provider.GetRequiredService<HttpTransportOptions>().ManageHttpServer);
+        Assert.NotNull(provider.GetService<IDynamicHubClients>());
     }
 
     /// <summary>The game a page might write with client.js — the native call payloads, answered by hand.</summary>
@@ -499,9 +555,12 @@ public class HubsBridgeTests
                         http.Services.AddSingleton(NoBluetooth.Create());
 
                     new AppDeviceBridgeBuilder(http).AddHubsBridge(server => server
-                        .Ble(o => o.LocalName = "Host")
-                        .Http(o => o.Advertise = false)
-                        .AllowDynamicHubs(o => o.ServiceTypes.Add(ServiceType)));
+                        .Configure(o => o.LocalName = "Host")
+                        .Http(o =>
+                        {
+                            o.Advertise = false;
+                            o.DynamicServiceTypes.Add(ServiceType);
+                        }));
                 }
             );
 
@@ -512,8 +571,8 @@ public class HubsBridgeTests
         public async Task DefineAndStartAsync(HubDefinition definition)
         {
             await this.Bridge.DefineAsync(definition);
-            var started = await this.Bridge.StartAsync(definition.Name, new HubStartRequest(Shiny.AppDeviceBridge.Hubs.Client.HubTransports.Http));
-            Assert.Equal(Shiny.AppDeviceBridge.Hubs.Client.HubTransports.Http, started.RunningTransports);
+            var started = await this.Bridge.StartAsync(definition.Name, new HubStartRequest(HubTransports.Http));
+            Assert.Equal(HubTransports.Http, started.RunningTransports);
         }
 
         /// <summary>A Universal Hubs client on another device, reaching the hub over Wi-Fi on the bridge server.</summary>
@@ -521,13 +580,13 @@ public class HubsBridgeTests
         {
             var services = new ServiceCollection()
                 .AddLogging()
-                .AddUniversalHubClient<IWebGameHub>(Characteristic, ServiceType, o => o.HttpConnectTimeout = TimeSpan.FromSeconds(5))
+                .AddUniversalHubClient<IWebGameHub>("game", o => o.UseHttp(ServiceType, h => h.ConnectTimeout = TimeSpan.FromSeconds(5)))
                 .BuildServiceProvider();
 
             var client = services.GetRequiredService<IUniversalHubClient<IWebGameHub>>();
             try
             {
-                await client.Connect(HubHostInfo.FromUrl(this.host.Origin!), new HubConnectOptions(name, "1.0") { Allowed = Shiny.UniversalHubs.HubTransports.Http });
+                await client.Connect(HttpHubHost.FromUrl(this.host.Origin!), new HubConnectOptions(name, "1.0").Only<HttpClientTransport>());
             }
             catch
             {
@@ -550,7 +609,7 @@ public class HubsBridgeTests
     {
         public IWebGameHub Hub => client.Hub;
 
-        public BleHubClientStatus Status => client.Status;
+        public NativeStatus Status => client.Status;
 
         public event EventHandler<HubDisconnect>? Disconnected
         {
@@ -562,7 +621,7 @@ public class HubsBridgeTests
         {
             try
             {
-                if (client.Status == BleHubClientStatus.Connected)
+                if (client.Status == NativeStatus.Connected)
                     await client.Disconnect();
             }
             catch

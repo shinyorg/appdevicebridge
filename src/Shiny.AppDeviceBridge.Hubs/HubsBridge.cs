@@ -8,7 +8,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Shiny.BluetoothLE.Hosting;
-using Shiny.BluetoothLE.Hubs;
 using Shiny.Net.HttpServer;
 using Shiny.UniversalHubs;
 using Contracts = Shiny.AppDeviceBridge.Hubs.Client;
@@ -18,13 +17,15 @@ namespace Shiny.AppDeviceBridge.Hubs;
 public static class HubsBridgeExtensions
 {
     /// <summary>
-    /// Adds <c>/_bridge/hubs</c>: Universal Hubs the web app defines, starts and answers. The app serves them over BLE,
-    /// Wi-Fi and Multipeer on the bridge's own server, and every call a client makes reaches the web app as the native call
-    /// <c>hub:{name}</c>, answered by the page while it is open. With no page, calls fail back to the client.
+    /// Adds <c>/_bridge/hubs</c>: Universal Hubs the web app defines, starts and answers. The app serves them over Wi-Fi
+    /// (on the bridge's own server), Bluetooth LE, and Multipeer or Nearby when it sets them up, and every call a client
+    /// makes reaches the web app as the native call <c>hub:{name}</c>, answered by the page while it is open. With no page,
+    /// calls fail back to the client.
     /// <code>
     /// bridge.AddHubsBridge(server => server
-    ///     .ServiceUuid("…")                                                    // optional - clients must use the same one
-    ///     .AllowDynamicHubs(o => o.ServiceTypes.Add("_myapp._tcp")));         // the mDNS types web app hubs may use
+    ///     .Configure(o => o.LocalName = "Kitchen")                            // what other devices list this one as
+    ///     .Http(o => o.DynamicServiceTypes.Add("_myapp._tcp"))                // the mDNS types web app hubs may use
+    ///     .BluetoothLE(o => o.DynamicServiceUuid = "…"));                     // optional - the GATT service web app hubs are in
     /// </code>
     /// <para>
     /// <paramref name="configure"/> is Universal Hubs' own <c>AddUniversalServer</c> builder: compiled hubs of the app's own
@@ -43,8 +44,9 @@ public static class HubsBridgeExtensions
     /// </summary>
     /// <param name="configure">The hubs this app serves: Universal Hubs' <c>AddUniversalServer</c> builder.</param>
     /// <param name="clients">
-    /// What the web app's clients of other devices' hubs share — the hosts' BLE <c>ServiceUuid</c>, timeouts, Multipeer
-    /// (<c>o.Multipeer("myapp-mc")</c>). Universal Hubs' <c>AddDynamicHubClients</c> options.
+    /// What the web app's clients of other devices' hubs share beside Wi-Fi and Bluetooth LE, which each client sets up
+    /// with its hub's own settings: Multipeer (<c>o.UseMultipeer("myapp-mc")</c>), Nearby, the serializer's protocol
+    /// limits. Universal Hubs' <c>AddDynamicHubClients</c> options.
     /// </param>
     public static TBuilder AddHubsBridge<TBuilder>(
         this TBuilder bridge,
@@ -59,6 +61,9 @@ public static class HubsBridgeExtensions
         {
             server.AllowDynamicHubs();
             server.Http(o => o.ManageHttpServer = false);
+
+            // a web app hub with a characteristic is served over BLE too
+            server.BluetoothLE(_ => { });
             configure?.Invoke(server);
         });
 
@@ -66,8 +71,18 @@ public static class HubsBridgeExtensions
         // register; without it, the hubs still run over Wi-Fi and Multipeer.
         bridge.Services.TryAddSingleton<IBleHostingManager, UnavailableBleHosting>();
 
-        // the web app joining other devices' hubs
-        bridge.Services.AddDynamicHubClients(clients);
+        // The web app joining other devices' hubs. Universal Hubs registers what a transport needs from the shared options,
+        // once; each client then sets up Wi-Fi and BLE with its own hub's settings. So the registration pass sets up both
+        // (the BLE characteristic is a placeholder no client keeps), and every client after it gets only the app's own.
+        var registering = true;
+        bridge.Services.AddDynamicHubClients(o =>
+        {
+            if (registering)
+                o.UseHttp().UseBluetoothLE(HubProtocolOptions.DefaultServiceUuid, HubProtocolOptions.DefaultServiceUuid);
+
+            clients?.Invoke(o);
+        });
+        registering = false;
 
         bridge.AddBridge<HubsBridge>();
         return bridge;
@@ -79,7 +94,7 @@ public static class HubsBridgeExtensions
 /// <see cref="WebAppInvoker"/>.
 /// <code>
 /// GET    /_bridge/hubs                                          every hub
-/// PUT    /_bridge/hubs                                          { "name": "game", "characteristicUuid": "…", "serviceType": "_myapp._tcp", "methods": [{ "name": "MakeMove" }] }
+/// PUT    /_bridge/hubs                                          { "name": "game", "serviceType": "_myapp._tcp", "characteristicUuid": "…", "methods": [{ "name": "MakeMove" }] }
 /// DELETE /_bridge/hubs/{name}?reason=…
 /// POST   /_bridge/hubs/{name}/start                             { "transports": "All" }
 /// POST   /_bridge/hubs/{name}/stop                              { "reason": "Game over" }
@@ -119,6 +134,8 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
     public bool IsSupported => this.services.GetOptionalService<IDynamicHubs>() is not null;
 
     IDynamicHubs Dynamic => this.services.GetRequiredService<IDynamicHubs>();
+
+    IUniversalHubHost Host => this.services.GetRequiredService<IUniversalHubHost>();
 
     WebAppInvoker Invoker => this.services.GetRequiredService<WebAppInvoker>();
 
@@ -164,9 +181,9 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
         }
 
         var definition = body!;
-        if (!this.IsAllowedServiceType(definition.ServiceType, out var allowed))
+        if (!this.IsAllowedServiceType(definition.ServiceType, out var serviceType, out var allowed))
         {
-            await WebAppBridgeResults.BadRequest(context, $"'{definition.ServiceType}' is not one of the app's hub service types ({String.Join(", ", allowed)}).");
+            await WebAppBridgeResults.BadRequest(context, $"'{serviceType}' is not one of the app's hub service types ({String.Join(", ", allowed)}).");
             return;
         }
 
@@ -190,14 +207,7 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
             var hub = new WebAppHubHandler(this, definition);
             try
             {
-                hub.Hub = this.Dynamic.Add(
-                    new DynamicHubDefinition(definition.Name, definition.CharacteristicUuid, definition.ServiceType)
-                    {
-                        MaxClients = definition.MaxClients,
-                        AllowTunnel = definition.AllowTunnel
-                    },
-                    hub
-                );
+                hub.Hub = this.Dynamic.Add(ToNative(definition), hub);
             }
             catch (ArgumentException ex)
             {
@@ -244,16 +254,30 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
             return;
 
         var body = await WebAppBridgeResults.ReadBodyAsync(context, Contracts.HubsJsonContext.Default.HubStartRequest);
-        var transports = ToNative(body?.Transports ?? Contracts.HubTransports.All);
-        if (transports == HubTransports.None)
+        var asked = body?.Transports ?? Contracts.HubTransports.All;
+        if ((asked & Contracts.HubTransports.All) == Contracts.HubTransports.None)
         {
             await WebAppBridgeResults.BadRequest(context, "Pick at least one transport.");
             return;
         }
 
+        // every transport the app set up, its own included, unless the page picked some
+        var transports = asked == Contracts.HubTransports.All
+            ? null
+            : HubTransportFlags.Select(this.Host.Transports.Select(x => x.GetType()), asked);
+
+        if (transports is { Count: 0 })
+        {
+            await WebAppBridgeResults.Error(context, StatusCodes.Status503ServiceUnavailable, "unavailable", $"None of {asked} is set up in this app.");
+            return;
+        }
+
         try
         {
-            await hub.Hub.Start(transports, context.RequestAborted);
+            if (transports is null)
+                await hub.Hub.Start(context.RequestAborted);
+            else
+                await hub.Hub.Start(transports, context.RequestAborted);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -405,7 +429,7 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
         }
 
         var body = await WebAppBridgeResults.ReadBodyAsync(context, Contracts.HubsJsonContext.Default.HubStreamEnd);
-        stream.Items.Writer.TryComplete(body?.Error is { } error ? new BleHubRemoteException(error.Type, error.Message) : null);
+        stream.Items.Writer.TryComplete(body?.Error is { } error ? new HubRemoteException(error.Type, error.Message) : null);
         await WebAppBridgeResults.NoContent(context);
     }
 
@@ -423,10 +447,10 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
         var result = await this.Invoker.InvokeAsync(HandlerName(call.Hub), call, Contracts.HubsJsonContext.Default.HubCall, cancellationToken);
 
         if (!result.Handled)
-            throw new BleHubRemoteException("HubUnavailable", $"The app is not running {call.Hub} right now.");
+            throw new HubRemoteException("HubUnavailable", $"The app is not running {call.Hub} right now.");
 
         if (!result.Succeeded)
-            throw new BleHubRemoteException("WebAppError", result.Error ?? "The web app failed the call.");
+            throw new HubRemoteException("WebAppError", result.Error ?? "The web app failed the call.");
 
         var reply = result.ResultJson is { } json
             ? JsonSerializer.Deserialize(json, Contracts.HubsJsonContext.Default.HubCallReply)
@@ -434,7 +458,7 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
 
         reply ??= new Contracts.HubCallReply();
         if (reply.Error is { } error)
-            throw new BleHubRemoteException(error.Type, error.Message);
+            throw new HubRemoteException(error.Type, error.Message);
 
         return reply;
     }
@@ -473,29 +497,38 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
         return null;
     }
 
-    bool IsAllowedServiceType(string serviceType, out IReadOnlyList<string> allowed)
+    /// <summary>The mDNS type a hub is advertised under over Wi-Fi - its own, else the app's default - and whether the app allows it.</summary>
+    bool IsAllowedServiceType(string? requested, out string serviceType, out IReadOnlyList<string> allowed)
     {
-        var options = this.services.GetRequiredService<DynamicHubOptions>();
-        allowed = options.ServiceTypes.Count > 0
-            ? options.ServiceTypes.ToList()
-            : [this.services.GetRequiredService<UniversalHubHostOptions>().ServiceType];
+        var options = this.services.GetRequiredService<HttpTransportOptions>();
+        serviceType = requested ?? options.ServiceType;
+        allowed = options.DynamicServiceTypes.Count > 0 ? options.DynamicServiceTypes.ToList() : [options.ServiceType];
 
         return allowed.Contains(serviceType, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The page's hub, as Universal Hubs takes it: Wi-Fi always, BLE when it has a characteristic. Throws <see cref="ArgumentException"/> for a bad UUID.</summary>
+    static DynamicHubDefinition ToNative(Contracts.HubDefinition definition)
+    {
+        var native = new DynamicHubDefinition(definition.Name) { MaxClients = definition.MaxClients }
+            .UseHttp(definition.ServiceType, definition.AllowTunnel);
+
+        if (definition.CharacteristicUuid is { } characteristic)
+            native.UseBluetoothLE(characteristic, definition.ServiceUuid);
+
+        return native;
     }
 
     static string? Validate(Contracts.HubDefinition? definition)
     {
         if (definition is null)
-            return "Expected { \"name\": \"…\", \"characteristicUuid\": \"…\", \"serviceType\": \"_name._tcp\", \"methods\": [ … ] }.";
+            return "Expected { \"name\": \"…\", \"methods\": [ … ] }.";
 
         if (!IsValidName(definition.Name))
-            return $"A hub name is 1-{MaxNameLength} letters, digits, '-', '_' and '.'.";
+            return $"A hub name is 1-{MaxNameLength} letters, digits, '-', '_' and '.', starting with a letter or digit.";
 
-        if (!Guid.TryParse(definition.CharacteristicUuid, out _))
-            return "characteristicUuid must be a 128-bit UUID.";
-
-        if (String.IsNullOrWhiteSpace(definition.ServiceType))
-            return "serviceType is required, such as _myapp._tcp.";
+        if (definition.ServiceUuid is not null && definition.CharacteristicUuid is null)
+            return "serviceUuid needs a characteristicUuid: it is the GATT service the hub's characteristic is in.";
 
         if (definition.Methods is null || definition.Methods.Any(x => String.IsNullOrWhiteSpace(x?.Name)))
             return "methods must name every method clients may call.";
@@ -511,6 +544,7 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
 
     static bool IsValidName(string? name)
         => name is { Length: > 0 and <= MaxNameLength }
+           && Char.IsAsciiLetterOrDigit(name[0])
            && name != StreamsSegment
            && name != "clients"
            && name != "client.js"
@@ -522,16 +556,12 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
 
     internal static Contracts.HubConnectionInfo ToContract(HubConnection connection) => new(
         connection.Id,
-        ToContract(connection.Transport),
+        HubTransportFlags.Of(connection.Transport?.GetType()),
         connection.Client.Name,
         connection.Client.AppVersion,
         connection.Client.Properties,
         connection.Client.ConnectedAt
     );
-
-    internal static Contracts.HubTransports ToContract(HubTransports transports) => (Contracts.HubTransports)(int)(transports & HubTransports.All);
-
-    static HubTransports ToNative(Contracts.HubTransports transports) => (HubTransports)(int)(transports & Contracts.HubTransports.All);
 
     internal static Contracts.HubDisconnectReason ToContract(HubDisconnectReason reason) => reason switch
     {
@@ -556,12 +586,12 @@ public sealed partial class HubsBridge : IWebAppBridge, IAsyncDisposable
     }
 
     const string ClientScript = """
-        // Shiny.AppDeviceBridge: serve a Universal Hub from the page. The app hosts it over BLE, Wi-Fi and Multipeer;
-        // every call reaches the handlers here.
+        // Shiny.AppDeviceBridge: serve a Universal Hub from the page. The app hosts it over Wi-Fi, BLE (with a
+        // characteristicUuid) and Multipeer or Nearby when it has them; every call reaches the handlers here.
         //
         //   import { hostHub } from "{bridge}/hubs/client.js";
         //   const game = await hostHub(
-        //       { name: "game", characteristicUuid: "…", serviceType: "_myapp._tcp" },
+        //       { name: "game", serviceType: "_myapp._tcp", characteristicUuid: "…" },
         //       {
         //           async MakeMove(cell) { …; return { accepted: true }; },     // an invoke: its result goes back
         //           async *Watch() { yield state; },                              // an async generator is a stream
@@ -717,19 +747,21 @@ sealed class WebAppHubHandler(HubsBridge bridge, Contracts.HubDefinition definit
     public IDynamicHub Hub { get; set; } = null!;
 
     public bool HasSameIdentity(Contracts.HubDefinition other)
-        => String.Equals(this.Definition.CharacteristicUuid, other.CharacteristicUuid, StringComparison.OrdinalIgnoreCase)
-           && String.Equals(this.Definition.ServiceType, other.ServiceType, StringComparison.OrdinalIgnoreCase)
+        => String.Equals(this.Definition.ServiceType, other.ServiceType, StringComparison.OrdinalIgnoreCase)
+           && String.Equals(this.Definition.CharacteristicUuid, other.CharacteristicUuid, StringComparison.OrdinalIgnoreCase)
+           && String.Equals(this.Definition.ServiceUuid, other.ServiceUuid, StringComparison.OrdinalIgnoreCase)
            && this.Definition.MaxClients == other.MaxClients
            && this.Definition.AllowTunnel == other.AllowTunnel;
 
     public Contracts.HubInfo ToInfo() => new(
         this.Definition.Name,
-        this.Definition.CharacteristicUuid,
-        this.Definition.ServiceType,
         this.Definition.Methods,
+        this.Definition.ServiceType,
+        this.Definition.CharacteristicUuid,
+        this.Definition.ServiceUuid,
         this.Definition.MaxClients,
         this.Definition.AllowTunnel,
-        HubsBridge.ToContract(this.Hub.RunningTransports),
+        HubTransportFlags.Of(this.Hub.RunningTransports.Select(x => x.GetType())),
         this.Hub.Connections.Count
     );
 
@@ -783,7 +815,7 @@ sealed class WebAppHubHandler(HubsBridge bridge, Contracts.HubDefinition definit
         {
             await bridge.CallAsync(this.Call(Contracts.HubCallKind.Connected, connection), CancellationToken.None);
         }
-        catch (BleHubRemoteException ex)
+        catch (HubRemoteException ex)
         {
             // the refusal the client reads is the message alone
             throw new InvalidOperationException(ex.Message, ex);
@@ -816,7 +848,7 @@ sealed class WebAppHubHandler(HubsBridge bridge, Contracts.HubDefinition definit
         {
             await bridge.CallAsync(this.Call(Contracts.HubCallKind.Renamed, connection) with { PreviousName = previousName }, CancellationToken.None);
         }
-        catch (BleHubRemoteException ex)
+        catch (HubRemoteException ex)
         {
             throw new InvalidOperationException(ex.Message, ex);
         }
@@ -843,11 +875,34 @@ sealed class WebAppHubHandler(HubsBridge bridge, Contracts.HubDefinition definit
             }
             catch (JsonException ex)
             {
-                throw new BleHubRemoteException("HubArgumentError", $"Argument {i + 1} is not JSON ({ex.Message}); web app hubs need the JSON serializer.");
+                throw new HubRemoteException("HubArgumentError", $"Argument {i + 1} is not JSON ({ex.Message}); web app hubs need the JSON serializer.");
             }
         }
         return list;
     }
+}
+
+/// <summary>
+/// The page's transport flags for Universal Hubs' transport types, host and client alike. By type name, so the bridge needs
+/// no reference to the app's Multipeer or Nearby package; a transport of the app's own has no flag.
+/// </summary>
+static class HubTransportFlags
+{
+    public static Contracts.HubTransports Of(Type? transport) => transport?.Name switch
+    {
+        nameof(BleHostTransport) or nameof(BleClientTransport) => Contracts.HubTransports.Ble,
+        nameof(HttpHostTransport) or nameof(HttpClientTransport) => Contracts.HubTransports.Http,
+        "MultipeerHostTransport" or "MultipeerClientTransport" => Contracts.HubTransports.Multipeer,
+        "NearbyHostTransport" or "NearbyClientTransport" => Contracts.HubTransports.Nearby,
+        _ => Contracts.HubTransports.None
+    };
+
+    public static Contracts.HubTransports Of(IEnumerable<Type> transports)
+        => transports.Aggregate(Contracts.HubTransports.None, (flags, transport) => flags | Of(transport));
+
+    /// <summary>The transports among <paramref name="available"/> that <paramref name="flags"/> names.</summary>
+    public static IReadOnlyList<Type> Select(IEnumerable<Type> available, Contracts.HubTransports flags)
+        => available.Where(x => Of(x) != Contracts.HubTransports.None && flags.HasFlag(Of(x))).ToList();
 }
 
 /// <summary>A streaming call in flight: the web app posts its items here.</summary>

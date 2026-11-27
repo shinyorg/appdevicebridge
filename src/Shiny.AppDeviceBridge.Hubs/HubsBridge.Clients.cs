@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using Shiny.BluetoothLE.Hubs;
 using Shiny.Net.HttpServer;
 using Shiny.UniversalHubs;
 using Contracts = Shiny.AppDeviceBridge.Hubs.Client;
@@ -10,9 +9,9 @@ namespace Shiny.AppDeviceBridge.Hubs;
 
 /// <summary>
 /// The other half: the web app joining hubs on other devices, through Universal Hubs' dynamic hub clients — any hub, by
-/// characteristic, with methods and events by name.
+/// name, with methods and events by name.
 /// <code>
-/// GET    /_bridge/hubs/clients                            POST /_bridge/hubs/clients { "characteristicUuid": "…", "serviceType": "_myapp._tcp" }
+/// GET    /_bridge/hubs/clients                            POST /_bridge/hubs/clients { "hub": "game", "serviceType": "_myapp._tcp", "characteristicUuid": "…" }
 /// DELETE /_bridge/hubs/clients/{id}
 /// POST   /_bridge/hubs/clients/{id}/discover              { "transports": "Ble, Http" }   hosts as hubs.client.host
 /// DELETE /_bridge/hubs/clients/{id}/discover
@@ -65,9 +64,15 @@ public sealed partial class HubsBridge
         }
 
         var body = await WebAppBridgeResults.ReadBodyAsync(context, Contracts.HubsJsonContext.Default.HubClientRequest);
-        if (body is not { CharacteristicUuid.Length: > 0, ServiceType.Length: > 0 } || !Guid.TryParse(body.CharacteristicUuid, out _))
+        if (body is not { Hub.Length: > 0 })
         {
-            await WebAppBridgeResults.BadRequest(context, "Expected { \"characteristicUuid\": \"<uuid>\", \"serviceType\": \"_name._tcp\" }.");
+            await WebAppBridgeResults.BadRequest(context, "Expected { \"hub\": \"<name>\" }, with the hub's serviceType and characteristicUuid when it has them.");
+            return;
+        }
+
+        if (body.ServiceUuid is not null && body.CharacteristicUuid is null)
+        {
+            await WebAppBridgeResults.BadRequest(context, "serviceUuid needs a characteristicUuid: it is the GATT service the hub's characteristic is in.");
             return;
         }
 
@@ -80,7 +85,13 @@ public sealed partial class HubsBridge
         IUniversalHubClient<IDynamicHubCalls> native;
         try
         {
-            native = factory.Create(body.CharacteristicUuid, body.ServiceType);
+            // Wi-Fi always, BLE when the hub is on it - each with the hub's settings, beside whatever the app shares
+            native = factory.Create(body.Hub, o =>
+            {
+                o.UseHttp(body.ServiceType);
+                if (body.CharacteristicUuid is { } characteristic)
+                    o.UseBluetoothLE(body.ServiceUuid ?? HubProtocolOptions.DefaultServiceUuid, characteristic);
+            });
         }
         catch (ArgumentException ex)
         {
@@ -117,10 +128,10 @@ public sealed partial class HubsBridge
         }
 
         var body = await WebAppBridgeResults.ReadBodyAsync(context, Contracts.HubsJsonContext.Default.HubDiscoverRequest);
-        var transports = ToNative(body?.Transports ?? Contracts.HubTransports.All);
-        if (transports == HubTransports.None)
+        var transports = client.Select(body?.Transports ?? Contracts.HubTransports.All);
+        if (transports.Count == 0)
         {
-            await WebAppBridgeResults.BadRequest(context, "Pick at least one transport.");
+            await WebAppBridgeResults.BadRequest(context, "Pick at least one transport this client has.");
             return;
         }
 
@@ -155,7 +166,7 @@ public sealed partial class HubsBridge
         }
         else if (body?.Url is { Length: > 0 } url && Uri.TryCreate(url, UriKind.Absolute, out var address) && address.Scheme is "http" or "https")
         {
-            host = HubHostInfo.FromUrl(address);
+            host = HttpHubHost.FromUrl(address);
         }
 
         if (host is null)
@@ -164,24 +175,20 @@ public sealed partial class HubsBridge
             return;
         }
 
-        var allowed = ToNative(body!.Allowed);
-        if (allowed == HubTransports.None)
+        var allowed = client.Select(body!.Allowed);
+        if (allowed.Count == 0)
         {
-            await WebAppBridgeResults.BadRequest(context, "Allow at least one transport.");
+            await WebAppBridgeResults.BadRequest(context, "Allow at least one transport this client has.");
             return;
         }
 
         try
         {
-            await client.Native.Connect(
-                host,
-                new HubConnectOptions(body.Name, null, body.Properties is null ? null : new Dictionary<string, string>(body.Properties))
-                {
-                    Prefer = ToNative(body.Prefer),
-                    Allowed = allowed
-                },
-                context.RequestAborted
-            );
+            var options = new HubConnectOptions(body.Name, null, body.Properties is null ? null : new Dictionary<string, string>(body.Properties))
+                .Prefer(client.Select(body.Prefer))
+                .Allow(allowed);
+
+            await client.Native.Connect(host, options, context.RequestAborted);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -216,11 +223,11 @@ public sealed partial class HubsBridge
             var value = await client.Native.Hub.Invoke(call.Method, Serialize(call.Arguments), context.RequestAborted);
             result = new Contracts.HubInvokeResult(value.IsEmpty ? null : Parse(value));
         }
-        catch (BleHubRemoteException ex)
+        catch (HubRemoteException ex)
         {
             result = new Contracts.HubInvokeResult(Error: new Contracts.HubError(ex.RemoteErrorType, ex.Message));
         }
-        catch (BleHubException ex)
+        catch (HubException ex)
         {
             await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "not_connected", ex.Message);
             return;
@@ -287,7 +294,7 @@ public sealed partial class HubsBridge
         if (await this.FindClientAsync(context) is not { } client)
             return null;
 
-        if (client.Native.Status == BleHubClientStatus.Connected)
+        if (client.Native.Status == HubClientStatus.Connected)
             return client;
 
         await WebAppBridgeResults.Error(context, StatusCodes.Status409Conflict, "not_connected", "Connect the client first.");
@@ -319,15 +326,16 @@ public sealed partial class HubsBridge
         }
         catch (JsonException ex)
         {
-            throw new BleHubRemoteException("HubValueError", $"The host sent a value that is not JSON ({ex.Message}); the web app can only read JSON.");
+            throw new HubRemoteException("HubValueError", $"The host sent a value that is not JSON ({ex.Message}); the web app can only read JSON.");
         }
     }
 
-    internal static Contracts.HubClientStatus ToContract(BleHubClientStatus status) => status switch
+    internal static Contracts.HubClientStatus ToContract(HubClientStatus status) => status switch
     {
-        BleHubClientStatus.Connecting => Contracts.HubClientStatus.Connecting,
-        BleHubClientStatus.Connected => Contracts.HubClientStatus.Connected,
-        BleHubClientStatus.Disconnecting => Contracts.HubClientStatus.Disconnecting,
+        HubClientStatus.Connecting => Contracts.HubClientStatus.Connecting,
+        HubClientStatus.Connected => Contracts.HubClientStatus.Connected,
+        HubClientStatus.Disconnecting => Contracts.HubClientStatus.Disconnecting,
+        HubClientStatus.Reconnecting => Contracts.HubClientStatus.Reconnecting,
         _ => Contracts.HubClientStatus.Disconnected
     };
 }
@@ -351,7 +359,7 @@ sealed class WebAppHubClient : IAsyncDisposable
         native.StatusChanged += (_, e) => bridge.Publish(new Contracts.HubClientChanged(
             id,
             HubsBridge.ToContract(e.Status),
-            HubsBridge.ToContract(native.Transport),
+            HubTransportFlags.Of(native.Transport?.GetType()),
             e.Disconnect is { } d ? HubsBridge.ToContract(d.Reason) : null,
             e.Disconnect?.Message
         ));
@@ -361,7 +369,7 @@ sealed class WebAppHubClient : IAsyncDisposable
             {
                 bridge.Publish(new Contracts.HubClientPush(id, name, args.Select(HubsBridge.Parse).ToList()));
             }
-            catch (BleHubRemoteException ex)
+            catch (HubRemoteException ex)
             {
                 bridge.Logger.LogWarning(ex, "Dropped {Event} from a hub: not JSON", name);
             }
@@ -376,16 +384,22 @@ sealed class WebAppHubClient : IAsyncDisposable
 
     public Contracts.HubClientInfo ToInfo() => new(
         this.Id,
-        this.Request.CharacteristicUuid,
+        this.Request.Hub,
         this.Request.ServiceType,
+        this.Request.CharacteristicUuid,
+        this.Request.ServiceUuid,
         HubsBridge.ToContract(this.Native.Status),
-        HubsBridge.ToContract(this.Native.Transport),
+        HubTransportFlags.Of(this.Native.Transport?.GetType()),
         this.Native.HostName
     );
 
     public HubHostInfo? FindHost(string name) => this.hosts.TryGetValue(name, out var host) ? host : null;
 
-    public void Discover(HubTransports transports)
+    /// <summary>This client's transports that <paramref name="flags"/> names.</summary>
+    public IReadOnlyList<Type> Select(Contracts.HubTransports flags)
+        => HubTransportFlags.Select(this.Native.Transports.Where(x => x.IsSupported).Select(x => x.GetType()), flags);
+
+    public void Discover(IReadOnlyList<Type> transports)
     {
         lock (this.gate)
         {
@@ -393,12 +407,18 @@ sealed class WebAppHubClient : IAsyncDisposable
             this.discovery = this.Native.DiscoverAll(transports).Subscribe(
                 host =>
                 {
-                    if (host.Transports == HubTransports.None)
+                    if (host.Transports.Count == 0)
                         this.hosts.TryRemove(host.Name, out _);
                     else
                         this.hosts[host.Name] = host;
 
-                    this.bridge.Publish(new Contracts.HubHostSeen(this.Id, host.Name, host.HostId, HubsBridge.ToContract(host.Transports), host.Rssi));
+                    this.bridge.Publish(new Contracts.HubHostSeen(
+                        this.Id,
+                        host.Name,
+                        host.HostId,
+                        HubTransportFlags.Of(host.Transports),
+                        host.Endpoint<BleHubEndpoint>()?.Rssi
+                    ));
                 },
                 ex => this.bridge.Logger.LogWarning(ex, "Hub discovery for client {Client} stopped", this.Id)
             );
@@ -443,7 +463,7 @@ sealed class WebAppHubClient : IAsyncDisposable
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
         }
-        catch (BleHubRemoteException ex)
+        catch (HubRemoteException ex)
         {
             error = new Contracts.HubError(ex.RemoteErrorType, ex.Message);
         }
@@ -465,7 +485,7 @@ sealed class WebAppHubClient : IAsyncDisposable
         foreach (var id in this.streams.Keys.ToList())
             this.StopStream(id);
 
-        if (this.Native.Status is BleHubClientStatus.Connected or BleHubClientStatus.Connecting)
+        if (this.Native.Status is HubClientStatus.Connected or HubClientStatus.Connecting or HubClientStatus.Reconnecting)
         {
             try
             {
